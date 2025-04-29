@@ -460,8 +460,12 @@ function checkCommitTrigger() {
 /**
  * Führt den automatischen Commit-Prozess durch
  * @param {boolean} isManualTrigger Gibt an, ob der Commit manuell ausgelöst wurde
+ * @param {number} retryCount Anzahl der bisherigen Versuche (für Retry-Logik)
  */
-async function performAutoCommit(isManualTrigger = false) {
+async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
+    // Maximale Anzahl an Wiederholungsversuchen
+    const MAX_RETRIES = 3;
+    
     try {
         isCommitInProgress = true;
         statusBarItem.text = "$(sync~spin) Comitto: Commit wird vorbereitet...";
@@ -485,10 +489,25 @@ async function performAutoCommit(isManualTrigger = false) {
             }
             
             // Dateien zum Staging hinzufügen
-            await stageChanges(gitSettings.stageMode);
+            try {
+                await stageChanges(gitSettings.stageMode);
+            } catch (stageError) {
+                console.error('Fehler beim Stagen der Änderungen:', stageError);
+                showNotification(`Fehler beim Stagen: ${stageError.message}. Versuche Fallback-Methode...`, 'warning');
+                
+                // Fallback: Alle Änderungen stagen
+                await executeGitCommand('git add .', repoPath);
+            }
             
             // git status ausführen, um Änderungen zu erhalten
-            const gitStatus = await executeGitCommand('git status --porcelain', repoPath);
+            let gitStatus = '';
+            try {
+                gitStatus = await executeGitCommand('git status --porcelain', repoPath);
+            } catch (statusError) {
+                // Wenn git status fehlschlägt, versuchen wir es trotzdem weiter
+                console.warn('Fehler bei git status, versuche trotzdem fortzufahren:', statusError);
+                gitStatus = "Fehler beim Abrufen des Status. Commit wird trotzdem versucht.";
+            }
             
             if (!gitStatus.trim() && !isManualTrigger) {
                 isCommitInProgress = false;
@@ -499,103 +518,157 @@ async function performAutoCommit(isManualTrigger = false) {
                 throw new Error('Keine Änderungen zum Committen gefunden.');
             }
 
-            // Änderungen abrufen
+            // Änderungen abrufen für KI-Commit-Nachricht
             let diffOutput = '';
             try {
                 statusBarItem.text = "$(sync~spin) Comitto: Diff wird berechnet...";
                 diffOutput = await executeGitCommand('git diff --cached', repoPath);
-            } catch (error) {
-                // Bei Pufferüberlauf trotzdem weitermachen, aber mit eingeschränktem Diff
-                if (error.message.includes('zu groß') || 
-                    error.message.includes('maxBuffer') || 
-                    error.message.includes('ERR_CHILD_PROCESS_STDOUT_MAXBUFFER')) {
-                    
-                    console.warn('Diff zu groß, verwende alternative Strategie');
-                    diffOutput = 'Der Diff ist zu groß für die direkte Verarbeitung.\n';
-                    
-                    // Dateiliste anstelle des vollständigen Diffs verwenden
-                    try {
-                        const fileList = await executeGitCommand('git diff --cached --name-status', repoPath);
-                        diffOutput += 'Geänderte Dateien:\n' + fileList;
-                    } catch (innerError) {
-                        console.error('Auch die Dateiliste konnte nicht abgerufen werden:', innerError);
-                        diffOutput += 'Diff-Inhalt konnte nicht abgerufen werden. Zu viele oder zu große Änderungen.';
-                    }
-                } else {
-                    // Bei anderen Fehlern den Fehler weiterreichen
-                    throw error;
+            } catch (diffError) {
+                // Bei Pufferüberlauf oder anderen Diff-Fehlern trotzdem weitermachen
+                console.warn('Fehler beim Abrufen des Diffs, versuche alternative Methode:', diffError);
+                
+                try {
+                    // Nur Liste der geänderten Dateien abrufen
+                    const fileList = await executeGitCommand('git diff --cached --name-status', repoPath);
+                    diffOutput = 'Diff konnte nicht vollständig abgerufen werden.\nGeänderte Dateien:\n' + fileList;
+                } catch (fileListError) {
+                    console.error('Auch die Dateiliste konnte nicht abgerufen werden:', fileListError);
+                    diffOutput = 'Diff-Inhalt konnte nicht abgerufen werden. Commit wird trotzdem versucht.';
                 }
             }
             
+            // Commit-Nachricht generieren
             statusBarItem.text = "$(sync~spin) Comitto: Generiere Commit-Nachricht...";
+            let commitMessage = '';
             
-            // Commit-Nachricht mit ausgewähltem KI-Modell generieren
-            const commitMessage = await generateCommitMessage(gitStatus, diffOutput);
+            try {
+                commitMessage = await commands.generateCommitMessage(gitStatus, diffOutput);
+            } catch (messageError) {
+                console.error('Fehler bei der Commit-Nachricht-Generierung:', messageError);
+                
+                // Fallback-Nachricht mit Datum
+                const now = new Date();
+                const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                
+                const gitSettings = config.get('gitSettings');
+                const language = gitSettings.commitMessageLanguage || 'en';
+                const style = gitSettings.commitMessageStyle || 'conventional';
+                
+                if (language === 'de') {
+                    commitMessage = style === 'conventional' ? 
+                        `chore: Automatischer Commit vom ${dateStr} ${timeStr}` : 
+                        `💾 Automatischer Commit vom ${dateStr} ${timeStr}`;
+                } else {
+                    commitMessage = style === 'conventional' ? 
+                        `chore: automatic commit ${dateStr} ${timeStr}` : 
+                        `💾 Automatic commit ${dateStr} ${timeStr}`;
+                }
+            }
             
             if (!commitMessage || commitMessage.trim().length === 0) {
-                throw new Error('Keine gültige Commit-Nachricht generiert. Bitte versuchen Sie es erneut.');
+                commitMessage = "chore: auto commit";
             }
             
-            // Verzweigen, falls ein bestimmter Branch konfiguriert ist
-            if (gitSettings.branch) {
-                try {
+            // Branch-Handling
+            try {
+                if (gitSettings.branch) {
                     statusBarItem.text = "$(sync~spin) Comitto: Prüfe Branch...";
-                    // Prüfen, ob der Branch existiert
-                    const branches = await executeGitCommand('git branch', repoPath);
-                    if (!branches.includes(gitSettings.branch)) {
-                        await executeGitCommand(`git checkout -b ${gitSettings.branch}`, repoPath);
-                        showNotification(`Branch '${gitSettings.branch}' erstellt und ausgecheckt.`, 'info');
-                    } else {
-                        await executeGitCommand(`git checkout ${gitSettings.branch}`, repoPath);
+                    
+                    // Aktuelle Branch bestimmen
+                    const currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
+                    
+                    // Nur wechseln, wenn nicht bereits auf dem Ziel-Branch
+                    if (currentBranch !== gitSettings.branch) {
+                        // Prüfen, ob der Branch existiert
+                        const branches = await executeGitCommand('git branch', repoPath);
+                        const branchExists = branches.includes(gitSettings.branch);
+                        
+                        if (branchExists) {
+                            // Zu existierendem Branch wechseln
+                            try {
+                                await executeGitCommand(`git checkout ${gitSettings.branch}`, repoPath);
+                                showNotification(`Zu Branch '${gitSettings.branch}' gewechselt.`, 'info');
+                            } catch (checkoutError) {
+                                // Fehler beim Checkout - möglicherweise ungespeicherte Änderungen
+                                showNotification(`Fehler beim Wechseln zu Branch '${gitSettings.branch}': ${checkoutError.message}. Fortfahren mit aktuellem Branch.`, 'warning');
+                            }
+                        } else {
+                            // Neuen Branch erstellen und wechseln
+                            try {
+                                await executeGitCommand(`git checkout -b ${gitSettings.branch}`, repoPath);
+                                showNotification(`Branch '${gitSettings.branch}' erstellt und ausgecheckt.`, 'info');
+                            } catch (createBranchError) {
+                                showNotification(`Fehler beim Erstellen des Branches '${gitSettings.branch}': ${createBranchError.message}. Fortfahren mit aktuellem Branch.`, 'warning');
+                            }
+                        }
                     }
-                } catch (error) {
-                    console.error('Fehler beim Branch-Wechsel:', error);
-                    showNotification(`Fehler beim Branch-Wechsel: ${error.message}. Fortfahren mit aktuellem Branch.`, 'warning');
-                    // Fortfahren mit dem aktuellen Branch
                 }
+            } catch (branchError) {
+                console.error('Fehler beim Branch-Handling:', branchError);
+                showNotification(`Fehler bei der Branch-Verwaltung: ${branchError.message}. Fortfahren mit aktuellem Branch.`, 'warning');
             }
             
+            // Git Commit durchführen
             statusBarItem.text = "$(sync~spin) Comitto: Führe Commit aus...";
             
-            // git commit ausführen
-            await executeGitCommand(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`, repoPath);
-            
-            // Benachrichtigungen anzeigen basierend auf den Einstellungen
-            const notificationSettings = vscode.workspace.getConfiguration('comitto').get('notifications');
-            
-            if (!isManualTrigger && notificationSettings.onCommit) {
-                showNotification(`Automatischer Commit durchgeführt: ${commitMessage}`, 'info');
-            } else if (isManualTrigger) {
-                showNotification(`Manueller Commit durchgeführt: ${commitMessage}`, 'info');
+            try {
+                // Escapte Anführungszeichen für Shell
+                const escapedMessage = commitMessage.replace(/"/g, '\\"').replace(/`/g, "'");
+                await executeGitCommand(`git commit -m "${escapedMessage}"`, repoPath);
+                
+                // Benachrichtigungen anzeigen basierend auf den Einstellungen
+                const notificationSettings = config.get('notifications');
+                
+                if (!isManualTrigger && notificationSettings.onCommit) {
+                    showNotification(`Automatischer Commit durchgeführt: ${commitMessage}`, 'info');
+                } else if (isManualTrigger) {
+                    showNotification(`Manueller Commit durchgeführt: ${commitMessage}`, 'info');
+                }
+                
+                // Reset der Änderungsverfolgung
+                lastCommitTime = new Date();
+                changedFiles.clear();
+            } catch (commitError) {
+                console.error('Commit fehlgeschlagen:', commitError);
+                
+                // Wenn nichts zum Committen da ist, ist das kein echter Fehler
+                if (commitError.message.includes('nothing to commit')) {
+                    showNotification('Keine Änderungen zum Committen gefunden.', 'info');
+                    isCommitInProgress = false;
+                    statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+                    changedFiles.clear();
+                    return;
+                }
+                
+                // Bei anderen Fehlern versuchen, es noch einmal
+                if (retryCount < MAX_RETRIES) {
+                    showNotification(`Commit fehlgeschlagen: ${commitError.message}. Versuche es erneut...`, 'warning');
+                    setTimeout(() => {
+                        performAutoCommit(isManualTrigger, retryCount + 1);
+                    }, 2000); // 2 Sekunden Verzögerung vor dem Retry
+                    return;
+                } else {
+                    throw new Error(`Commit fehlgeschlagen nach ${MAX_RETRIES} Versuchen: ${commitError.message}`);
+                }
             }
             
             // Automatischen Push ausführen, wenn konfiguriert
             if (gitSettings.autoPush) {
                 try {
-                    statusBarItem.text = "$(sync~spin) Comitto: Pushe Änderungen...";
-                    const currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
-                    await executeGitCommand(`git push origin ${currentBranch}`, repoPath);
-                    
-                    if (notificationSettings.onPush) {
-                        showNotification(`Änderungen wurden zu origin/${currentBranch} gepusht.`, 'info');
-                    }
-                } catch (error) {
-                    console.error('Push fehlgeschlagen:', error);
-                    if (notificationSettings.onError) {
-                        showNotification(`Push fehlgeschlagen: ${error.message}`, 'error');
-                    }
+                    await performAutoPush(repoPath);
+                } catch (pushError) {
+                    console.error('Push fehlgeschlagen:', pushError);
+                    showNotification(`Push fehlgeschlagen: ${pushError.message}`, 'error');
                 }
             }
             
-            // Statusleiste aktualisieren und Änderungen zurücksetzen
-            lastCommitTime = new Date();
+            // Statusleiste aktualisieren
             statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
-            changedFiles.clear();
         } catch (error) {
             console.error('Git-Befehl fehlgeschlagen:', error);
-            const notificationSettings = vscode.workspace.getConfiguration('comitto').get('notifications');
             
-            // Benutzerfreundlichere Fehlermeldung
+            // Fehlerbehandlung verbessern
             let errorMessage = error.message;
             if (errorMessage.includes('fatal: not a git repository')) {
                 errorMessage = 'Dieses Verzeichnis ist kein Git-Repository. Bitte initialisieren Sie zuerst ein Git-Repository.';
@@ -605,6 +678,8 @@ async function performAutoCommit(isManualTrigger = false) {
                 errorMessage = 'Zu viele oder zu große Änderungen für die automatische Verarbeitung. Bitte führen Sie einen manuellen Commit durch oder reduzieren Sie die Anzahl der Änderungen.';
             }
             
+            // Benachrichtigung anzeigen
+            const notificationSettings = config.get('notifications');
             if (notificationSettings.onError) {
                 showNotification(`Git-Befehl fehlgeschlagen: ${errorMessage}`, 'error');
             }
@@ -614,13 +689,100 @@ async function performAutoCommit(isManualTrigger = false) {
         }
     } catch (error) {
         console.error('Comitto Fehler:', error);
+        
+        // Benachrichtigung anzeigen
         const notificationSettings = vscode.workspace.getConfiguration('comitto').get('notifications');
         if (notificationSettings.onError) {
             showNotification(`Comitto Fehler: ${error.message}`, 'error');
         }
+        
         statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
     } finally {
         isCommitInProgress = false;
+    }
+}
+
+/**
+ * Führt einen automatischen Push durch
+ * @param {string} repoPath Der Pfad zum Git-Repository
+ */
+async function performAutoPush(repoPath) {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const notificationSettings = config.get('notifications');
+    const MAX_PUSH_RETRIES = 2;
+    
+    statusBarItem.text = "$(sync~spin) Comitto: Pushe Änderungen...";
+    
+    // Aktuelle Branch bestimmen
+    let currentBranch;
+    try {
+        currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
+    } catch (error) {
+        throw new Error(`Fehler beim Ermitteln des aktuellen Branches: ${error.message}`);
+    }
+    
+    // Push-Optionen basierend auf Einstellungen
+    const gitSettings = config.get('gitSettings');
+    const pushOptions = gitSettings.pushOptions || '';
+    const pushCommand = `git push origin ${currentBranch} ${pushOptions}`.trim();
+    
+    let pushSuccess = false;
+    let pushError = null;
+    
+    // Versuche es mehrfach mit Push
+    for (let i = 0; i <= MAX_PUSH_RETRIES; i++) {
+        try {
+            await executeGitCommand(pushCommand, repoPath);
+            pushSuccess = true;
+            break;
+        } catch (error) {
+            pushError = error;
+            console.warn(`Push-Versuch ${i+1} fehlgeschlagen:`, error);
+            
+            // Bei bestimmten Fehlern erneut versuchen
+            if (error.message.includes('Connection timed out') || 
+                error.message.includes('Could not resolve host') ||
+                error.message.includes('failed to push some refs')) {
+                
+                // Kurze Pause vor dem nächsten Versuch
+                if (i < MAX_PUSH_RETRIES) {
+                    await new Promise(resolve => setTimeout(resolve, 2000 * (i + 1)));
+                    continue;
+                }
+            }
+            
+            // Bei anderen Fehlern oder nach allen Versuchen abbrechen
+            break;
+        }
+    }
+    
+    // Ergebnis verarbeiten
+    if (pushSuccess) {
+        if (notificationSettings.onPush) {
+            showNotification(`Änderungen wurden zu origin/${currentBranch} gepusht.`, 'info');
+        }
+    } else if (pushError) {
+        // Versuche ein Pull bei bestimmten Fehlern
+        if (pushError.message.includes('failed to push some refs') || 
+            pushError.message.includes('rejected') ||
+            pushError.message.includes('non-fast-forward')) {
+            
+            try {
+                showNotification('Push fehlgeschlagen. Versuche Pull...', 'warning');
+                await executeGitCommand(`git pull origin ${currentBranch}`, repoPath);
+                
+                // Erneut versuchen zu pushen
+                await executeGitCommand(pushCommand, repoPath);
+                
+                if (notificationSettings.onPush) {
+                    showNotification(`Pull & Push erfolgreich: Änderungen wurden zu origin/${currentBranch} gepusht.`, 'info');
+                }
+            } catch (pullError) {
+                throw new Error(`Push fehlgeschlagen und Pull konnte nicht ausgeführt werden: ${pullError.message}`);
+            }
+        } else {
+            throw pushError;
+        }
     }
 }
 

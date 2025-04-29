@@ -599,8 +599,8 @@ async function handleEditPromptTemplateCommand() {
  */
 async function handleShowDashboardCommand(context) {
     try {
-        // Neues Panel erstellen
-        const panel = vscode.window.createWebviewPanel(
+        // Bestehendes Panel abrufen
+        let panel = vscode.window.createWebviewPanel(
             'comittoDashboard',
             'Comitto Dashboard',
             vscode.ViewColumn.One,

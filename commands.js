@@ -1724,6 +1724,297 @@ async function handleToggleNotificationSettingCommand(settingKey, settingName) {
 
 // #endregion Spezifische Handler
 
+/**
+ * Fehlerbehandlungsfunktion für bessere Benutzerfreundlichkeit und Debugging
+ * @param {Error} error Der aufgetretene Fehler
+ * @param {string} context Kontext, in dem der Fehler aufgetreten ist
+ * @param {boolean} showNotification Ob eine Benachrichtigung angezeigt werden soll
+ * @returns {string} Benutzerfreundliche Fehlermeldung
+ */
+function handleError(error, context, showNotification = true) {
+    // Originalnachricht für Logging
+    const originalMessage = error.message || 'Unbekannter Fehler';
+    console.error(`Comitto Fehler [${context}]:`, error);
+    
+    // Benutzerfreundliche Fehlermeldung extrahieren
+    let userMessage = originalMessage;
+    
+    // Git-spezifische Fehler erkennen und übersetzen
+    if (originalMessage.includes('fatal: not a git repository')) {
+        userMessage = 'Dieses Verzeichnis ist kein Git-Repository. Bitte initialisieren Sie zuerst ein Git-Repository.';
+    } else if (originalMessage.includes('fatal: unable to access')) {
+        userMessage = 'Fehler beim Zugriff auf das Remote-Repository. Bitte prüfen Sie Ihre Netzwerkverbindung und Zugangsrechte.';
+    } else if (originalMessage.includes('maxBuffer') || originalMessage.includes('zu groß')) {
+        userMessage = 'Zu viele oder zu große Änderungen für die automatische Verarbeitung. Es wird versucht, mit einem kleineren Diff fortzufahren.';
+    } else if (originalMessage.includes('fatal: could not read')) {
+        userMessage = 'Fehler beim Lesen von Git-Objekten. Möglicherweise ist Ihr Repository beschädigt.';
+    } else if (originalMessage.includes('Permission denied')) {
+        userMessage = 'Zugriff verweigert. Bitte prüfen Sie Ihre Berechtigungen.';
+    } else if (originalMessage.includes('Authentication failed')) {
+        userMessage = 'Authentifizierung fehlgeschlagen. Bitte prüfen Sie Ihre Git-Credentials.';
+    } else if (originalMessage.includes('ENOENT')) {
+        userMessage = 'Datei oder Verzeichnis nicht gefunden.';
+    } else if (originalMessage.includes('ECONNREFUSED')) {
+        userMessage = 'Verbindung verweigert. Der Server ist möglicherweise nicht erreichbar.';
+    } else if (originalMessage.includes('ETIMEDOUT')) {
+        userMessage = 'Zeitüberschreitung bei der Verbindung. Bitte prüfen Sie Ihre Netzwerkverbindung.';
+    }
+    
+    // Anzeigen, falls gewünscht
+    if (showNotification) {
+        const config = vscode.workspace.getConfiguration('comitto');
+        const notificationSettings = config.get('notifications');
+        if (notificationSettings && notificationSettings.onError) {
+            vscode.window.showErrorMessage(`${context}: ${userMessage}`);
+        }
+    }
+    
+    // Auch als detaillierteren Log ausgeben
+    console.warn(`Comitto [${context}] - Benutzerfreundlich: ${userMessage}`);
+    
+    return userMessage;
+}
+
+/**
+ * Bereitet die KI-Prompt-Vorlage vor und passt sie an aktuelle Einstellungen an
+ * @param {string} gitStatus Die Ausgabe von git status
+ * @param {string} diffOutput Die Ausgabe von git diff
+ * @returns {string} Die angepasste Prompt-Vorlage
+ */
+function preparePromptTemplate(gitStatus, diffOutput) {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const gitSettings = config.get('gitSettings');
+    
+    // Änderungen in ein lesbares Format bringen
+    const changes = gitStatus.split('\n')
+        .filter(line => line.trim().length > 0)
+        .map(line => {
+            const status = line.substring(0, 2).trim();
+            const filePath = line.substring(3).trim();
+            return `${getStatusText(status)} ${filePath}`;
+        })
+        .join('\n');
+    
+    // Prompt-Vorlage mit Änderungen füllen
+    let promptTemplate = config.get('promptTemplate');
+    promptTemplate = promptTemplate.replace('{changes}', changes);
+    
+    // Sprache für die Commit-Nachricht einfügen
+    const language = gitSettings.commitMessageLanguage || 'en';
+    const languageText = language === 'de' ? 'auf Deutsch' : 'in English';
+    
+    // Sicherstellen, dass die richtige Sprache im Prompt verwendet wird
+    if (promptTemplate.includes('auf Deutsch') && language !== 'de') {
+        promptTemplate = promptTemplate.replace('auf Deutsch', 'in English');
+    } else if (promptTemplate.includes('in English') && language === 'de') {
+        promptTemplate = promptTemplate.replace('in English', 'auf Deutsch');
+    } else if (!promptTemplate.toLowerCase().includes(languageText.toLowerCase())) {
+        promptTemplate += `\nDie Commit-Nachricht soll ${languageText} sein.`;
+    }
+    
+    // Commit-Stil einfügen
+    const style = gitSettings.commitMessageStyle || 'conventional';
+    if (style === 'conventional' && !promptTemplate.toLowerCase().includes('conventional')) {
+        const conventionalText = language === 'de' 
+            ? '\nVerwende das Conventional Commits Format (feat, fix, docs, style, etc.).'
+            : '\nUse the Conventional Commits format (feat, fix, docs, style, etc.).';
+        promptTemplate += conventionalText;
+    } else if (style === 'gitmoji' && !promptTemplate.toLowerCase().includes('gitmoji')) {
+        const gitmojiText = language === 'de'
+            ? '\nVerwende Gitmojis am Anfang der Commit-Nachricht (z.B. 🐛 für Bugfixes, ✨ für neue Features).'
+            : '\nUse Gitmojis at the beginning of the commit message (e.g. 🐛 for bugfixes, ✨ for new features).';
+        promptTemplate += gitmojiText;
+    }
+    
+    // Zusätzliche Anweisungen für englische Konventionen
+    if (language === 'en' && !promptTemplate.toLowerCase().includes('conventional git conventions')) {
+        promptTemplate += `
+\nFollow these additional rules:
+1. Use imperative mood ("Add feature" not "Added feature")
+2. Don't capitalize the first word if using conventional commits format
+3. No period at the end
+4. Keep the message concise and under 72 characters if possible
+5. If needed, add more details after a blank line`;
+    }
+    
+    // Diff-Informationen für komplexere Abrechnungen hinzufügen
+    if (diffOutput && diffOutput.length > 0) {
+        // Eine aggressiv gekürzte Version des Diffs anhängen, um den Kontext zu verbessern,
+        // aber nicht zu viel Token zu verwenden
+        promptTemplate += `\n\n${processDiffForPrompt(diffOutput)}`;
+    }
+    
+    return promptTemplate;
+}
+
+/**
+ * Prozessiert den Git-Diff für eine optimale Verwendung im Prompt
+ * @param {string} diffOutput Der originale Diff-Output
+ * @returns {string} Ein angepasster, gekürzter Diff
+ */
+function processDiffForPrompt(diffOutput) {
+    // Maximale Anzahl der Zeichen des Diffs für den Prompt
+    const maxDiffLength = 3000;
+    
+    // Sehr große Diffs erkennen und Warnung ausgeben
+    if (diffOutput.length > 100000) {
+        console.warn(`Extrem großer Diff (${diffOutput.length} Zeichen) wird stark gekürzt.`);
+    }
+    
+    // Intelligente Kürzung: Nur die wichtigsten Änderungen
+    let shortenedDiff = '';
+    
+    try {
+        // Aufteilen nach Dateiänderungen (beginnen mit 'diff --git')
+        const fileChanges = diffOutput.split('diff --git');
+        
+        // Die ersten Änderungen für jede Datei extrahieren (maximal 8 Dateien)
+        const maxFiles = Math.min(8, fileChanges.length);
+        const filesToInclude = fileChanges.slice(0, maxFiles);
+        
+        filesToInclude.forEach((fileChange, index) => {
+            if (index === 0 && !fileChange.trim()) return; // Erstes Element kann leer sein
+            
+            // Dateiinformationen extrahieren
+            const fileNameMatch = fileChange.match(/a\/(.+?) b\//);
+            const fileName = fileNameMatch ? fileNameMatch[1] : 'unknown-file';
+            
+            // Jede Dateiänderung auf maximal 500 Zeichen beschränken
+            const maxPerFile = 500;
+            
+            // Nur die relevanten Änderungen erfassen (Zeilen mit + oder - am Anfang)
+            const changesOnly = fileChange
+                .split('\n')
+                .filter(line => line.startsWith('+') || line.startsWith('-'))
+                .join('\n')
+                .substring(0, maxPerFile);
+            
+            shortenedDiff += `\n${index > 0 ? 'diff --git' : ''} a/${fileName} b/${fileName}\n${changesOnly}`;
+            
+            if (changesOnly.length >= maxPerFile) {
+                shortenedDiff += '\n...';
+            }
+        });
+        
+        // Kürzen, wenn insgesamt zu lang
+        if (shortenedDiff.length > maxDiffLength) {
+            shortenedDiff = shortenedDiff.substring(0, maxDiffLength);
+            shortenedDiff += '\n...';
+        }
+        
+        shortenedDiff += `\n[Diff wurde gekürzt, insgesamt ${diffOutput.length} Zeichen in ${fileChanges.length} Dateien]`;
+    } catch (error) {
+        console.error('Fehler beim intelligenten Kürzen des Diffs:', error);
+        shortenedDiff = diffOutput.substring(0, maxDiffLength) + 
+            `\n...\n[Diff wurde einfach gekürzt, insgesamt ${diffOutput.length} Zeichen]`;
+    }
+    
+    // Final cleanup und Optimierung
+    return 'Hier ist ein Ausschnitt der konkreten Änderungen:\n' + shortenedDiff;
+}
+
+// Ersetze die bestehende generateCommitMessage-Funktion mit dieser verbesserten Version
+/**
+ * Generiert eine Commit-Nachricht mit dem konfigurierten KI-Modell
+ * @param {string} gitStatus Die Ausgabe von git status
+ * @param {string} diffOutput Die Ausgabe von git diff
+ * @returns {Promise<string>} Generierte Commit-Nachricht
+ */
+async function generateCommitMessage(gitStatus, diffOutput) {
+    try {
+        const config = vscode.workspace.getConfiguration('comitto');
+        const aiProvider = config.get('aiProvider');
+        
+        // Generierung des optimierten Prompts
+        const prompt = preparePromptTemplate(gitStatus, diffOutput);
+        
+        // Verschiedene KI-Provider unterstützen
+        let commitMessage = '';
+        switch (aiProvider) {
+            case 'ollama':
+                commitMessage = await generateWithOllama(prompt);
+                break;
+            case 'openai':
+                commitMessage = await generateWithOpenAI(prompt);
+                break;
+            case 'anthropic':
+                commitMessage = await generateWithAnthropic(prompt);
+                break;
+            default:
+                throw new Error(`Unbekannter KI-Provider: ${aiProvider}`);
+        }
+        
+        // Nachverarbeitung der Commit-Nachricht
+        return processCommitMessage(commitMessage);
+    } catch (error) {
+        // Fehlerbehandlung
+        handleError(error, 'Commit-Nachricht generieren');
+        
+        // Fallback: Einfache, generische Commit-Nachricht
+        const config = vscode.workspace.getConfiguration('comitto');
+        const gitSettings = config.get('gitSettings');
+        const language = gitSettings.commitMessageLanguage || 'en';
+        const style = gitSettings.commitMessageStyle || 'conventional';
+        
+        // Basierend auf Sprache und Stil einen Fallback erzeugen
+        if (language === 'de') {
+            return style === 'conventional' ? 
+                "chore: Änderungen gespeichert" : 
+                "💾 Änderungen gespeichert";
+        } else {
+            return style === 'conventional' ? 
+                "chore: save changes" : 
+                "💾 Save changes";
+        }
+    }
+}
+
+/**
+ * Nachverarbeitet die generierte Commit-Nachricht gemäß Projektkonventionen
+ * @param {string} rawMessage Die rohe, generierte Nachricht
+ * @returns {string} Die verarbeitete Nachricht
+ */
+function processCommitMessage(rawMessage) {
+    if (!rawMessage) return "chore: auto commit";
+    
+    // Leerzeichen und Anführungszeichen entfernen
+    let message = rawMessage.trim()
+        .replace(/^["']|["']$/g, '')  // Entfernt Anführungszeichen am Anfang und Ende
+        .replace(/\n/g, ' ');  // Ersetzt Zeilenumbrüche durch Leerzeichen
+    
+    // Übliche Probleme korrigieren
+    message = message
+        // Doppelte Leerzeichen entfernen
+        .replace(/\s+/g, ' ')
+        // Löscht "Commit-Nachricht:" oder "Commit message:" am Anfang
+        .replace(/^(commit[- ]message:?\s*)/i, '')
+        // Entfernt Backticks (wenn die KI Code-Formatierung verwendet)
+        .replace(/^```|```$/g, '');
+    
+    // Korrekturen für Conventional Commits Format
+    const conventionalMatch = message.match(/^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([\w-]+\))?:\s*(.+)/i);
+    if (conventionalMatch) {
+        // Stellt sicher, dass der Typ kleingeschrieben ist
+        const type = conventionalMatch[1].toLowerCase();
+        // Behält den Scope bei, wenn vorhanden
+        const scope = conventionalMatch[2] || '';
+        // Rest der Nachricht
+        const content = conventionalMatch[3];
+        // Baut die Nachricht neu zusammen
+        message = `${type}${scope}: ${content}`;
+    }
+    
+    // Punkt am Ende entfernen (Konvention)
+    message = message.replace(/\.$/, '');
+    
+    // Längenbegrenzung (72 Zeichen für erste Zeile)
+    if (message.length > 72) {
+        message = message.substring(0, 69) + '...';
+    }
+    
+    return message;
+}
+
 module.exports = {
     registerCommands,
     handleSelectThemeCommand,

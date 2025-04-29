@@ -398,19 +398,56 @@ function registerCommands(context, providers) {
                     if (ollamaModel !== undefined) {
                         await vscode.workspace.getConfiguration('comitto').update('ollama.model', ollamaModel, vscode.ConfigurationTarget.Global);
                     }
+                    
+                    const ollamaEndpoint = await vscode.window.showInputBox({
+                        value: vscode.workspace.getConfiguration('comitto').get('ollama.endpoint'),
+                        prompt: 'Geben Sie den Ollama API-Endpunkt ein',
+                        placeHolder: 'http://localhost:11434/api/generate',
+                        title: 'Ollama API-Endpunkt'
+                    });
+                    
+                    if (ollamaEndpoint !== undefined) {
+                        await vscode.workspace.getConfiguration('comitto').update('ollama.endpoint', ollamaEndpoint, vscode.ConfigurationTarget.Global);
+                    }
                     break;
                     
                 case 'openai':
-                    const openaiModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo'];
+                    const openaiModels = [
+                        'gpt-3.5-turbo',
+                        'gpt-3.5-turbo-0125',
+                        'gpt-3.5-turbo-1106',
+                        'gpt-4o',
+                        'gpt-4o-mini',
+                        'gpt-4',
+                        'gpt-4-turbo',
+                        'gpt-4-0125-preview',
+                        'gpt-4-1106-preview',
+                        'gpt-4-vision-preview'
+                    ];
+                    
+                    const openaiModelGroups = [
+                        { label: 'GPT-3.5 Modelle', items: openaiModels.filter(m => m.startsWith('gpt-3.5')) },
+                        { label: 'GPT-4o Modelle', items: openaiModels.filter(m => m.startsWith('gpt-4o')) },
+                        { label: 'GPT-4 Modelle', items: openaiModels.filter(m => m.startsWith('gpt-4') && !m.startsWith('gpt-4o')) }
+                    ];
+                    
+                    const openaiModelItems = [];
+                    for (const group of openaiModelGroups) {
+                        openaiModelItems.push({ label: group.label, kind: vscode.QuickPickItemKind.Separator });
+                        for (const model of group.items) {
+                            openaiModelItems.push({ label: model });
+                        }
+                    }
+                    
                     const openaiModel = await vscode.window.showQuickPick(
-                        openaiModels.map(name => ({ label: name })),
+                        openaiModelItems,
                         { 
                             placeHolder: 'OpenAI-Modell auswählen',
                             title: 'OpenAI-Modell konfigurieren'
                         }
                     );
                     
-                    if (openaiModel) {
+                    if (openaiModel && openaiModel.kind !== vscode.QuickPickItemKind.Separator) {
                         await vscode.workspace.getConfiguration('comitto').update('openai.model', openaiModel.label, vscode.ConfigurationTarget.Global);
                         
                         const hasKey = !!vscode.workspace.getConfiguration('comitto').get('openai.apiKey');
@@ -421,23 +458,53 @@ function registerCommands(context, providers) {
                             );
                             
                             if (shouldConfigureKey === 'Ja') {
-                                vscode.commands.executeCommand('comitto.editOpenAIKey');
+                                const apiKey = await vscode.window.showInputBox({
+                                    prompt: 'Geben Sie Ihren OpenAI API-Schlüssel ein',
+                                    placeHolder: 'sk-...',
+                                    password: true
+                                });
+                                
+                                if (apiKey !== undefined) {
+                                    await vscode.workspace.getConfiguration('comitto').update('openai.apiKey', apiKey, vscode.ConfigurationTarget.Global);
+                                }
                             }
                         }
                     }
                     break;
                     
                 case 'anthropic':
-                    const anthropicModels = ['claude-3-haiku-20240307', 'claude-3-sonnet-20240229', 'claude-3-opus-20240229'];
+                    const anthropicModels = [
+                        'claude-3-haiku-20240307',
+                        'claude-3-sonnet-20240229',
+                        'claude-3-opus-20240229',
+                        'claude-2.1',
+                        'claude-2.0',
+                        'claude-instant-1.2'
+                    ];
+                    
+                    const anthropicModelGroups = [
+                        { label: 'Claude 3 Modelle', items: anthropicModels.filter(m => m.startsWith('claude-3')) },
+                        { label: 'Claude 2 Modelle', items: anthropicModels.filter(m => m.startsWith('claude-2')) },
+                        { label: 'Claude Instant Modelle', items: anthropicModels.filter(m => m.includes('instant')) }
+                    ];
+                    
+                    const anthropicModelItems = [];
+                    for (const group of anthropicModelGroups) {
+                        anthropicModelItems.push({ label: group.label, kind: vscode.QuickPickItemKind.Separator });
+                        for (const model of group.items) {
+                            anthropicModelItems.push({ label: model });
+                        }
+                    }
+                    
                     const anthropicModel = await vscode.window.showQuickPick(
-                        anthropicModels.map(name => ({ label: name })),
+                        anthropicModelItems,
                         { 
                             placeHolder: 'Claude-Modell auswählen',
                             title: 'Claude-Modell konfigurieren'
                         }
                     );
                     
-                    if (anthropicModel) {
+                    if (anthropicModel && anthropicModel.kind !== vscode.QuickPickItemKind.Separator) {
                         await vscode.workspace.getConfiguration('comitto').update('anthropic.model', anthropicModel.label, vscode.ConfigurationTarget.Global);
                         
                         const hasKey = !!vscode.workspace.getConfiguration('comitto').get('anthropic.apiKey');
@@ -448,7 +515,15 @@ function registerCommands(context, providers) {
                             );
                             
                             if (shouldConfigureKey === 'Ja') {
-                                vscode.commands.executeCommand('comitto.editAnthropicKey');
+                                const apiKey = await vscode.window.showInputBox({
+                                    prompt: 'Geben Sie Ihren Anthropic API-Schlüssel ein',
+                                    placeHolder: 'sk-ant-...',
+                                    password: true
+                                });
+                                
+                                if (apiKey !== undefined) {
+                                    await vscode.workspace.getConfiguration('comitto').update('anthropic.apiKey', apiKey, vscode.ConfigurationTarget.Global);
+                                }
                             }
                         }
                     }
@@ -545,6 +620,60 @@ function registerCommands(context, providers) {
                 `Automatische Commits sind ${isEnabled ? 'aktiviert' : 'deaktiviert'}.`
             );
         }
+    }));
+
+    // UI-Einstellungen umschalten
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleSimpleMode', async () => {
+        const config = vscode.workspace.getConfiguration('comitto');
+        const uiSettings = config.get('uiSettings');
+        
+        uiSettings.simpleMode = !uiSettings.simpleMode;
+        await config.update('uiSettings', uiSettings, vscode.ConfigurationTarget.Global);
+        
+        if (providers) {
+            providers.settingsProvider.refresh();
+        }
+        
+        if (uiSettings.showNotifications) {
+            vscode.window.showInformationMessage(
+                `Einfacher Modus wurde ${uiSettings.simpleMode ? 'aktiviert' : 'deaktiviert'}.`
+            );
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleConfirmBeforeCommit', async () => {
+        const config = vscode.workspace.getConfiguration('comitto');
+        const uiSettings = config.get('uiSettings');
+        
+        uiSettings.confirmBeforeCommit = !uiSettings.confirmBeforeCommit;
+        await config.update('uiSettings', uiSettings, vscode.ConfigurationTarget.Global);
+        
+        if (providers) {
+            providers.settingsProvider.refresh();
+        }
+        
+        if (uiSettings.showNotifications) {
+            vscode.window.showInformationMessage(
+                `Bestätigung vor Commit wurde ${uiSettings.confirmBeforeCommit ? 'aktiviert' : 'deaktiviert'}.`
+            );
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleShowNotifications', async () => {
+        const config = vscode.workspace.getConfiguration('comitto');
+        const uiSettings = config.get('uiSettings');
+        
+        uiSettings.showNotifications = !uiSettings.showNotifications;
+        await config.update('uiSettings', uiSettings, vscode.ConfigurationTarget.Global);
+        
+        if (providers) {
+            providers.settingsProvider.refresh();
+        }
+        
+        // Immer eine Benachrichtigung zeigen, da der Benutzer sonst nicht weiß, ob die Einstellung geändert wurde
+        vscode.window.showInformationMessage(
+            `Benachrichtigungen wurden ${uiSettings.showNotifications ? 'aktiviert' : 'deaktiviert'}.`
+        );
     }));
 }
 

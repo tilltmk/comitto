@@ -389,73 +389,116 @@ async function performAutoCommit(isManualTrigger = false) {
             throw new Error('Kein Workspace gefunden.');
         }
 
-        const gitSettings = vscode.workspace.getConfiguration('comitto').get('gitSettings');
+        const config = vscode.workspace.getConfiguration('comitto');
+        const gitSettings = config.get('gitSettings');
         const repoPath = gitSettings.repositoryPath || workspaceFolders[0].uri.fsPath;
         
-        // git add für alle geänderten Dateien ausführen
-        await executeGitCommand('git add .', repoPath);
-        
-        // git status ausführen, um Änderungen zu erhalten
-        const gitStatus = await executeGitCommand('git status --porcelain', repoPath);
-        
-        if (!gitStatus.trim() && !isManualTrigger) {
-            isCommitInProgress = false;
+        try {
+            // git add für alle geänderten Dateien ausführen
+            await executeGitCommand('git add .', repoPath);
+            
+            // git status ausführen, um Änderungen zu erhalten
+            const gitStatus = await executeGitCommand('git status --porcelain', repoPath);
+            
+            if (!gitStatus.trim() && !isManualTrigger) {
+                isCommitInProgress = false;
+                statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+                changedFiles.clear();
+                return;
+            } else if (!gitStatus.trim() && isManualTrigger) {
+                throw new Error('Keine Änderungen zum Committen gefunden.');
+            }
+
+            // Änderungen abrufen
+            const diffOutput = await executeGitCommand('git diff --cached', repoPath);
+            
+            // Commit-Nachricht mit ausgewähltem KI-Modell generieren
+            const commitMessage = await generateCommitMessage(gitStatus, diffOutput);
+            
+            // Verzweigen, falls ein bestimmter Branch konfiguriert ist
+            if (gitSettings.branch) {
+                try {
+                    // Prüfen, ob der Branch existiert
+                    const branches = await executeGitCommand('git branch', repoPath);
+                    if (!branches.includes(gitSettings.branch)) {
+                        await executeGitCommand(`git checkout -b ${gitSettings.branch}`, repoPath);
+                        showNotification(`Branch '${gitSettings.branch}' erstellt und ausgecheckt.`, 'info');
+                    } else {
+                        await executeGitCommand(`git checkout ${gitSettings.branch}`, repoPath);
+                    }
+                } catch (error) {
+                    console.error('Fehler beim Branch-Wechsel:', error);
+                    showNotification(`Fehler beim Branch-Wechsel: ${error.message}. Fortfahren mit aktuellem Branch.`, 'warning');
+                    // Fortfahren mit dem aktuellen Branch
+                }
+            }
+            
+            // git commit ausführen
+            await executeGitCommand(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`, repoPath);
+            
+            // Git push falls konfiguriert
+            if (gitSettings.autoPush) {
+                try {
+                    const currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
+                    await executeGitCommand(`git push origin ${currentBranch}`, repoPath);
+                    showNotification(`Änderungen wurden zu origin/${currentBranch} gepusht.`, 'info');
+                } catch (error) {
+                    console.error('Push fehlgeschlagen:', error);
+                    showNotification(`Push fehlgeschlagen: ${error.message}`, 'error');
+                }
+            }
+            
+            // Statusleiste aktualisieren und Änderungen zurücksetzen
+            lastCommitTime = new Date();
             statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
             changedFiles.clear();
-            return;
-        } else if (!gitStatus.trim() && isManualTrigger) {
-            throw new Error('Keine Änderungen zum Committen gefunden.');
-        }
-
-        // Änderungen abrufen
-        const diffOutput = await executeGitCommand('git diff --cached', repoPath);
-        
-        // Commit-Nachricht mit ausgewähltem KI-Modell generieren
-        const commitMessage = await generateCommitMessage(gitStatus, diffOutput);
-        
-        // Verzweigen, falls ein bestimmter Branch konfiguriert ist
-        if (gitSettings.branch) {
-            try {
-                // Prüfen, ob der Branch existiert
-                const branches = await executeGitCommand('git branch', repoPath);
-                if (!branches.includes(gitSettings.branch)) {
-                    await executeGitCommand(`git checkout -b ${gitSettings.branch}`, repoPath);
-                } else {
-                    await executeGitCommand(`git checkout ${gitSettings.branch}`, repoPath);
-                }
-            } catch (error) {
-                console.error('Fehler beim Branch-Wechsel:', error);
-                // Fortfahren mit dem aktuellen Branch
+            
+            if (!isManualTrigger) {
+                showNotification(`Automatischer Commit durchgeführt: ${commitMessage}`, 'info');
+            } else {
+                showNotification(`Manueller Commit durchgeführt: ${commitMessage}`, 'info');
             }
-        }
-        
-        // git commit ausführen
-        await executeGitCommand(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`, repoPath);
-        
-        // Git push falls konfiguriert
-        if (gitSettings.autoPush) {
-            try {
-                const currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
-                await executeGitCommand(`git push origin ${currentBranch}`, repoPath);
-            } catch (error) {
-                vscode.window.showWarningMessage(`Push fehlgeschlagen: ${error.message}`);
-            }
-        }
-        
-        // Statusleiste aktualisieren und Änderungen zurücksetzen
-        lastCommitTime = new Date();
-        statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
-        changedFiles.clear();
-        
-        if (!isManualTrigger) {
-            vscode.window.showInformationMessage(`Automatischer Commit durchgeführt: ${commitMessage}`);
+        } catch (error) {
+            console.error('Git-Befehl fehlgeschlagen:', error);
+            showNotification(`Git-Befehl fehlgeschlagen: ${error.message}`, 'error');
+            throw error;
         }
     } catch (error) {
-        vscode.window.showErrorMessage(`Comitto Fehler: ${error.message}`);
+        console.error('Comitto Fehler:', error);
+        showNotification(`Comitto Fehler: ${error.message}`, 'error');
         statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
     } finally {
         isCommitInProgress = false;
     }
+}
+
+/**
+ * Zeigt eine Benachrichtigung an, wenn entsprechend konfiguriert
+ * @param {string} message Die anzuzeigende Nachricht
+ * @param {string} type Der Typ der Nachricht (info, warning, error)
+ */
+function showNotification(message, type = 'info') {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const uiSettings = config.get('uiSettings');
+    
+    if (uiSettings && uiSettings.showNotifications) {
+        switch (type) {
+            case 'info':
+                vscode.window.showInformationMessage(message);
+                break;
+            case 'warning':
+                vscode.window.showWarningMessage(message);
+                break;
+            case 'error':
+                vscode.window.showErrorMessage(message);
+                break;
+            default:
+                vscode.window.showInformationMessage(message);
+        }
+    }
+    
+    // Immer in die Konsole loggen
+    console.log(`Comitto [${type}]: ${message}`);
 }
 
 /**
@@ -467,8 +510,11 @@ async function performAutoCommit(isManualTrigger = false) {
 function executeGitCommand(command, cwd) {
     return new Promise((resolve, reject) => {
         exec(command, { cwd }, (error, stdout, stderr) => {
-            if (error && stderr) {
-                reject(new Error(stderr));
+            if (error) {
+                // Detailliertere Fehlermeldung
+                const errorMessage = stderr || error.message || 'Unbekannter Git-Fehler';
+                console.error(`Git-Befehl fehlgeschlagen: ${command}`, errorMessage);
+                reject(new Error(errorMessage));
                 return;
             }
             resolve(stdout);

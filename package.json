@@ -212,8 +212,15 @@
           "default": "gpt-3.5-turbo",
           "enum": [
             "gpt-3.5-turbo",
+            "gpt-3.5-turbo-0125",
+            "gpt-3.5-turbo-1106",
+            "gpt-4o",
+            "gpt-4o-mini",
             "gpt-4",
-            "gpt-4-turbo"
+            "gpt-4-turbo",
+            "gpt-4-0125-preview",
+            "gpt-4-1106-preview",
+            "gpt-4-vision-preview"
           ],
           "description": "OpenAI Modell für die Generierung von Commit-Nachrichten"
         },
@@ -228,7 +235,10 @@
           "enum": [
             "claude-3-haiku-20240307",
             "claude-3-sonnet-20240229",
-            "claude-3-opus-20240229"
+            "claude-3-opus-20240229",
+            "claude-2.1",
+            "claude-2.0",
+            "claude-instant-1.2"
           ],
           "description": "Anthropic Claude-Modell für die Generierung von Commit-Nachrichten"
         },

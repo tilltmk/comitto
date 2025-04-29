@@ -61,7 +61,7 @@ class StatusViewProvider {
             `KI-Provider: ${getProviderDisplayName(provider)}`,
             vscode.TreeItemCollapsibleState.None
         );
-        providerItem.iconPath = new vscode.ThemeIcon('symbol-enum');
+        providerItem.iconPath = getProviderIcon(provider);
         providerItem.tooltip = `Aktueller KI-Provider für Commit-Nachrichten: ${getProviderDisplayName(provider)} (exklusive Auswahl)`;
         providerItem.command = {
             command: 'comitto.configureAIProvider',
@@ -151,7 +151,7 @@ class SettingsViewProvider {
             vscode.TreeItemCollapsibleState.Collapsed
         );
         triggerItem.contextValue = 'trigger-rules';
-        triggerItem.iconPath = new vscode.ThemeIcon('trigger');
+        triggerItem.iconPath = new vscode.ThemeIcon('settings-gear');
         items.push(triggerItem);
 
         // Git-Einstellungen
@@ -176,6 +176,15 @@ class SettingsViewProvider {
         };
         items.push(promptItem);
 
+        // UI-Einstellungen
+        const uiItem = new vscode.TreeItem(
+            'UI-Einstellungen',
+            vscode.TreeItemCollapsibleState.Collapsed
+        );
+        uiItem.contextValue = 'ui-settings';
+        uiItem.iconPath = new vscode.ThemeIcon('layout');
+        items.push(uiItem);
+
         return items;
     }
 
@@ -188,6 +197,7 @@ class SettingsViewProvider {
                 // KI-Provider auswählen
                 const aiProvider = config.get('aiProvider');
                 const providerItem = new vscode.TreeItem(`Aktiver Provider: ${getProviderDisplayName(aiProvider)}`);
+                providerItem.iconPath = getProviderIcon(aiProvider);
                 providerItem.command = {
                     command: 'comitto.selectAiProvider',
                     title: 'KI-Provider auswählen'
@@ -199,6 +209,7 @@ class SettingsViewProvider {
                     case 'ollama':
                         const ollamaModel = config.get('ollama.model');
                         const ollamaModelItem = new vscode.TreeItem(`Ollama-Modell: ${ollamaModel}`);
+                        ollamaModelItem.iconPath = new vscode.ThemeIcon('package');
                         ollamaModelItem.command = {
                             command: 'comitto.editOllamaModel',
                             title: 'Ollama-Modell bearbeiten'
@@ -207,6 +218,7 @@ class SettingsViewProvider {
 
                         const ollamaEndpoint = config.get('ollama.endpoint');
                         const ollamaEndpointItem = new vscode.TreeItem(`Endpoint: ${ollamaEndpoint}`);
+                        ollamaEndpointItem.iconPath = new vscode.ThemeIcon('link');
                         ollamaEndpointItem.command = {
                             command: 'comitto.editOllamaEndpoint',
                             title: 'Ollama-Endpoint bearbeiten'
@@ -217,6 +229,7 @@ class SettingsViewProvider {
                     case 'openai':
                         const openaiModel = config.get('openai.model');
                         const openaiModelItem = new vscode.TreeItem(`OpenAI-Modell: ${openaiModel}`);
+                        openaiModelItem.iconPath = new vscode.ThemeIcon('package');
                         openaiModelItem.command = {
                             command: 'comitto.selectOpenAIModel',
                             title: 'OpenAI-Modell auswählen'
@@ -225,6 +238,7 @@ class SettingsViewProvider {
 
                         const hasOpenAIKey = !!config.get('openai.apiKey');
                         const openaiKeyItem = new vscode.TreeItem(`API-Schlüssel: ${hasOpenAIKey ? '✓ Konfiguriert' : '✗ Nicht konfiguriert'}`);
+                        openaiKeyItem.iconPath = new vscode.ThemeIcon(hasOpenAIKey ? 'key' : 'warning');
                         openaiKeyItem.command = {
                             command: 'comitto.editOpenAIKey',
                             title: 'OpenAI API-Schlüssel bearbeiten'
@@ -235,6 +249,7 @@ class SettingsViewProvider {
                     case 'anthropic':
                         const anthropicModel = config.get('anthropic.model');
                         const anthropicModelItem = new vscode.TreeItem(`Claude-Modell: ${anthropicModel}`);
+                        anthropicModelItem.iconPath = new vscode.ThemeIcon('package');
                         anthropicModelItem.command = {
                             command: 'comitto.selectAnthropicModel',
                             title: 'Claude-Modell auswählen'
@@ -243,6 +258,7 @@ class SettingsViewProvider {
 
                         const hasAnthropicKey = !!config.get('anthropic.apiKey');
                         const anthropicKeyItem = new vscode.TreeItem(`API-Schlüssel: ${hasAnthropicKey ? '✓ Konfiguriert' : '✗ Nicht konfiguriert'}`);
+                        anthropicKeyItem.iconPath = new vscode.ThemeIcon(hasAnthropicKey ? 'key' : 'warning');
                         anthropicKeyItem.command = {
                             command: 'comitto.editAnthropicKey',
                             title: 'Anthropic API-Schlüssel bearbeiten'
@@ -256,6 +272,7 @@ class SettingsViewProvider {
                 const rules = config.get('triggerRules');
 
                 const fileCountItem = new vscode.TreeItem(`Datei-Anzahl: ${rules.fileCountThreshold}`);
+                fileCountItem.iconPath = new vscode.ThemeIcon('files');
                 fileCountItem.command = {
                     command: 'comitto.editFileCountThreshold',
                     title: 'Datei-Anzahl bearbeiten'
@@ -263,6 +280,7 @@ class SettingsViewProvider {
                 items.push(fileCountItem);
 
                 const changeCountItem = new vscode.TreeItem(`Änderungs-Anzahl: ${rules.minChangeCount}`);
+                changeCountItem.iconPath = new vscode.ThemeIcon('diff');
                 changeCountItem.command = {
                     command: 'comitto.editMinChangeCount',
                     title: 'Änderungs-Anzahl bearbeiten'
@@ -270,6 +288,7 @@ class SettingsViewProvider {
                 items.push(changeCountItem);
 
                 const timeThresholdItem = new vscode.TreeItem(`Zeit-Schwellwert: ${rules.timeThresholdMinutes} Minuten`);
+                timeThresholdItem.iconPath = new vscode.ThemeIcon('watch');
                 timeThresholdItem.command = {
                     command: 'comitto.editTimeThreshold',
                     title: 'Zeit-Schwellwert bearbeiten'
@@ -277,6 +296,7 @@ class SettingsViewProvider {
                 items.push(timeThresholdItem);
 
                 const filePatternsItem = new vscode.TreeItem(`Dateimuster: ${rules.filePatterns.join(', ')}`);
+                filePatternsItem.iconPath = new vscode.ThemeIcon('file-code');
                 filePatternsItem.command = {
                     command: 'comitto.editFilePatterns',
                     title: 'Dateimuster bearbeiten'
@@ -284,6 +304,7 @@ class SettingsViewProvider {
                 items.push(filePatternsItem);
 
                 const specificFilesItem = new vscode.TreeItem(`Spezifische Dateien: ${rules.specificFiles.length > 0 ? rules.specificFiles.join(', ') : 'Keine'}`);
+                specificFilesItem.iconPath = new vscode.ThemeIcon('selection');
                 specificFilesItem.command = {
                     command: 'comitto.editSpecificFiles',
                     title: 'Spezifische Dateien bearbeiten'
@@ -295,6 +316,7 @@ class SettingsViewProvider {
                 const gitSettings = config.get('gitSettings');
 
                 const autoPushItem = new vscode.TreeItem(`Auto-Push: ${gitSettings.autoPush ? 'Ja' : 'Nein'}`);
+                autoPushItem.iconPath = new vscode.ThemeIcon(gitSettings.autoPush ? 'cloud-upload' : 'circle-slash');
                 autoPushItem.command = {
                     command: 'comitto.toggleAutoPush',
                     title: 'Auto-Push umschalten'
@@ -302,6 +324,7 @@ class SettingsViewProvider {
                 items.push(autoPushItem);
 
                 const branchItem = new vscode.TreeItem(`Branch: ${gitSettings.branch || 'Aktueller Branch'}`);
+                branchItem.iconPath = new vscode.ThemeIcon('git-branch');
                 branchItem.command = {
                     command: 'comitto.editBranch',
                     title: 'Branch bearbeiten'
@@ -309,6 +332,7 @@ class SettingsViewProvider {
                 items.push(branchItem);
 
                 const langItem = new vscode.TreeItem(`Nachrichtensprache: ${gitSettings.commitMessageLanguage}`);
+                langItem.iconPath = new vscode.ThemeIcon('globe');
                 langItem.command = {
                     command: 'comitto.selectCommitLanguage',
                     title: 'Sprache auswählen'
@@ -316,6 +340,7 @@ class SettingsViewProvider {
                 items.push(langItem);
 
                 const styleItem = new vscode.TreeItem(`Nachrichtenstil: ${gitSettings.commitMessageStyle}`);
+                styleItem.iconPath = new vscode.ThemeIcon('symbol-string');
                 styleItem.command = {
                     command: 'comitto.selectCommitStyle',
                     title: 'Stil auswählen'
@@ -323,11 +348,40 @@ class SettingsViewProvider {
                 items.push(styleItem);
 
                 const useGitignoreItem = new vscode.TreeItem(`Gitignore verwenden: ${gitSettings.useGitignore ? 'Ja' : 'Nein'}`);
+                useGitignoreItem.iconPath = new vscode.ThemeIcon(gitSettings.useGitignore ? 'check' : 'circle-slash');
                 useGitignoreItem.command = {
                     command: 'comitto.toggleUseGitignore',
                     title: 'Gitignore-Verwendung umschalten'
                 };
                 items.push(useGitignoreItem);
+                break;
+                
+            case 'ui-settings':
+                const uiSettings = config.get('uiSettings');
+                
+                const simpleModeItem = new vscode.TreeItem(`Einfacher Modus: ${uiSettings.simpleMode ? 'Ja' : 'Nein'}`);
+                simpleModeItem.iconPath = new vscode.ThemeIcon(uiSettings.simpleMode ? 'check' : 'circle-slash');
+                simpleModeItem.command = {
+                    command: 'comitto.toggleSimpleMode',
+                    title: 'Einfachen Modus umschalten'
+                };
+                items.push(simpleModeItem);
+                
+                const confirmItem = new vscode.TreeItem(`Bestätigung vor Commit: ${uiSettings.confirmBeforeCommit ? 'Ja' : 'Nein'}`);
+                confirmItem.iconPath = new vscode.ThemeIcon(uiSettings.confirmBeforeCommit ? 'check' : 'circle-slash');
+                confirmItem.command = {
+                    command: 'comitto.toggleConfirmBeforeCommit',
+                    title: 'Bestätigung vor Commit umschalten'
+                };
+                items.push(confirmItem);
+                
+                const notificationsItem = new vscode.TreeItem(`Benachrichtigungen anzeigen: ${uiSettings.showNotifications ? 'Ja' : 'Nein'}`);
+                notificationsItem.iconPath = new vscode.ThemeIcon(uiSettings.showNotifications ? 'bell' : 'bell-slash');
+                notificationsItem.command = {
+                    command: 'comitto.toggleShowNotifications',
+                    title: 'Benachrichtigungen umschalten'
+                };
+                items.push(notificationsItem);
                 break;
         }
 
@@ -379,8 +433,10 @@ class QuickActionsViewProvider {
         items.push(commitItem);
 
         // KI-Provider konfigurieren
-        const aiProviderItem = new vscode.TreeItem('KI-Provider konfigurieren');
-        aiProviderItem.iconPath = new vscode.ThemeIcon('symbol-misc');
+        const config = vscode.workspace.getConfiguration('comitto');
+        const provider = config.get('aiProvider');
+        const aiProviderItem = new vscode.TreeItem(`KI: ${getProviderDisplayName(provider)} konfigurieren`);
+        aiProviderItem.iconPath = getProviderIcon(provider);
         aiProviderItem.command = {
             command: 'comitto.configureAIProvider',
             title: 'KI-Provider konfigurieren'
@@ -397,7 +453,6 @@ class QuickActionsViewProvider {
         items.push(triggerItem);
 
         // Auto-Status umschalten
-        const config = vscode.workspace.getConfiguration('comitto');
         const enabled = config.get('autoCommitEnabled');
         const toggleItem = new vscode.TreeItem(`Auto-Commit ${enabled ? 'deaktivieren' : 'aktivieren'}`);
         toggleItem.iconPath = new vscode.ThemeIcon(enabled ? 'circle-slash' : 'check');
@@ -435,6 +490,20 @@ function getProviderDisplayName(provider) {
         case 'openai': return 'OpenAI';
         case 'anthropic': return 'Anthropic Claude';
         default: return provider;
+    }
+}
+
+/**
+ * Gibt ein Icon für den Provider zurück
+ * @param {string} provider Provider-ID
+ * @returns {vscode.ThemeIcon} Icon für den Provider
+ */
+function getProviderIcon(provider) {
+    switch (provider) {
+        case 'ollama': return new vscode.ThemeIcon('server');
+        case 'openai': return new vscode.ThemeIcon('sparkle');
+        case 'anthropic': return new vscode.ThemeIcon('symbol-class');
+        default: return new vscode.ThemeIcon('symbol-misc');
     }
 }
 
@@ -492,5 +561,7 @@ module.exports = {
     registerUI,
     StatusViewProvider,
     QuickActionsViewProvider,
-    SettingsViewProvider
+    SettingsViewProvider,
+    getProviderDisplayName,
+    getProviderIcon
 }; 

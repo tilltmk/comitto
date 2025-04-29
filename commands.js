@@ -961,82 +961,107 @@ async function handleConfigureTriggersCommand(context, providers) {
  * @param {Object} providers 
  */
 function showSimpleUI(context, providers) {
-    // Bestehendes Panel prüfen und wiederverwenden
-    let panel = context.globalState.get('comittoSimpleUIPanel');
-    
-    if (panel) {
-        // Panel bereits vorhanden, fokussieren
-        panel.reveal(vscode.ViewColumn.One);
+    try {
+        // Bestehendes Panel prüfen und wiederverwenden
+        let panel = null;
         
-        // Inhalt aktualisieren
-        const config = vscode.workspace.getConfiguration('comitto');
-        const autoCommitEnabled = config.get('autoCommitEnabled');
-        const providerName = ui.getProviderDisplayName(config.get('aiProvider'));
-        panel.webview.html = generateSimpleUIHTML(autoCommitEnabled, providerName, context);
-    } else {
-        // Neues Panel erstellen
-        panel = vscode.window.createWebviewPanel(
-            'comittoSimpleUI',
-            'Comitto: Einfache Benutzeroberfläche',
-            vscode.ViewColumn.One,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [
-                    vscode.Uri.joinPath(context.extensionUri, 'resources')
-                ]
-            }
-        );
-        
-        // Panel im globalen Zustand speichern
-        context.globalState.update('comittoSimpleUIPanel', panel);
-        
-        // Konfiguration auslesen
-        const config = vscode.workspace.getConfiguration('comitto');
-        const autoCommitEnabled = config.get('autoCommitEnabled');
-        const providerName = ui.getProviderDisplayName(config.get('aiProvider'));
-        
-        // HTML für das Webview generieren und setzen
-        panel.webview.html = generateSimpleUIHTML(autoCommitEnabled, providerName, context);
-        
-        // Nachrichten vom Webview verarbeiten
-        panel.webview.onDidReceiveMessage(
-            async (message) => {
+        try {
+            panel = context.globalState.get('comittoSimpleUIPanel');
+            
+            // Prüfen, ob das Panel noch gültig ist
+            if (panel) {
                 try {
-                    switch (message.command) {
-                        case 'toggleAutoCommit':
-                            const newEnabled = !autoCommitEnabled;
-                            await config.update('autoCommitEnabled', newEnabled, vscode.ConfigurationTarget.Global);
-                            // UI-Aktualisierung (wird automatisch durch Konfigurationsänderung ausgelöst)
-                    break;
-                        case 'performManualCommit':
-                            vscode.commands.executeCommand('comitto.performManualCommit');
-                    break;
-                        case 'selectProvider':
-                            vscode.commands.executeCommand('comitto.configureAIProvider');
-                    break;
-                        case 'configureTriggers':
-                            vscode.commands.executeCommand('comitto.configureTriggers');
-                    break;
-                        case 'openDashboard':
-                            vscode.commands.executeCommand('comitto.showDashboard');
-                            break;
-                        case 'openSettings':
-                            vscode.commands.executeCommand('comitto.openSettings');
-                    break;
-            }
+                    // Test-Zugriff, um zu prüfen, ob das Panel noch existiert
+                    const isVisible = panel.visible;
+                    // Panel fokussieren
+                    panel.reveal(vscode.ViewColumn.One);
+                    
+                    // Inhalt aktualisieren
+                    const config = vscode.workspace.getConfiguration('comitto');
+                    const autoCommitEnabled = config.get('autoCommitEnabled');
+                    const providerName = ui.getProviderDisplayName(config.get('aiProvider'));
+                    panel.webview.html = generateSimpleUIHTML(autoCommitEnabled, providerName, context);
                 } catch (error) {
-                    vscode.window.showErrorMessage(`Fehler bei der Verarbeitung der SimpleUI-Aktion: ${error.message}`);
+                    console.error('Gespeichertes SimpleUI-Panel nicht mehr gültig:', error);
+                    // Wenn das Panel nicht mehr gültig ist, es aus dem State entfernen
+                    context.globalState.update('comittoSimpleUIPanel', undefined);
+                    panel = null;
                 }
-            },
-            undefined,
-            context.subscriptions
-        );
-        
-        // Bereinigen, wenn das Panel geschlossen wird
-        panel.onDidDispose(() => {
+            }
+        } catch (error) {
+            console.error('Fehler beim Zugriff auf gespeichertes SimpleUI-Panel:', error);
             context.globalState.update('comittoSimpleUIPanel', undefined);
-        }, null, context.subscriptions);
+            panel = null;
+        }
+        
+        if (!panel) {
+            // Neues Panel erstellen
+            panel = vscode.window.createWebviewPanel(
+                'comittoSimpleUI',
+                'Comitto: Einfache Benutzeroberfläche',
+                vscode.ViewColumn.One,
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true,
+                    localResourceRoots: [
+                        vscode.Uri.joinPath(context.extensionUri, 'resources')
+                    ]
+                }
+            );
+            
+            // Panel im globalen Zustand speichern
+            context.globalState.update('comittoSimpleUIPanel', panel);
+            
+            // Konfiguration auslesen
+            const config = vscode.workspace.getConfiguration('comitto');
+            const autoCommitEnabled = config.get('autoCommitEnabled');
+            const providerName = ui.getProviderDisplayName(config.get('aiProvider'));
+            
+            // HTML für das Webview generieren und setzen
+            panel.webview.html = generateSimpleUIHTML(autoCommitEnabled, providerName, context);
+            
+            // Nachrichten vom Webview verarbeiten
+            panel.webview.onDidReceiveMessage(
+                async (message) => {
+                    try {
+                        switch (message.command) {
+                            case 'toggleAutoCommit':
+                                const newEnabled = !autoCommitEnabled;
+                                await config.update('autoCommitEnabled', newEnabled, vscode.ConfigurationTarget.Global);
+                                // UI-Aktualisierung (wird automatisch durch Konfigurationsänderung ausgelöst)
+                                break;
+                            case 'performManualCommit':
+                                vscode.commands.executeCommand('comitto.performManualCommit');
+                                break;
+                            case 'selectProvider':
+                                vscode.commands.executeCommand('comitto.configureAIProvider');
+                                break;
+                            case 'configureTriggers':
+                                vscode.commands.executeCommand('comitto.configureTriggers');
+                                break;
+                            case 'openDashboard':
+                                vscode.commands.executeCommand('comitto.showDashboard');
+                                break;
+                            case 'openSettings':
+                                vscode.commands.executeCommand('comitto.openSettings');
+                                break;
+                        }
+                    } catch (error) {
+                        vscode.window.showErrorMessage(`Fehler bei der Verarbeitung der SimpleUI-Aktion: ${error.message}`);
+                    }
+                },
+                undefined,
+                context.subscriptions
+            );
+            
+            // Bereinigen, wenn das Panel geschlossen wird
+            panel.onDidDispose(() => {
+                context.globalState.update('comittoSimpleUIPanel', undefined);
+            }, null, context.subscriptions);
+        }
+    } catch (error) {
+        console.error('Fehler beim Öffnen der einfachen Benutzeroberfläche:', error);
+        vscode.window.showErrorMessage(`Fehler beim Öffnen der einfachen Benutzeroberfläche: ${error.message}`);
     }
 }
 

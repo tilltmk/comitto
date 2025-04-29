@@ -2,6 +2,50 @@
 
 Alle wesentlichen Änderungen an der Comitto-Erweiterung werden in dieser Datei dokumentiert.
 
+## [0.5.0] - 2024-07-15
+
+### Hinzugefügt
+- Ollama als Standard-KI-Provider für einfachere lokale Nutzung
+- Dynamische Modellauswahl für Ollama mit Verfügbarkeitsprüfung
+- Verbindungstest für Ollama-Endpunkt
+- Fallback-Commitnachricht bei KI-Fehlern
+
+### Verbessert
+- Robustere Fehlerbehandlung bei Ollama-Verbindungen
+- Detaillierte Statusanzeigen während des Commit-Prozesses
+- Benutzerfreundlichere Fehlermeldungen bei Git-Problemen
+- Verbesserte Validierung von Ollama-API-Endpunkt und Modell
+- Kürzung zu langer Commit-Nachrichten auf maximale Länge
+
+### Behoben
+- Verhinderung von Abstürzen bei fehlenden Git-Repositories
+- Besserer Umgang mit Netzwerkproblemen bei Ollama-Verbindungen
+
+## [0.4.0] - 2024-07-05
+
+### Hinzugefügt
+- Verbesserte Sprachauswahl für Commit-Nachrichten (Deutsch/Englisch)
+- Optimierte Prompt-Templates mit sprachspezifischen Anpassungen
+- OpenAI-Modellauswahl mit aktuellen Modellen (GPT-4o, etc.)
+
+### Verbessert
+- Benutzeroberfläche für Einstellungen und Konfiguration
+- Robustere Fehlerbehandlung
+
+## [0.3.0] - 2024-07-01
+
+### Hinzugefügt
+- Verbesserte Fehlerbehandlung für alle KI-Verbindungen
+- Optimierte Benutzeroberfläche des Dashboards
+
+### Geändert
+- Aktualisierung der Claude-Modell-Referenzen
+- Performance-Optimierungen
+
+### Behoben
+- Behoben: Probleme bei der Erkennung von Git-Änderungen
+- Behoben: UI-Aktualisierung nach Konfigurationsänderungen
+
 ## [0.2.0] - 2023-12-20
 
 ### Hinzugefügt
@@ -42,18 +86,4 @@ Alle wesentlichen Änderungen an der Comitto-Erweiterung werden in dieser Datei 
 - Integration mit Ollama für KI-generierte Commit-Nachrichten
 - Statusleistenelement zur Anzeige des aktuellen Status
 - Befehle zum Aktivieren/Deaktivieren der automatischen Commits
-- Grundlegende Konfigurationsoptionen (Ollama-Endpunkt, Modell, Trigger-Regeln)
-
-## [0.3.0] - 2024-07-01
-
-### Hinzugefügt
-- Verbesserte Fehlerbehandlung für alle KI-Verbindungen
-- Optimierte Benutzeroberfläche des Dashboards
-
-### Geändert
-- Aktualisierung der Claude-Modell-Referenzen
-- Performance-Optimierungen
-
-### Behoben
-- Behoben: Probleme bei der Erkennung von Git-Änderungen
-- Behoben: UI-Aktualisierung nach Konfigurationsänderungen 
+- Grundlegende Konfigurationsoptionen (Ollama-Endpunkt, Modell, Trigger-Regeln) 

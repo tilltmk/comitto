@@ -28,53 +28,74 @@ class StatusViewProvider {
         const enabled = config.get('autoCommitEnabled');
         const items = [];
 
-        // Status-Element
+        // Status-Element mit verbesserter Visualisierung
         const statusItem = new vscode.TreeItem(
             `Status: ${enabled ? 'Aktiviert' : 'Deaktiviert'}`,
             vscode.TreeItemCollapsibleState.None
         );
         statusItem.contextValue = enabled ? 'comitto-status-enabled' : 'comitto-status-disabled';
-        statusItem.iconPath = new vscode.ThemeIcon(enabled ? 'play' : 'debug-pause');
+        statusItem.iconPath = new vscode.ThemeIcon(enabled ? 'eye' : 'eye-closed');
+        statusItem.tooltip = enabled ? 'Comitto überwacht aktiv Änderungen' : 'Comitto ist derzeit deaktiviert';
         statusItem.command = {
             command: enabled ? 'comitto.disableAutoCommit' : 'comitto.enableAutoCommit',
             title: enabled ? 'Deaktivieren' : 'Aktivieren'
         };
         items.push(statusItem);
 
-        // AI Provider
+        // AI Provider mit mehr Details
         const provider = config.get('aiProvider');
         const providerItem = new vscode.TreeItem(
             `KI-Provider: ${getProviderDisplayName(provider)}`,
             vscode.TreeItemCollapsibleState.None
         );
         providerItem.iconPath = new vscode.ThemeIcon('symbol-enum');
+        providerItem.tooltip = `Aktueller KI-Provider für Commit-Nachrichten: ${getProviderDisplayName(provider)}`;
         providerItem.command = {
-            command: 'comitto.openSettings',
-            title: 'Einstellungen öffnen'
+            command: 'comitto.configureAIProvider',
+            title: 'KI-Provider konfigurieren'
         };
         items.push(providerItem);
 
-        // Trigger-Regeln
+        // Trigger-Regeln mit mehr Details
         const rules = config.get('triggerRules');
         const rulesItem = new vscode.TreeItem(
             `Trigger: ${rules.fileCountThreshold} Dateien / ${rules.minChangeCount} Änderungen`,
             vscode.TreeItemCollapsibleState.None
         );
         rulesItem.iconPath = new vscode.ThemeIcon('trigger');
+        rulesItem.tooltip = `Commit bei ${rules.fileCountThreshold} Dateien, ${rules.minChangeCount} Änderungen oder nach ${rules.timeThresholdMinutes} Minuten`;
         rulesItem.command = {
-            command: 'comitto.openSettings',
-            title: 'Einstellungen öffnen'
+            command: 'comitto.configureTriggers',
+            title: 'Trigger konfigurieren'
         };
         items.push(rulesItem);
 
-        // Manuellen Commit ausführen
-        const commitItem = new vscode.TreeItem('Manuellen Commit ausführen');
-        commitItem.iconPath = new vscode.ThemeIcon('git-commit');
-        commitItem.command = {
-            command: 'comitto.performManualCommit',
-            title: 'Manuellen Commit ausführen'
+        // Git-Einstellungen anzeigen
+        const gitSettings = config.get('gitSettings');
+        const gitItem = new vscode.TreeItem(
+            `Git: ${gitSettings.autoPush ? 'Mit Auto-Push' : 'Ohne Auto-Push'}`,
+            vscode.TreeItemCollapsibleState.None
+        );
+        gitItem.iconPath = new vscode.ThemeIcon('git-merge');
+        gitItem.tooltip = `Branch: ${gitSettings.branch || 'Aktuell'}, Sprache: ${gitSettings.commitMessageLanguage}, Stil: ${gitSettings.commitMessageStyle}`;
+        gitItem.command = {
+            command: 'comitto.openSettings',
+            title: 'Git-Einstellungen bearbeiten'
         };
-        items.push(commitItem);
+        items.push(gitItem);
+
+        // Letzte Aktivität / Statistik
+        const statsItem = new vscode.TreeItem(
+            'Aktivität: Bereit',
+            vscode.TreeItemCollapsibleState.None
+        );
+        statsItem.iconPath = new vscode.ThemeIcon('pulse');
+        statsItem.tooltip = 'Überwachte Dateien und Aktivität';
+        statsItem.command = {
+            command: 'comitto.showDashboard',
+            title: 'Dashboard anzeigen'
+        };
+        items.push(statsItem);
 
         return items;
     }
@@ -306,6 +327,82 @@ class SettingsViewProvider {
 }
 
 /**
+ * Klasse für schnelle Aktionen in der Seitenleiste
+ */
+class QuickActionsViewProvider {
+    constructor(context) {
+        this._onDidChangeTreeData = new vscode.EventEmitter();
+        this.onDidChangeTreeData = this._onDidChangeTreeData.event;
+        this._context = context;
+    }
+
+    refresh() {
+        this._onDidChangeTreeData.fire();
+    }
+
+    getTreeItem(element) {
+        return element;
+    }
+
+    async getChildren(element) {
+        if (element) {
+            return [];
+        }
+
+        const items = [];
+
+        // Manuellen Commit ausführen
+        const commitItem = new vscode.TreeItem('Manuellen Commit ausführen');
+        commitItem.iconPath = new vscode.ThemeIcon('git-commit');
+        commitItem.command = {
+            command: 'comitto.performManualCommit',
+            title: 'Manuellen Commit ausführen'
+        };
+        items.push(commitItem);
+
+        // KI-Provider konfigurieren
+        const aiProviderItem = new vscode.TreeItem('KI-Provider konfigurieren');
+        aiProviderItem.iconPath = new vscode.ThemeIcon('symbol-misc');
+        aiProviderItem.command = {
+            command: 'comitto.configureAIProvider',
+            title: 'KI-Provider konfigurieren'
+        };
+        items.push(aiProviderItem);
+
+        // Trigger konfigurieren
+        const triggerItem = new vscode.TreeItem('Trigger konfigurieren');
+        triggerItem.iconPath = new vscode.ThemeIcon('settings-gear');
+        triggerItem.command = {
+            command: 'comitto.configureTriggers',
+            title: 'Trigger konfigurieren'
+        };
+        items.push(triggerItem);
+
+        // Auto-Status umschalten
+        const config = vscode.workspace.getConfiguration('comitto');
+        const enabled = config.get('autoCommitEnabled');
+        const toggleItem = new vscode.TreeItem(`Auto-Commit ${enabled ? 'deaktivieren' : 'aktivieren'}`);
+        toggleItem.iconPath = new vscode.ThemeIcon(enabled ? 'circle-slash' : 'check');
+        toggleItem.command = {
+            command: enabled ? 'comitto.disableAutoCommit' : 'comitto.enableAutoCommit',
+            title: enabled ? 'Deaktivieren' : 'Aktivieren'
+        };
+        items.push(toggleItem);
+
+        // Dashboard anzeigen
+        const dashboardItem = new vscode.TreeItem('Dashboard anzeigen');
+        dashboardItem.iconPath = new vscode.ThemeIcon('dashboard');
+        dashboardItem.command = {
+            command: 'comitto.showDashboard',
+            title: 'Dashboard anzeigen'
+        };
+        items.push(dashboardItem);
+
+        return items;
+    }
+}
+
+/**
  * UI-Hilfsfunktionen
  */
 
@@ -337,6 +434,14 @@ function registerUI(context) {
     });
     context.subscriptions.push(statusTreeView);
 
+    // Schnellaktionen-Ansicht
+    const quickActionsProvider = new QuickActionsViewProvider(context);
+    const quickActionsTreeView = vscode.window.createTreeView('comitto-quick-actions', {
+        treeDataProvider: quickActionsProvider,
+        showCollapseAll: false
+    });
+    context.subscriptions.push(quickActionsTreeView);
+
     // Einstellungs-Ansicht
     const settingsProvider = new SettingsViewProvider(context);
     const settingsTreeView = vscode.window.createTreeView('comitto-settings', {
@@ -347,6 +452,7 @@ function registerUI(context) {
 
     return {
         statusProvider,
+        quickActionsProvider,
         settingsProvider
     };
 }
@@ -354,5 +460,6 @@ function registerUI(context) {
 module.exports = {
     registerUI,
     StatusViewProvider,
+    QuickActionsViewProvider,
     SettingsViewProvider
 }; 

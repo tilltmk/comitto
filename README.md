@@ -1,52 +1,59 @@
-# Comitto - Automatische Git Commits mit KI
+# Comitto - AI-Powered Git Commits
 
-Comitto ist eine VS Code-Erweiterung, die automatisch Commit-Nachrichten mit verschiedenen KI-Modellen (Ollama, OpenAI, Anthropic) generiert und Commits durchführt, ohne dass der Benutzer eingreifen muss.
+<p align="center">
+  <img src="comitto.png" alt="Comitto Logo" width="200"/>
+</p>
 
-## Funktionen
+Comitto is a VS Code extension that automatically generates commit messages using various AI models (Ollama, OpenAI, Anthropic) and performs commits without user intervention.
 
-- **Automatische Commits**: Führt Git-Commits basierend auf konfigurierbaren Regeln durch
-- **KI-generierte Commit-Nachrichten**: Nutzt Ollama, OpenAI oder Anthropic für qualitativ hochwertige Commit-Nachrichten
-- **Konfigurierbare Trigger**: Passt an, wann automatische Commits ausgeführt werden sollen
-- **Umfangreiche Git-Einstellungen**: Konfigurieren Sie Repository-Pfad, Branch, Auto-Push und mehr
-- **Anpassbare Prompts**: Passen Sie die Vorlage für die Generierung von Commit-Nachrichten an
-- **Benutzerfreundliche Oberfläche**: Alle Einstellungen können bequem über die Seitenleiste angepasst werden
-- **Statusanzeige**: Zeigt den aktuellen Status der Erweiterung in der VS Code-Statusleiste an
+[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](https://marketplace.visualstudio.com/items?itemName=comitto.comitto)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Voraussetzungen
+## Features
 
-- Visual Studio Code Version 1.70.0 oder höher
-- Git muss auf dem System installiert und im Workspace initialisiert sein
-- Je nach Konfiguration: Ollama lokal oder API-Schlüssel für OpenAI/Anthropic
+- **Automatic Commits**: Performs Git commits based on configurable rules
+- **AI-generated Commit Messages**: Uses Ollama, OpenAI, or Anthropic for high-quality commit messages
+- **Configurable Triggers**: Adjust when automatic commits should be performed
+- **Comprehensive Git Settings**: Configure repository path, branch, auto-push, and more
+- **Customizable Prompts**: Customize the template for generating commit messages
+- **User-friendly Interface**: All settings can be easily adjusted via the sidebar
+- **Status Display**: Shows the current status of the extension in the VS Code status bar
 
-## Benutzeroberfläche
+## Prerequisites
 
-Comitto bietet eine benutzerfreundliche Oberfläche in der Seitenleiste von VS Code:
+- Visual Studio Code version 1.70.0 or higher
+- Git must be installed on your system and initialized in your workspace
+- Depending on configuration: Ollama installed locally or API keys for OpenAI/Anthropic
 
-### Statusansicht
+## User Interface
 
-Zeigt den aktuellen Status der Erweiterung und bietet schnellen Zugriff auf häufig verwendete Funktionen:
-- Status (aktiviert/deaktiviert)
-- Aktueller KI-Provider
-- Trigger-Regeln
-- Manuellen Commit ausführen
+Comitto provides a user-friendly interface in the VS Code sidebar:
 
-### Einstellungsansicht
+### Status View
 
-Ermöglicht die einfache Konfiguration aller Parameter ohne JSON-Bearbeitung:
-- KI-Provider und Modelleinstellungen
-- Trigger-Regeln
-- Git-Einstellungen
-- Prompt-Vorlagen
+Shows the current status of the extension and provides quick access to frequently used functions:
+- Status (enabled/disabled)
+- Current AI provider
+- Trigger rules
+- Perform manual commit
 
-Klicken Sie auf einen Eintrag, um die entsprechende Einstellung zu bearbeiten.
+### Settings View
 
-## KI-Provider einrichten
+Allows easy configuration of all parameters without editing JSON:
+- AI provider and model settings
+- Trigger rules
+- Git settings
+- Prompt templates
 
-### Ollama (lokal)
+Click on an entry to edit the corresponding setting.
 
-Besuchen Sie [ollama.com](https://ollama.com/), um Ollama für Ihr Betriebssystem zu installieren.
+## Setting Up AI Providers
 
-Nach der Installation starten Sie Ollama und laden ein Modell:
+### Ollama (Local)
+
+Visit [ollama.com](https://ollama.com/) to install Ollama for your operating system.
+
+After installation, start Ollama and load a model:
 
 ```
 ollama pull llama3
@@ -54,130 +61,130 @@ ollama pull llama3
 
 ### OpenAI
 
-Für die Verwendung von OpenAI benötigen Sie einen API-Schlüssel.
+To use OpenAI, you need an API key.
 
-1. Besuchen Sie [platform.openai.com](https://platform.openai.com/)
-2. Erstellen Sie ein Konto oder melden Sie sich an
-3. Navigieren Sie zum API-Bereich und erstellen Sie einen API-Schlüssel
-4. Kopieren Sie den Schlüssel in die Einstellungen der Erweiterung (über die Seitenleiste)
+1. Visit [platform.openai.com](https://platform.openai.com/)
+2. Create an account or sign in
+3. Navigate to the API section and create an API key
+4. Copy the key into the extension settings (via the sidebar)
 
 ### Anthropic
 
-Für die Verwendung von Anthropic benötigen Sie einen API-Schlüssel.
+To use Anthropic, you need an API key.
 
-1. Besuchen Sie [console.anthropic.com](https://console.anthropic.com/)
-2. Erstellen Sie ein Konto oder melden Sie sich an
-3. Erstellen Sie einen API-Schlüssel
-4. Kopieren Sie den Schlüssel in die Einstellungen der Erweiterung (über die Seitenleiste)
+1. Visit [console.anthropic.com](https://console.anthropic.com/)
+2. Create an account or sign in
+3. Create an API key
+4. Copy the key into the extension settings (via the sidebar)
 
-## Konfiguration
+## Configuration
 
-Alle Einstellungen können bequem über die Seitenleiste angepasst werden. Alternativ können Sie auch die VS Code-Einstellungen verwenden:
+All settings can be easily adjusted via the sidebar. Alternatively, you can also use the VS Code settings:
 
-| Einstellung | Beschreibung | Standardwert |
-|-------------|--------------|--------------|
-| `comitto.aiProvider` | KI-Provider für die Generierung von Commit-Nachrichten (ollama, openai, anthropic) | `ollama` |
-| `comitto.ollama.endpoint` | Ollama API-Endpunkt | `http://localhost:11434/api/generate` |
-| `comitto.ollama.model` | Ollama-Modell für die Generierung von Commit-Nachrichten | `llama3` |
-| `comitto.openai.apiKey` | OpenAI API-Schlüssel | `` |
-| `comitto.openai.model` | OpenAI-Modell für die Generierung von Commit-Nachrichten | `gpt-3.5-turbo` |
-| `comitto.anthropic.apiKey` | Anthropic API-Schlüssel | `` |
-| `comitto.anthropic.model` | Anthropic-Modell für die Generierung von Commit-Nachrichten | `claude-3-haiku-20240307` |
-| `comitto.autoCommitEnabled` | Aktiviert oder deaktiviert automatische Commits | `false` |
-| `comitto.triggerRules` | Regeln, die automatische Commits auslösen | Siehe unten |
-| `comitto.gitSettings` | Git-Einstellungen für Commits | Siehe unten |
-| `comitto.promptTemplate` | Anpassbare Vorlage für die Generierung von Commit-Nachrichten | Siehe unten |
+| Setting | Description | Default Value |
+|---------|-------------|---------------|
+| `comitto.aiProvider` | AI provider for generating commit messages (ollama, openai, anthropic) | `ollama` |
+| `comitto.ollama.endpoint` | Ollama API endpoint | `http://localhost:11434/api/generate` |
+| `comitto.ollama.model` | Ollama model for generating commit messages | `llama3` |
+| `comitto.openai.apiKey` | OpenAI API key | `` |
+| `comitto.openai.model` | OpenAI model for generating commit messages | `gpt-3.5-turbo` |
+| `comitto.anthropic.apiKey` | Anthropic API key | `` |
+| `comitto.anthropic.model` | Anthropic model for generating commit messages | `claude-3-haiku-20240307` |
+| `comitto.autoCommitEnabled` | Enables or disables automatic commits | `false` |
+| `comitto.triggerRules` | Rules that trigger automatic commits | See below |
+| `comitto.gitSettings` | Git settings for commits | See below |
+| `comitto.promptTemplate` | Customizable template for generating commit messages | See below |
 
-### Trigger-Regeln
+### Trigger Rules
 
-Die Trigger-Regeln können wie folgt konfiguriert werden:
+The trigger rules can be configured as follows:
 
 ```json
 "comitto.triggerRules": {
-  "fileCountThreshold": 3,     // Anzahl der geänderten Dateien, die einen Commit auslösen
-  "specificFiles": [           // Bestimmte Dateien, bei deren Änderung ein Commit ausgelöst wird
+  "fileCountThreshold": 3,     // Number of changed files that trigger a commit
+  "specificFiles": [           // Specific files that trigger a commit when changed
     "package.json",
     "README.md"
   ],
-  "minChangeCount": 10,        // Minimale Anzahl an Änderungen, die einen Commit auslösen
-  "timeThresholdMinutes": 30,  // Minimale Zeit in Minuten zwischen automatischen Commits
-  "filePatterns": ["**/*"]     // Glob-Muster für zu überwachende Dateien
+  "minChangeCount": 10,        // Minimum number of changes that trigger a commit
+  "timeThresholdMinutes": 30,  // Minimum time in minutes between automatic commits
+  "filePatterns": ["**/*"]     // Glob patterns for files to watch
 }
 ```
 
-### Git-Einstellungen
+### Git Settings
 
-Die Git-Einstellungen können wie folgt konfiguriert werden:
+The Git settings can be configured as follows:
 
 ```json
 "comitto.gitSettings": {
-  "repositoryPath": "",        // Optionaler Pfad zum Git-Repository (standardmäßig Workspace-Ordner)
-  "autoPush": false,           // Automatisch nach dem Commit pushen
-  "branch": "",                // Optionaler Branch-Name für Commits (leerlassen für aktuellen Branch)
-  "commitMessageLanguage": "de", // Sprache für die Commit-Nachricht (de, en, fr, ...)
-  "commitMessageStyle": "conventional", // Stil der Commit-Nachricht (conventional, gitmoji, ...)
-  "useGitignore": true         // .gitignore-Datei für das Ignorieren von Dateien verwenden
+  "repositoryPath": "",        // Optional path to the Git repository (defaults to workspace folder)
+  "autoPush": false,           // Automatically push after commit
+  "branch": "",                // Optional branch name for commits (leave empty for current branch)
+  "commitMessageLanguage": "en", // Language for the commit message (en, de, fr, ...)
+  "commitMessageStyle": "conventional", // Style of the commit message (conventional, gitmoji, ...)
+  "useGitignore": true         // Use .gitignore file for ignoring files
 }
 ```
 
-### Prompt-Vorlage
+### Prompt Template
 
-Sie können die Vorlage für die KI-Generierung anpassen. Dies kann bequem über die Seitenleiste erfolgen, wo ein Editor geöffnet wird:
+You can customize the template for AI generation. This can be done conveniently via the sidebar, where an editor will open:
 
 ```
-"comitto.promptTemplate": "Generiere eine aussagekräftige Commit-Nachricht für die folgenden Änderungen: \n\n{changes}\n\nVerwende das Conventional Commits Format (feat, fix, docs, etc.) und halte die Nachricht unter 80 Zeichen."
+"comitto.promptTemplate": "Generate a meaningful commit message for the following changes: \n\n{changes}\n\nUse the Conventional Commits format (feat, fix, docs, etc.) and keep the message under 80 characters."
 ```
 
-Der Platzhalter `{changes}` wird automatisch durch die Liste der geänderten Dateien ersetzt.
+The placeholder `{changes}` will be automatically replaced with the list of changed files.
 
-## Verwendung
+## Usage
 
-1. Installieren Sie die Erweiterung in VS Code
-2. Klicken Sie auf das Comitto-Symbol in der Aktivitätsleiste, um die Seitenleiste zu öffnen
-3. Konfigurieren Sie den gewünschten KI-Provider und weitere Einstellungen über die Seitenleiste
-4. Aktivieren Sie die automatischen Commits über:
-   - Die Schaltfläche in der Statusanzeige
-   - Den Befehl "Comitto: Automatische Commits aktivieren" im Befehls-Paletten (Strg+Shift+P)
-   - Klicken auf das Comitto-Symbol in der Statusleiste
-5. Arbeiten Sie normal weiter - die Erweiterung erledigt den Rest!
-6. Sie können auch jederzeit einen manuellen KI-Commit mit dem Befehl "Comitto: Manuellen KI-Commit ausführen" oder über die Statusanzeige durchführen
+1. Install the extension in VS Code
+2. Click on the Comitto icon in the activity bar to open the sidebar
+3. Configure the desired AI provider and other settings via the sidebar
+4. Enable automatic commits via:
+   - The button in the status view
+   - The command "Comitto: Enable Automatic Commits" in the command palette (Ctrl+Shift+P)
+   - Clicking on the Comitto icon in the status bar
+5. Continue working normally - the extension takes care of the rest!
+6. You can also perform a manual AI commit at any time using the command "Comitto: Perform Manual AI Commit" or via the status view
 
-## Befehle
+## Commands
 
-Die Erweiterung bietet folgende Befehle:
+The extension provides the following commands:
 
-- `comitto.enableAutoCommit`: Aktiviert automatische Commits
-- `comitto.disableAutoCommit`: Deaktiviert automatische Commits
-- `comitto.toggleAutoCommit`: Wechselt zwischen aktiviertem und deaktiviertem Zustand
-- `comitto.performManualCommit`: Führt einen manuellen KI-Commit durch
-- `comitto.refreshSettings`: Aktualisiert die Einstellungsanzeige
-- `comitto.openSettings`: Öffnet die VS Code-Einstellungen für Comitto
+- `comitto.enableAutoCommit`: Enables automatic commits
+- `comitto.disableAutoCommit`: Disables automatic commits
+- `comitto.toggleAutoCommit`: Toggles between enabled and disabled state
+- `comitto.performManualCommit`: Performs a manual AI commit
+- `comitto.refreshSettings`: Updates the settings display
+- `comitto.openSettings`: Opens the VS Code settings for Comitto
 
-## Datenschutz und Sicherheit
+## Privacy and Security
 
-Diese Erweiterung sendet Informationen über Ihre Code-Änderungen an den konfigurierten KI-Provider:
+This extension sends information about your code changes to the configured AI provider:
 
-- **Ollama**: Da Ollama lokal auf Ihrem System ausgeführt wird, verlassen diese Daten Ihren Computer nicht.
-- **OpenAI/Anthropic**: Bei Verwendung dieser Provider werden Ihre Änderungsinformationen an externe Server gesendet. Bitte lesen Sie die Datenschutzrichtlinien dieser Anbieter.
+- **Ollama**: Since Ollama runs locally on your system, this data does not leave your computer.
+- **OpenAI/Anthropic**: When using these providers, your change information is sent to external servers. Please read the privacy policies of these providers.
 
-Sie können die Menge der gesendeten Informationen durch Anpassung der Prompt-Vorlage kontrollieren.
+You can control the amount of information sent by customizing the prompt template.
 
-## Fehlerbehebung
+## Troubleshooting
 
-Wenn Sie Probleme mit der Erweiterung haben:
+If you have problems with the extension:
 
-1. Stellen Sie sicher, dass der ausgewählte KI-Provider korrekt konfiguriert ist
-   - Ollama: Ollama muss ausgeführt werden und das konfigurierte Modell muss installiert sein
-   - OpenAI/Anthropic: API-Schlüssel muss gültig sein
-2. Überprüfen Sie, ob Git korrekt eingerichtet ist und `git status` im Workspace funktioniert
-3. Überprüfen Sie die VS Code-Ausgabe der Erweiterung auf Fehlermeldungen
-4. Aktualisieren Sie die Einstellungsanzeige über die Schaltfläche "Aktualisieren"
+1. Make sure the selected AI provider is correctly configured
+   - Ollama: Ollama must be running and the configured model must be installed
+   - OpenAI/Anthropic: API key must be valid
+2. Check that Git is properly set up and `git status` works in the workspace
+3. Check the VS Code output of the extension for error messages
+4. Refresh the settings display using the "Refresh" button
 
-## Bekannte Einschränkungen
+## Known Limitations
 
-- Die Erweiterung funktioniert nur in Workspaces mit einem initialisierten Git-Repository
-- Bei Verwendung von großen Diffs kann die Qualität der generierten Commit-Nachrichten variieren
+- The extension only works in workspaces with an initialized Git repository
+- When using large diffs, the quality of the generated commit messages may vary
 
-## Lizenz
+## License
 
-Diese Erweiterung unterliegt der MIT-Lizenz. 
+This extension is released under the MIT License. 

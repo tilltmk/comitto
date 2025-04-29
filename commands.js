@@ -319,6 +319,380 @@ function registerCommands(context, providers) {
             }
         });
     }));
+
+    // Dashboard anzeigen
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.showDashboard', async () => {
+        // Erstelle eine temporäre HTML-Datei für das Dashboard
+        const dashboardContent = generateDashboardHTML();
+        
+        const document = await vscode.workspace.openTextDocument({
+            content: dashboardContent,
+            language: 'html'
+        });
+        
+        // Panel für Webview erstellen
+        const panel = vscode.window.createWebviewPanel(
+            'comittoDashboard',
+            'Comitto Dashboard',
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true
+            }
+        );
+        
+        // Dashboard-Inhalt setzen
+        panel.webview.html = dashboardContent;
+        
+        // Nachrichtenhandling für Webview
+        panel.webview.onDidReceiveMessage(
+            message => {
+                switch (message.command) {
+                    case 'refresh':
+                        panel.webview.html = generateDashboardHTML();
+                        break;
+                    case 'toggleAutoCommit':
+                        const isEnabled = vscode.workspace.getConfiguration('comitto').get('autoCommitEnabled');
+                        vscode.commands.executeCommand(
+                            isEnabled ? 'comitto.disableAutoCommit' : 'comitto.enableAutoCommit'
+                        );
+                        break;
+                    case 'performManualCommit':
+                        vscode.commands.executeCommand('comitto.performManualCommit');
+                        break;
+                }
+            }
+        );
+    }));
+
+    // KI-Provider konfigurieren
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.configureAIProvider', async () => {
+        const providers = ['ollama', 'openai', 'anthropic'];
+        const displayNames = ['Ollama (lokal)', 'OpenAI', 'Anthropic Claude'];
+        
+        const selected = await vscode.window.showQuickPick(
+            displayNames.map((name, index) => ({ label: name, id: providers[index] })),
+            { 
+                placeHolder: 'KI-Provider auswählen',
+                title: 'Comitto - KI-Provider konfigurieren'
+            }
+        );
+        
+        if (selected) {
+            await vscode.workspace.getConfiguration('comitto').update('aiProvider', selected.id, vscode.ConfigurationTarget.Global);
+            
+            // Provider-spezifische Einstellungen
+            switch (selected.id) {
+                case 'ollama':
+                    const ollamaModel = await vscode.window.showInputBox({
+                        value: vscode.workspace.getConfiguration('comitto').get('ollama.model'),
+                        prompt: 'Geben Sie den Namen des Ollama-Modells ein',
+                        placeHolder: 'z.B. llama3, mistral, ...',
+                        title: 'Ollama-Modell'
+                    });
+                    
+                    if (ollamaModel !== undefined) {
+                        await vscode.workspace.getConfiguration('comitto').update('ollama.model', ollamaModel, vscode.ConfigurationTarget.Global);
+                    }
+                    break;
+                    
+                case 'openai':
+                    const openaiModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo'];
+                    const openaiModel = await vscode.window.showQuickPick(
+                        openaiModels.map(name => ({ label: name })),
+                        { 
+                            placeHolder: 'OpenAI-Modell auswählen',
+                            title: 'OpenAI-Modell konfigurieren'
+                        }
+                    );
+                    
+                    if (openaiModel) {
+                        await vscode.workspace.getConfiguration('comitto').update('openai.model', openaiModel.label, vscode.ConfigurationTarget.Global);
+                        
+                        const hasKey = !!vscode.workspace.getConfiguration('comitto').get('openai.apiKey');
+                        if (!hasKey) {
+                            const shouldConfigureKey = await vscode.window.showInformationMessage(
+                                'OpenAI API-Schlüssel ist nicht konfiguriert. Möchten Sie ihn jetzt konfigurieren?',
+                                'Ja', 'Nein'
+                            );
+                            
+                            if (shouldConfigureKey === 'Ja') {
+                                vscode.commands.executeCommand('comitto.editOpenAIKey');
+                            }
+                        }
+                    }
+                    break;
+                    
+                case 'anthropic':
+                    const anthropicModels = ['claude-3-haiku-20240307', 'claude-3-sonnet-20240229', 'claude-3-opus-20240229'];
+                    const anthropicModel = await vscode.window.showQuickPick(
+                        anthropicModels.map(name => ({ label: name })),
+                        { 
+                            placeHolder: 'Claude-Modell auswählen',
+                            title: 'Claude-Modell konfigurieren'
+                        }
+                    );
+                    
+                    if (anthropicModel) {
+                        await vscode.workspace.getConfiguration('comitto').update('anthropic.model', anthropicModel.label, vscode.ConfigurationTarget.Global);
+                        
+                        const hasKey = !!vscode.workspace.getConfiguration('comitto').get('anthropic.apiKey');
+                        if (!hasKey) {
+                            const shouldConfigureKey = await vscode.window.showInformationMessage(
+                                'Anthropic API-Schlüssel ist nicht konfiguriert. Möchten Sie ihn jetzt konfigurieren?',
+                                'Ja', 'Nein'
+                            );
+                            
+                            if (shouldConfigureKey === 'Ja') {
+                                vscode.commands.executeCommand('comitto.editAnthropicKey');
+                            }
+                        }
+                    }
+                    break;
+            }
+            
+            if (providers) {
+                providers.statusProvider.refresh();
+                providers.quickActionsProvider.refresh();
+                providers.settingsProvider.refresh();
+            }
+        }
+    }));
+
+    // Trigger konfigurieren
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.configureTriggers', async () => {
+        const rules = vscode.workspace.getConfiguration('comitto').get('triggerRules');
+        
+        const options = [
+            { label: `Datei-Anzahl: ${rules.fileCountThreshold}`, id: 'fileCountThreshold' },
+            { label: `Änderungs-Anzahl: ${rules.minChangeCount}`, id: 'minChangeCount' },
+            { label: `Zeit-Schwellwert: ${rules.timeThresholdMinutes} Minuten`, id: 'timeThresholdMinutes' },
+            { label: 'Dateimuster bearbeiten', id: 'filePatterns' },
+            { label: 'Spezifische Dateien bearbeiten', id: 'specificFiles' }
+        ];
+        
+        const selected = await vscode.window.showQuickPick(options, {
+            placeHolder: 'Welchen Trigger möchten Sie konfigurieren?',
+            title: 'Comitto - Trigger konfigurieren'
+        });
+        
+        if (selected) {
+            switch (selected.id) {
+                case 'fileCountThreshold':
+                    vscode.commands.executeCommand('comitto.editFileCountThreshold');
+                    break;
+                case 'minChangeCount':
+                    vscode.commands.executeCommand('comitto.editMinChangeCount');
+                    break;
+                case 'timeThresholdMinutes':
+                    vscode.commands.executeCommand('comitto.editTimeThreshold');
+                    break;
+                case 'filePatterns':
+                    vscode.commands.executeCommand('comitto.editFilePatterns');
+                    break;
+                case 'specificFiles':
+                    vscode.commands.executeCommand('comitto.editSpecificFiles');
+                    break;
+            }
+        }
+    }));
+}
+
+/**
+ * Generiert das HTML für das Dashboard
+ * @returns {string} HTML-Inhalt
+ */
+function generateDashboardHTML() {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const enabled = config.get('autoCommitEnabled');
+    const provider = config.get('aiProvider');
+    const rules = config.get('triggerRules');
+    const gitSettings = config.get('gitSettings');
+    
+    // Bestimme Provider-Namen
+    let providerName = '';
+    switch (provider) {
+        case 'ollama': providerName = 'Ollama (lokal)'; break;
+        case 'openai': providerName = 'OpenAI'; break;
+        case 'anthropic': providerName = 'Anthropic Claude'; break;
+        default: providerName = provider;
+    }
+    
+    return `
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Comitto Dashboard</title>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                margin: 0;
+                padding: 20px;
+                color: var(--vscode-foreground);
+                background-color: var(--vscode-editor-background);
+            }
+            .container {
+                max-width: 800px;
+                margin: 0 auto;
+            }
+            .header {
+                display: flex;
+                align-items: center;
+                margin-bottom: 20px;
+                border-bottom: 1px solid var(--vscode-panel-border);
+                padding-bottom: 10px;
+            }
+            .logo {
+                width: 50px;
+                height: 50px;
+                margin-right: 15px;
+            }
+            h1 {
+                margin: 0;
+                color: var(--vscode-editor-foreground);
+            }
+            .status {
+                padding: 15px;
+                border-radius: 5px;
+                margin-bottom: 20px;
+                background-color: ${enabled ? 'var(--vscode-editorGutter-addedBackground)' : 'var(--vscode-editorGutter-deletedBackground)'};
+            }
+            .card {
+                background-color: var(--vscode-editor-inactiveSelectionBackground);
+                padding: 15px;
+                margin-bottom: 15px;
+                border-radius: 5px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            .card h2 {
+                margin-top: 0;
+                margin-bottom: 10px;
+                color: var(--vscode-editor-foreground);
+            }
+            .card-content {
+                display: flex;
+                flex-wrap: wrap;
+            }
+            .card-item {
+                flex: 1 0 45%;
+                margin-bottom: 10px;
+            }
+            .card-item strong {
+                display: block;
+                margin-bottom: 5px;
+            }
+            .buttons {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 20px;
+            }
+            button {
+                background-color: var(--vscode-button-background);
+                color: var(--vscode-button-foreground);
+                border: none;
+                padding: 8px 16px;
+                border-radius: 3px;
+                cursor: pointer;
+            }
+            button:hover {
+                background-color: var(--vscode-button-hoverBackground);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <img src="data:image/png;base64,{BASE64_LOGO}" alt="Comitto Logo" class="logo" />
+                <h1>Comitto Dashboard</h1>
+            </div>
+            
+            <div class="buttons">
+                <button id="commitBtn">Manuellen Commit ausführen</button>
+                <button id="toggleBtn">${enabled ? 'Deaktivieren' : 'Aktivieren'}</button>
+                <button id="refreshBtn">Aktualisieren</button>
+            </div>
+            
+            <div class="status">
+                <strong>Status:</strong> Comitto ist derzeit ${enabled ? 'aktiviert' : 'deaktiviert'}
+            </div>
+            
+            <div class="card">
+                <h2>KI-Provider</h2>
+                <div class="card-content">
+                    <div class="card-item">
+                        <strong>Provider:</strong> ${providerName}
+                    </div>
+                    <div class="card-item">
+                        <strong>Modell:</strong> ${config.get(`${provider}.model`)}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>Trigger-Regeln</h2>
+                <div class="card-content">
+                    <div class="card-item">
+                        <strong>Datei-Anzahl:</strong> ${rules.fileCountThreshold}
+                    </div>
+                    <div class="card-item">
+                        <strong>Änderungs-Anzahl:</strong> ${rules.minChangeCount}
+                    </div>
+                    <div class="card-item">
+                        <strong>Zeit-Schwellwert:</strong> ${rules.timeThresholdMinutes} Minuten
+                    </div>
+                    <div class="card-item">
+                        <strong>Dateimuster:</strong> ${rules.filePatterns.join(', ')}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>Git-Einstellungen</h2>
+                <div class="card-content">
+                    <div class="card-item">
+                        <strong>Auto-Push:</strong> ${gitSettings.autoPush ? 'Ja' : 'Nein'}
+                    </div>
+                    <div class="card-item">
+                        <strong>Branch:</strong> ${gitSettings.branch || 'Aktueller Branch'}
+                    </div>
+                    <div class="card-item">
+                        <strong>Nachrichtensprache:</strong> ${gitSettings.commitMessageLanguage}
+                    </div>
+                    <div class="card-item">
+                        <strong>Nachrichtenstil:</strong> ${gitSettings.commitMessageStyle}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            (function() {
+                const vscode = acquireVsCodeApi();
+                
+                document.getElementById('commitBtn').addEventListener('click', () => {
+                    vscode.postMessage({
+                        command: 'performManualCommit'
+                    });
+                });
+                
+                document.getElementById('toggleBtn').addEventListener('click', () => {
+                    vscode.postMessage({
+                        command: 'toggleAutoCommit'
+                    });
+                });
+                
+                document.getElementById('refreshBtn').addEventListener('click', () => {
+                    vscode.postMessage({
+                        command: 'refresh'
+                    });
+                });
+            })();
+        </script>
+    </body>
+    </html>
+    `;
 }
 
 module.exports = {

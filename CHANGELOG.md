@@ -9,7 +9,7 @@ Alle wesentlichen Änderungen an der Comitto-Erweiterung werden in dieser Datei 
 - Status-Ansicht mit Übersicht über aktuelle Einstellungen
 - Einstellungs-Ansicht zur interaktiven Konfiguration aller Parameter
 - Icon für die Extension und die Seitenleiste
-- Verbesserte Befehlsstruktur für einfacheren Zugriff
+- Verbesserte Befehlsstruktur für einfachen Zugriff
 - Zusätzliche Benutzerführung und Hilfetexte
 
 ### Verbessert
@@ -42,4 +42,18 @@ Alle wesentlichen Änderungen an der Comitto-Erweiterung werden in dieser Datei 
 - Integration mit Ollama für KI-generierte Commit-Nachrichten
 - Statusleistenelement zur Anzeige des aktuellen Status
 - Befehle zum Aktivieren/Deaktivieren der automatischen Commits
-- Grundlegende Konfigurationsoptionen (Ollama-Endpunkt, Modell, Trigger-Regeln) 
+- Grundlegende Konfigurationsoptionen (Ollama-Endpunkt, Modell, Trigger-Regeln)
+
+## [0.3.0] - 2024-07-01
+
+### Hinzugefügt
+- Verbesserte Fehlerbehandlung für alle KI-Verbindungen
+- Optimierte Benutzeroberfläche des Dashboards
+
+### Geändert
+- Aktualisierung der Claude-Modell-Referenzen
+- Performance-Optimierungen
+
+### Behoben
+- Behoben: Probleme bei der Erkennung von Git-Änderungen
+- Behoben: UI-Aktualisierung nach Konfigurationsänderungen 

@@ -2,7 +2,7 @@
   "name": "comitto",
   "displayName": "Comitto",
   "description": "Automatische Generierung von Commit-Nachrichten mit KI (Ollama, OpenAI, Anthropic)",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "comitto",
   "repository": {
     "type": "git",
@@ -15,6 +15,7 @@
     "Other",
     "SCM Providers"
   ],
+  "icon": "comitto.png",
   "activationEvents": [
     "onStartupFinished",
     "onView:comitto-settings",
@@ -39,6 +40,11 @@
           "when": "workspaceHasGit"
         },
         {
+          "id": "comitto-quick-actions",
+          "name": "Schnellaktionen",
+          "when": "workspaceHasGit"
+        },
+        {
           "id": "comitto-settings",
           "name": "Einstellungen",
           "when": "workspaceHasGit"
@@ -48,6 +54,11 @@
     "viewsWelcome": [
       {
         "view": "comitto-status",
+        "contents": "Kein Git-Repository gefunden.\n[Git-Repository initialisieren](command:git.init)",
+        "when": "!workspaceHasGit"
+      },
+      {
+        "view": "comitto-quick-actions",
         "contents": "Kein Git-Repository gefunden.\n[Git-Repository initialisieren](command:git.init)",
         "when": "!workspaceHasGit"
       }
@@ -77,6 +88,21 @@
         "command": "comitto.openSettings",
         "title": "Comitto: Einstellungen öffnen",
         "icon": "$(gear)"
+      },
+      {
+        "command": "comitto.showDashboard",
+        "title": "Comitto: Dashboard anzeigen",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "comitto.configureAIProvider",
+        "title": "Comitto: KI-Provider konfigurieren",
+        "icon": "$(symbol-misc)"
+      },
+      {
+        "command": "comitto.configureTriggers",
+        "title": "Comitto: Trigger konfigurieren", 
+        "icon": "$(settings-gear)"
       }
     ],
     "menus": {
@@ -90,6 +116,11 @@
           "command": "comitto.performManualCommit",
           "when": "view == comitto-status",
           "group": "navigation"
+        },
+        {
+          "command": "comitto.showDashboard",
+          "when": "view == comitto-quick-actions",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
@@ -102,6 +133,20 @@
           "command": "comitto.disableAutoCommit",
           "when": "viewItem == comitto-status-enabled",
           "group": "inline"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "comitto.showDashboard",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.configureAIProvider",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.configureTriggers",
+          "when": "workspaceHasGit"
         }
       ]
     },

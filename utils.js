@@ -8,11 +8,20 @@ const { exec } = require('child_process');
  */
 function executeGitCommand(command, cwd) {
     return new Promise((resolve, reject) => {
-        // Erhöhe maxBuffer auf 10 MB (10 * 1024 * 1024), um große Ausgaben zu unterstützen
-        exec(command, { cwd, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+        // Erhöhe maxBuffer auf 50 MB (50 * 1024 * 1024), um große Ausgaben zu unterstützen
+        exec(command, { cwd, maxBuffer: 50 * 1024 * 1024 }, (error, stdout, stderr) => {
             if (error) {
-                // Detailliertere Fehlermeldung
+                // Detailliertere Fehlermeldung mit spezifischer Behandlung von Pufferüberlauf
                 const errorMessage = stderr || error.message || 'Unbekannter Git-Fehler';
+                
+                // Spezifische Behandlung für Pufferüberlauf
+                if (errorMessage.includes('maxBuffer length exceeded') || 
+                    error.code === 'ERR_CHILD_PROCESS_STDOUT_MAXBUFFER') {
+                    console.error(`Git-Befehl mit Pufferüberlauf: ${command}`);
+                    reject(new Error('Die Git-Ausgabe ist zu groß. Bitte reduzieren Sie die Anzahl der Änderungen oder verwenden Sie einen manuellen Commit.'));
+                    return;
+                }
+                
                 console.error(`Git-Befehl fehlgeschlagen: ${command}`, errorMessage);
                 reject(new Error(errorMessage));
                 return;

@@ -43,6 +43,11 @@ let gitignoreObj = null;
 let uiProviders = null;
 
 /**
+ * @type {NodeJS.Timeout}
+ */
+let intervalTimer = null;
+
+/**
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
@@ -67,6 +72,9 @@ function activate(context) {
     statusBarItem.command = "comitto.toggleAutoCommit";
     context.subscriptions.push(statusBarItem);
     statusBarItem.show();
+
+    // Willkommensnachricht anzeigen
+    showWelcomeNotification(context);
 
     // Explizit die Seitenleiste zur Activity Bar hinzufügen
     // (Sollte bereits über package.json eingebunden sein, aber zur Sicherheit)
@@ -238,6 +246,98 @@ function activate(context) {
             await commands.handleCommitMessageLanguageCommand();
         })
     );
+
+    // Staging-Befehle registrieren
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.stageAll', async () => {
+            try {
+                await stageChanges('all');
+                showNotification('Alle Änderungen wurden gestaged.', 'info');
+            } catch (error) {
+                showNotification(`Fehler beim Stagen der Änderungen: ${error.message}`, 'error');
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.stageSelected', async () => {
+            try {
+                await stageChanges('specific');
+                showNotification('Ausgewählte Änderungen wurden gestaged.', 'info');
+            } catch (error) {
+                showNotification(`Fehler beim Stagen der Änderungen: ${error.message}`, 'error');
+            }
+        })
+    );
+
+    // Weitere Trigger-Events registrieren
+    const config = vscode.workspace.getConfiguration('comitto');
+    const triggerRules = config.get('triggerRules');
+    
+    // Datei-Speicher-Event
+    if (triggerRules.onSave) {
+        context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
+            if (vscode.workspace.getConfiguration('comitto').get('autoCommitEnabled')) {
+                checkCommitTrigger();
+            }
+        }));
+    }
+    
+    // Branch-Wechsel-Event
+    if (triggerRules.onBranchSwitch) {
+        context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+            if (event.affectsConfiguration('git.branchCheckedOut')) {
+                if (vscode.workspace.getConfiguration('comitto').get('autoCommitEnabled')) {
+                    setTimeout(() => {
+                        showNotification('Branch-Wechsel erkannt. Prüfe auf ausstehende Commits...', 'info');
+                        checkCommitTrigger();
+                    }, 1000);
+                }
+            }
+        }));
+    }
+}
+
+/**
+ * Zeigt eine Willkommensnachricht beim Start der Extension an
+ * @param {vscode.ExtensionContext} context
+ */
+function showWelcomeNotification(context) {
+    // Prüfen, ob die Nachricht bereits angezeigt wurde
+    const hasShownWelcome = context.globalState.get('comitto.hasShownWelcome', false);
+    if (!hasShownWelcome) {
+        vscode.window.showInformationMessage(
+            'Comitto wurde aktiviert! Öffnen Sie die Comitto-Seitenleiste über das Icon in der Activity Bar.',
+            'Öffnen', 'Nicht mehr anzeigen'
+        ).then(selection => {
+            if (selection === 'Öffnen') {
+                vscode.commands.executeCommand('comitto-sidebar.focus');
+            } else if (selection === 'Nicht mehr anzeigen') {
+                context.globalState.update('comitto.hasShownWelcome', true);
+            }
+        });
+    }
+
+    // Status der UI anzeigen
+    const config = vscode.workspace.getConfiguration('comitto');
+    const uiSettings = config.get('uiSettings');
+    
+    if (uiSettings.showNotifications) {
+        setTimeout(() => {
+            if (vscode.window.activeTextEditor) {
+                vscode.window.showInformationMessage(
+                    'Comitto ist bereit! Verwenden Sie die Seitenleiste oder das $(git-commit) Symbol in der Statusleiste.',
+                    'Einstellungen öffnen', 'Dashboard anzeigen'
+                ).then(selection => {
+                    if (selection === 'Einstellungen öffnen') {
+                        vscode.commands.executeCommand('comitto.openSettings');
+                    } else if (selection === 'Dashboard anzeigen') {
+                        vscode.commands.executeCommand('comitto.showDashboard');
+                    }
+                });
+            }
+        }, 2000);
+    }
 }
 
 /**
@@ -313,6 +413,37 @@ function setupFileWatcher(context) {
     });
 
     context.subscriptions.push(fileWatcher);
+
+    // Interval-Timer einrichten, falls aktiviert
+    if (triggerRules.onInterval) {
+        setupIntervalTrigger(triggerRules.intervalMinutes);
+    }
+}
+
+/**
+ * Richtet einen Interval-Trigger für automatische Commits ein
+ * @param {number} minutes Intervall in Minuten
+ */
+function setupIntervalTrigger(minutes) {
+    // Bestehenden Timer löschen
+    if (intervalTimer) {
+        clearInterval(intervalTimer);
+        intervalTimer = null;
+    }
+    
+    // Neuen Timer einrichten
+    if (minutes > 0) {
+        const intervalMs = minutes * 60 * 1000;
+        intervalTimer = setInterval(() => {
+            if (vscode.workspace.getConfiguration('comitto').get('autoCommitEnabled') && changedFiles.size > 0) {
+                const notificationSettings = vscode.workspace.getConfiguration('comitto').get('notifications');
+                if (notificationSettings.onTriggerFired) {
+                    showNotification('Intervall-Trigger aktiviert. Prüfe auf ausstehende Commits...', 'info');
+                }
+                checkCommitTrigger();
+            }
+        }, intervalMs);
+    }
 }
 
 /**
@@ -323,6 +454,13 @@ function disableFileWatcher() {
         fileWatcher.dispose();
         fileWatcher = null;
     }
+    
+    // Interval-Timer deaktivieren
+    if (intervalTimer) {
+        clearInterval(intervalTimer);
+        intervalTimer = null;
+    }
+    
     changedFiles.clear();
 }
 
@@ -406,8 +544,8 @@ async function performAutoCommit(isManualTrigger = false) {
         const repoPath = gitSettings.repositoryPath || workspaceFolders[0].uri.fsPath;
         
         try {
-            // git add für alle geänderten Dateien ausführen
-            await executeGitCommand('git add .', repoPath);
+            // Dateien zum Staging hinzufügen
+            await stageChanges(gitSettings.stageMode);
             
             // git status ausführen, um Änderungen zu erhalten
             const gitStatus = await executeGitCommand('git status --porcelain', repoPath);
@@ -448,15 +586,29 @@ async function performAutoCommit(isManualTrigger = false) {
             // git commit ausführen
             await executeGitCommand(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`, repoPath);
             
-            // Git push falls konfiguriert
+            // Benachrichtigungen anzeigen basierend auf den Einstellungen
+            const notificationSettings = vscode.workspace.getConfiguration('comitto').get('notifications');
+            
+            if (!isManualTrigger && notificationSettings.onCommit) {
+                showNotification(`Automatischer Commit durchgeführt: ${commitMessage}`, 'info');
+            } else if (isManualTrigger) {
+                showNotification(`Manueller Commit durchgeführt: ${commitMessage}`, 'info');
+            }
+            
+            // Automatischen Push ausführen, wenn konfiguriert
             if (gitSettings.autoPush) {
                 try {
                     const currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
                     await executeGitCommand(`git push origin ${currentBranch}`, repoPath);
-                    showNotification(`Änderungen wurden zu origin/${currentBranch} gepusht.`, 'info');
+                    
+                    if (notificationSettings.onPush) {
+                        showNotification(`Änderungen wurden zu origin/${currentBranch} gepusht.`, 'info');
+                    }
                 } catch (error) {
                     console.error('Push fehlgeschlagen:', error);
-                    showNotification(`Push fehlgeschlagen: ${error.message}`, 'error');
+                    if (notificationSettings.onError) {
+                        showNotification(`Push fehlgeschlagen: ${error.message}`, 'error');
+                    }
                 }
             }
             
@@ -464,24 +616,138 @@ async function performAutoCommit(isManualTrigger = false) {
             lastCommitTime = new Date();
             statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
             changedFiles.clear();
-            
-            if (!isManualTrigger) {
-                showNotification(`Automatischer Commit durchgeführt: ${commitMessage}`, 'info');
-            } else {
-                showNotification(`Manueller Commit durchgeführt: ${commitMessage}`, 'info');
-            }
         } catch (error) {
             console.error('Git-Befehl fehlgeschlagen:', error);
-            showNotification(`Git-Befehl fehlgeschlagen: ${error.message}`, 'error');
+            const notificationSettings = vscode.workspace.getConfiguration('comitto').get('notifications');
+            if (notificationSettings.onError) {
+                showNotification(`Git-Befehl fehlgeschlagen: ${error.message}`, 'error');
+            }
             throw error;
         }
     } catch (error) {
         console.error('Comitto Fehler:', error);
-        showNotification(`Comitto Fehler: ${error.message}`, 'error');
+        const notificationSettings = vscode.workspace.getConfiguration('comitto').get('notifications');
+        if (notificationSettings.onError) {
+            showNotification(`Comitto Fehler: ${error.message}`, 'error');
+        }
         statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
     } finally {
         isCommitInProgress = false;
     }
+}
+
+/**
+ * Führt das Staging von Dateien basierend auf dem konfigurieren Modus aus
+ * @param {string} mode Der Staging-Modus ('all', 'specific', 'prompt')
+ * @returns {Promise<void>}
+ */
+async function stageChanges(mode) {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+        throw new Error('Kein Workspace gefunden.');
+    }
+    
+    const config = vscode.workspace.getConfiguration('comitto');
+    const gitSettings = config.get('gitSettings');
+    const repoPath = gitSettings.repositoryPath || workspaceFolders[0].uri.fsPath;
+    
+    // Bei manuellem Modus Benutzer nach Dateien fragen
+    if (mode === 'prompt') {
+        // Git Status abrufen
+        const gitStatusOutput = await executeGitCommand('git status --porcelain', repoPath);
+        if (!gitStatusOutput.trim()) {
+            throw new Error('Keine Änderungen zum Stagen gefunden.');
+        }
+        
+        // Dateien parsen
+        const changedFilesList = gitStatusOutput.split('\n')
+            .filter(line => line.trim().length > 0)
+            .map(line => {
+                const status = line.substring(0, 2).trim();
+                const filePath = line.substring(3).trim();
+                return { status, filePath };
+            });
+        
+        // Dateien zur Auswahl anbieten
+        const selectedFiles = await vscode.window.showQuickPick(
+            changedFilesList.map(file => ({
+                label: file.filePath,
+                description: getStatusDescription(file.status),
+                picked: true // Standardmäßig alle auswählen
+            })),
+            {
+                canPickMany: true,
+                placeHolder: 'Dateien zum Stagen auswählen'
+            }
+        );
+        
+        if (!selectedFiles || selectedFiles.length === 0) {
+            throw new Error('Keine Dateien ausgewählt.');
+        }
+        
+        // Ausgewählte Dateien stagen
+        for (const file of selectedFiles) {
+            await executeGitCommand(`git add "${file.label}"`, repoPath);
+        }
+        
+        return;
+    }
+    
+    // Spezifische Dateien basierend auf Mustern stagen
+    if (mode === 'specific') {
+        const patterns = gitSettings.specificStagingPatterns || ['**/*.js', '**/*.ts', '**/*.json'];
+        
+        for (const pattern of patterns) {
+            try {
+                // Bei Windows können wir Probleme mit den Pfadtrennzeichen haben,
+                // daher verwenden wir ein sicheres Muster für die Ausführung
+                const safePattern = pattern.replace(/\\/g, '/');
+                await executeGitCommand(`git add "${safePattern}"`, repoPath);
+            } catch (error) {
+                console.error(`Fehler beim Stagen von Muster ${pattern}:`, error);
+                // Wir werfen den Fehler nicht weiter, sondern versuchen andere Muster
+            }
+        }
+        
+        return;
+    }
+    
+    // Standardmäßig alle Änderungen stagen
+    await executeGitCommand('git add .', repoPath);
+}
+
+/**
+ * Liefert eine leserliche Beschreibung für den Git-Status-Code
+ * @param {string} statusCode Der Git-Status-Code
+ * @returns {string} Lesbarer Status
+ */
+function getStatusDescription(statusCode) {
+    const firstChar = statusCode.charAt(0);
+    const secondChar = statusCode.charAt(1);
+    
+    let description = '';
+    
+    // Index-Status (erster Buchstabe)
+    if (firstChar === 'M') description = 'Modifiziert im Index';
+    else if (firstChar === 'A') description = 'Zum Index hinzugefügt';
+    else if (firstChar === 'D') description = 'Aus Index gelöscht';
+    else if (firstChar === 'R') description = 'Im Index umbenannt';
+    else if (firstChar === 'C') description = 'Im Index kopiert';
+    else if (firstChar === 'U') description = 'Ungemerged im Index';
+    
+    // Working Directory Status (zweiter Buchstabe)
+    if (secondChar === 'M') {
+        if (description) description += ', modifiziert im Arbeitsverzeichnis';
+        else description = 'Modifiziert im Arbeitsverzeichnis';
+    } else if (secondChar === 'D') {
+        if (description) description += ', gelöscht im Arbeitsverzeichnis';
+        else description = 'Gelöscht im Arbeitsverzeichnis';
+    }
+    
+    // Untracked files
+    if (statusCode === '??') description = 'Nicht verfolgte Datei';
+    
+    return description || statusCode;
 }
 
 /**

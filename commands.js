@@ -595,6 +595,61 @@ function registerCommands(context, providers) {
             `Benachrichtigungen wurden ${uiSettings.showNotifications ? 'aktiviert' : 'deaktiviert'}.`
         );
     }));
+
+    // Behandelt das Kommando zur Auswahl des Staging-Modus
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.selectStageMode', async () => {
+        await handleSelectStageModeCommand();
+    }));
+
+    // Behandelt das Kommando zum Bearbeiten der Staging-Muster
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.editStagingPatterns', async () => {
+        await handleEditStagingPatternsCommand();
+    }));
+
+    // Behandelt das Kommando zum Umschalten des Triggers bei Speichern
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleTriggerOnSave', async () => {
+        await handleToggleTriggerOnSaveCommand();
+    }));
+
+    // Behandelt das Kommando zum Umschalten des Intervall-Triggers
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleTriggerOnInterval', async () => {
+        await handleToggleTriggerOnIntervalCommand();
+    }));
+
+    // Behandelt das Kommando zum Bearbeiten der Intervall-Minuten
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.editIntervalMinutes', async () => {
+        await handleEditIntervalMinutesCommand();
+    }));
+
+    // Behandelt das Kommando zum Umschalten des Triggers bei Branch-Wechsel
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleTriggerOnBranchSwitch', async () => {
+        await handleToggleTriggerOnBranchSwitchCommand();
+    }));
+
+    // Behandelt das Kommando zum Bearbeiten der spezifischen Dateien
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.editSpecificFiles', async () => {
+        await handleEditSpecificFilesCommand();
+    }));
+
+    // Behandelt das Kommando zum Ausführen des "Alle Änderungen stagen"-Befehls
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.stageAll', async () => {
+        await handleStageAllCommand();
+    }));
+
+    // Behandelt das Kommando zum Ausführen des "Ausgewählte Dateien stagen"-Befehls
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.stageSelected', async () => {
+        await handleStageSelectedCommand();
+    }));
+
+    // Behandelt das Kommando zur grafischen Konfiguration der Trigger
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.configureTriggers', async () => {
+        await handleConfigureTriggersCommand();
+    }));
+
+    // Behandelt das Kommando zur Auswahl des Themes
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.selectTheme', async () => {
+        await handleSelectThemeCommand();
+    }));
 }
 
 /**
@@ -1718,6 +1773,340 @@ async function handleCommitMessageLanguageCommand() {
     } catch (error) {
         vscode.window.showErrorMessage(`Fehler bei der Sprachauswahl: ${error.message}`);
         console.error('Fehler bei der Sprachauswahl:', error);
+    }
+}
+
+/**
+ * Behandelt das Kommando zur Auswahl des Staging-Modus
+ * @returns {Promise<void>} Promise, der nach der Ausführung erfüllt wird
+ */
+async function handleSelectStageModeCommand() {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const gitSettings = config.get('gitSettings');
+    const currentMode = gitSettings.stageMode || 'all';
+
+    const ui = require('./ui');
+    const modes = [
+        { label: 'Alle Dateien', value: 'all', detail: 'Alle Änderungen automatisch stagen' },
+        { label: 'Spezifische Dateien', value: 'specific', detail: 'Nur Dateien stagen, die bestimmten Mustern entsprechen' },
+        { label: 'Nachfragen', value: 'prompt', detail: 'Vor jedem Commit nach zu stagenden Dateien fragen' }
+    ];
+
+    const selected = await vscode.window.showQuickPick(modes, {
+        placeHolder: 'Staging-Modus auswählen',
+        ignoreFocusOut: true
+    });
+
+    if (selected) {
+        gitSettings.stageMode = selected.value;
+        await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
+        
+        // Wenn "Spezifische Dateien" ausgewählt wurde, nach den Mustern fragen
+        if (selected.value === 'specific' && (!gitSettings.specificStagingPatterns || gitSettings.specificStagingPatterns.length === 0)) {
+            await handleEditStagingPatternsCommand();
+        }
+        
+        vscode.window.showInformationMessage(`Staging-Modus auf "${ui.getStageModeLabel(selected.value)}" gesetzt.`);
+    }
+}
+
+/**
+ * Behandelt das Kommando zum Bearbeiten der Staging-Muster
+ * @returns {Promise<void>} Promise, der nach der Ausführung erfüllt wird
+ */
+async function handleEditStagingPatternsCommand() {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const gitSettings = config.get('gitSettings');
+    const currentPatterns = gitSettings.specificStagingPatterns || ['*.js', '*.ts', '*.jsx', '*.tsx'];
+
+    const input = await vscode.window.showInputBox({
+        placeHolder: 'Kommagetrennte Liste von Glob-Mustern (z.B. *.js,*.json,src/**/*)',
+        value: currentPatterns.join(','),
+        prompt: 'Geben Sie die Dateimuster ein, die automatisch gestaged werden sollen'
+    });
+
+    if (input !== undefined) {
+        const patterns = input.split(',').map(p => p.trim()).filter(p => p);
+        gitSettings.specificStagingPatterns = patterns;
+        await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
+        vscode.window.showInformationMessage(`Staging-Muster aktualisiert: ${patterns.join(', ')}`);
+    }
+}
+
+/**
+ * Behandelt das Kommando zum Umschalten des Triggers bei Speichern
+ * @returns {Promise<void>} Promise, der nach der Ausführung erfüllt wird
+ */
+async function handleToggleTriggerOnSaveCommand() {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const rules = config.get('triggerRules');
+    rules.onSave = !rules.onSave;
+    
+    await config.update('triggerRules', rules, vscode.ConfigurationTarget.Global);
+    vscode.window.showInformationMessage(`Trigger bei Speichern ${rules.onSave ? 'aktiviert' : 'deaktiviert'}.`);
+}
+
+/**
+ * Behandelt das Kommando zum Umschalten des Intervall-Triggers
+ * @returns {Promise<void>} Promise, der nach der Ausführung erfüllt wird
+ */
+async function handleToggleTriggerOnIntervalCommand() {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const rules = config.get('triggerRules');
+    rules.onInterval = !rules.onInterval;
+    
+    await config.update('triggerRules', rules, vscode.ConfigurationTarget.Global);
+    
+    if (rules.onInterval && (!rules.intervalMinutes || rules.intervalMinutes <= 0)) {
+        await handleEditIntervalMinutesCommand();
+    } else {
+        vscode.window.showInformationMessage(`Intervall-Trigger ${rules.onInterval ? 'aktiviert' : 'deaktiviert'}.`);
+    }
+}
+
+/**
+ * Behandelt das Kommando zum Bearbeiten der Intervall-Minuten
+ * @returns {Promise<void>} Promise, der nach der Ausführung erfüllt wird
+ */
+async function handleEditIntervalMinutesCommand() {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const rules = config.get('triggerRules');
+    const currentValue = rules.intervalMinutes || 15;
+
+    const input = await vscode.window.showInputBox({
+        placeHolder: 'Intervall in Minuten (z.B. 15)',
+        value: currentValue.toString(),
+        prompt: 'Geben Sie das Intervall für automatische Commits in Minuten ein',
+        validateInput: value => {
+            const num = parseInt(value);
+            return (isNaN(num) || num <= 0) ? 'Bitte geben Sie eine positive Zahl ein' : null;
+        }
+    });
+
+    if (input !== undefined) {
+        const minutes = parseInt(input);
+        if (!isNaN(minutes) && minutes > 0) {
+            rules.intervalMinutes = minutes;
+            await config.update('triggerRules', rules, vscode.ConfigurationTarget.Global);
+            vscode.window.showInformationMessage(`Intervall-Minuten auf ${minutes} gesetzt.`);
+        }
+    }
+}
+
+/**
+ * Behandelt das Kommando zum Umschalten des Triggers bei Branch-Wechsel
+ * @returns {Promise<void>} Promise, der nach der Ausführung erfüllt wird
+ */
+async function handleToggleTriggerOnBranchSwitchCommand() {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const rules = config.get('triggerRules');
+    rules.onBranchSwitch = !rules.onBranchSwitch;
+    
+    await config.update('triggerRules', rules, vscode.ConfigurationTarget.Global);
+    vscode.window.showInformationMessage(`Trigger bei Branch-Wechsel ${rules.onBranchSwitch ? 'aktiviert' : 'deaktiviert'}.`);
+}
+
+/**
+ * Behandelt das Kommando zum Bearbeiten der spezifischen Dateien
+ * @returns {Promise<void>} Promise, der nach der Ausführung erfüllt wird
+ */
+async function handleEditSpecificFilesCommand() {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const rules = config.get('triggerRules');
+    const currentFiles = rules.specificFiles || [];
+
+    const input = await vscode.window.showInputBox({
+        placeHolder: 'Kommagetrennte Liste von Dateipfaden (z.B. package.json,README.md)',
+        value: currentFiles.join(','),
+        prompt: 'Geben Sie die spezifischen Dateien ein, die überwacht werden sollen'
+    });
+
+    if (input !== undefined) {
+        const files = input.split(',').map(f => f.trim()).filter(f => f);
+        rules.specificFiles = files;
+        await config.update('triggerRules', rules, vscode.ConfigurationTarget.Global);
+        vscode.window.showInformationMessage(`Spezifische Dateien aktualisiert: ${files.join(', ')}`);
+    }
+}
+
+/**
+ * Behandelt das Kommando zum Ausführen des "Alle Änderungen stagen"-Befehls
+ * @returns {Promise<void>} Promise, der nach der Ausführung erfüllt wird
+ */
+async function handleStageAllCommand() {
+    try {
+        const workspaceFolder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
+        if (!workspaceFolder) {
+            vscode.window.showErrorMessage('Kein Workspace geöffnet.');
+            return;
+        }
+        
+        const result = await executeGitCommand('add -A', workspaceFolder.uri.fsPath);
+        vscode.window.showInformationMessage('Alle Änderungen wurden gestaged.');
+        return result;
+    } catch (error) {
+        vscode.window.showErrorMessage(`Fehler beim Stagen aller Änderungen: ${error.message}`);
+    }
+}
+
+/**
+ * Behandelt das Kommando zum Ausführen des "Ausgewählte Dateien stagen"-Befehls
+ * @returns {Promise<void>} Promise, der nach der Ausführung erfüllt wird
+ */
+async function handleStageSelectedCommand() {
+    try {
+        const workspaceFolder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
+        if (!workspaceFolder) {
+            vscode.window.showErrorMessage('Kein Workspace geöffnet.');
+            return;
+        }
+        
+        // Git-Status abrufen
+        const statusOutput = await executeGitCommand('status --porcelain', workspaceFolder.uri.fsPath);
+        
+        if (!statusOutput) {
+            vscode.window.showInformationMessage('Keine Änderungen zum Stagen gefunden.');
+            return;
+        }
+        
+        // Geänderte Dateien parsen
+        const changedFiles = statusOutput
+            .split('\n')
+            .filter(line => line.trim() !== '')
+            .map(line => {
+                const status = line.substring(0, 2);
+                const filePath = line.substring(3);
+                return { 
+                    status, 
+                    filePath,
+                    label: `${getStatusLabel(status)} ${filePath}`,
+                    picked: !status.includes('?') // Vorauswahl aller Dateien außer untracked
+                };
+            });
+        
+        if (changedFiles.length === 0) {
+            vscode.window.showInformationMessage('Keine Änderungen zum Stagen gefunden.');
+            return;
+        }
+        
+        // Dateien zur Auswahl anbieten
+        const selectedFiles = await vscode.window.showQuickPick(changedFiles, {
+            placeHolder: 'Wählen Sie die zu stagenden Dateien aus',
+            canPickMany: true
+        });
+        
+        if (!selectedFiles || selectedFiles.length === 0) {
+            return;
+        }
+        
+        // Ausgewählte Dateien stagen
+        for (const file of selectedFiles) {
+            await executeGitCommand(`add "${file.filePath}"`, workspaceFolder.uri.fsPath);
+        }
+        
+        vscode.window.showInformationMessage(`${selectedFiles.length} Datei(en) wurden gestaged.`);
+    } catch (error) {
+        vscode.window.showErrorMessage(`Fehler beim Stagen ausgewählter Dateien: ${error.message}`);
+    }
+}
+
+/**
+ * Gibt ein lesbares Label für den Git-Status zurück
+ * @param {string} status Git-Status-Code
+ * @returns {string} Lesbares Label
+ */
+function getStatusLabel(status) {
+    if (status.includes('M')) return '[Geändert]';
+    if (status.includes('A')) return '[Hinzugefügt]';
+    if (status.includes('D')) return '[Gelöscht]';
+    if (status.includes('R')) return '[Umbenannt]';
+    if (status.includes('C')) return '[Kopiert]';
+    if (status.includes('?')) return '[Untracked]';
+    if (status.includes('U')) return '[Konflikt]';
+    return '[Geändert]';
+}
+
+/**
+ * Behandelt das Kommando zur grafischen Konfiguration der Trigger
+ * @returns {Promise<void>} Promise, der nach der Ausführung erfüllt wird
+ */
+async function handleConfigureTriggersCommand() {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const rules = config.get('triggerRules');
+    
+    const options = [
+        { label: `Datei-Anzahl: ${rules.fileCountThreshold}`, id: 'fileCount' },
+        { label: `Änderungs-Anzahl: ${rules.minChangeCount}`, id: 'changeCount' },
+        { label: `Zeit-Schwellwert: ${rules.timeThresholdMinutes} Minuten`, id: 'timeThreshold' },
+        { label: `Bei Speichern: ${rules.onSave ? 'Ja' : 'Nein'}`, id: 'onSave', picked: rules.onSave },
+        { label: `Intervall-Trigger: ${rules.onInterval ? `Alle ${rules.intervalMinutes} Min.` : 'Deaktiviert'}`, id: 'onInterval', picked: rules.onInterval },
+        { label: `Bei Branch-Wechsel: ${rules.onBranchSwitch ? 'Ja' : 'Nein'}`, id: 'onBranchSwitch', picked: rules.onBranchSwitch },
+        { label: `Dateimuster bearbeiten`, id: 'filePatterns' },
+        { label: `Spezifische Dateien bearbeiten`, id: 'specificFiles' }
+    ];
+    
+    const selected = await vscode.window.showQuickPick(options, {
+        placeHolder: 'Trigger-Einstellung auswählen',
+        ignoreFocusOut: true
+    });
+    
+    if (!selected) {
+        return;
+    }
+    
+    switch (selected.id) {
+        case 'fileCount':
+            await handleEditFileCountThresholdCommand();
+            break;
+        case 'changeCount':
+            await handleEditMinChangeCountCommand();
+            break;
+        case 'timeThreshold':
+            await handleEditTimeThresholdCommand();
+            break;
+        case 'onSave':
+            await handleToggleTriggerOnSaveCommand();
+            break;
+        case 'onInterval':
+            await handleToggleTriggerOnIntervalCommand();
+            break;
+        case 'onBranchSwitch':
+            await handleToggleTriggerOnBranchSwitchCommand();
+            break;
+        case 'filePatterns':
+            await handleEditFilePatternsCommand();
+            break;
+        case 'specificFiles':
+            await handleEditSpecificFilesCommand();
+            break;
+    }
+}
+
+/**
+ * Behandelt das Kommando zur Auswahl des Themes
+ * @returns {Promise<void>} Promise, der nach der Ausführung erfüllt wird
+ */
+async function handleSelectThemeCommand() {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const uiSettings = config.get('uiSettings');
+    const currentTheme = uiSettings.theme || 'auto';
+
+    const ui = require('./ui');
+    const themes = [
+        { label: 'Hell', value: 'light', detail: 'Helles Theme für die Extension verwenden' },
+        { label: 'Dunkel', value: 'dark', detail: 'Dunkles Theme für die Extension verwenden' },
+        { label: 'Automatisch', value: 'auto', detail: 'Theme automatisch an VS Code Theme anpassen' }
+    ];
+
+    const selected = await vscode.window.showQuickPick(themes, {
+        placeHolder: 'Theme auswählen',
+        ignoreFocusOut: true
+    });
+
+    if (selected) {
+        uiSettings.theme = selected.value;
+        await config.update('uiSettings', uiSettings, vscode.ConfigurationTarget.Global);
+        vscode.window.showInformationMessage(`Theme auf "${ui.getThemeLabel(selected.value)}" gesetzt.`);
     }
 }
 

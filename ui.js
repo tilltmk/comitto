@@ -69,24 +69,15 @@ class StatusViewProvider {
         };
         items.push(providerItem);
 
-        // Trigger-Regeln mit mehr Details
-        const rules = config.get('triggerRules');
-        const rulesItem = new vscode.TreeItem(
-            `Trigger: ${rules.fileCountThreshold} Dateien / ${rules.minChangeCount} Änderungen`,
-            vscode.TreeItemCollapsibleState.None
-        );
-        rulesItem.iconPath = new vscode.ThemeIcon('settings-gear');
-        rulesItem.tooltip = `Commit bei ${rules.fileCountThreshold} Dateien, ${rules.minChangeCount} Änderungen oder nach ${rules.timeThresholdMinutes} Minuten`;
-        rulesItem.command = {
-            command: 'comitto.configureTriggers',
-            title: 'Trigger konfigurieren'
-        };
-        items.push(rulesItem);
-
         // Git-Einstellungen anzeigen
         const gitSettings = config.get('gitSettings');
+        const autoPushStatus = gitSettings.autoPush ? 'Mit Auto-Push' : 'Ohne Auto-Push';
+        const stageMode = gitSettings.stageMode === 'all' ? 'Alle Dateien stagen' : 
+                          gitSettings.stageMode === 'specific' ? 'Spezifische Dateien stagen' :
+                          'Nachfragen';
+        
         const gitItem = new vscode.TreeItem(
-            `Git: ${gitSettings.autoPush ? 'Mit Auto-Push' : 'Ohne Auto-Push'}`,
+            `Git: ${autoPushStatus}, ${stageMode}`,
             vscode.TreeItemCollapsibleState.None
         );
         gitItem.iconPath = new vscode.ThemeIcon('git-merge');
@@ -97,14 +88,66 @@ class StatusViewProvider {
         };
         items.push(gitItem);
 
+        // Trigger-Regeln mit mehr Details
+        const rules = config.get('triggerRules');
+        let triggerDescription = `${rules.fileCountThreshold} Dateien / ${rules.minChangeCount} Änderungen`;
+        
+        // Aktivierte Trigger anzeigen
+        const activeTriggers = [];
+        if (rules.onSave) activeTriggers.push('Bei Speichern');
+        if (rules.onInterval) activeTriggers.push(`Alle ${rules.intervalMinutes}min`);
+        if (rules.onBranchSwitch) activeTriggers.push('Bei Branch-Wechsel');
+        
+        if (activeTriggers.length > 0) {
+            triggerDescription += ` (${activeTriggers.join(', ')})`;
+        }
+        
+        const rulesItem = new vscode.TreeItem(
+            `Trigger: ${triggerDescription}`,
+            vscode.TreeItemCollapsibleState.None
+        );
+        rulesItem.iconPath = new vscode.ThemeIcon('settings-gear');
+        rulesItem.tooltip = `Commit bei ${rules.fileCountThreshold} Dateien, ${rules.minChangeCount} Änderungen oder nach ${rules.timeThresholdMinutes} Minuten\nAktive Trigger: ${activeTriggers.join(', ')}`;
+        rulesItem.command = {
+            command: 'comitto.configureTriggers',
+            title: 'Trigger konfigurieren'
+        };
+        items.push(rulesItem);
+
         // Manuellen Commit-Button hinzufügen
-        const manualCommitItem = new vscode.TreeItem('Manuellen Commit ausführen');
+        const manualCommitItem = new vscode.TreeItem(
+            'Manuellen Commit ausführen',
+            vscode.TreeItemCollapsibleState.None
+        );
         manualCommitItem.iconPath = new vscode.ThemeIcon('git-commit');
         manualCommitItem.command = {
             command: 'comitto.performManualCommit',
             title: 'Manuellen Commit ausführen'
         };
         items.push(manualCommitItem);
+
+        // Staging-Buttons hinzufügen
+        const stageAllItem = new vscode.TreeItem(
+            'Alle Änderungen stagen',
+            vscode.TreeItemCollapsibleState.None
+        );
+        stageAllItem.iconPath = new vscode.ThemeIcon('add');
+        stageAllItem.command = {
+            command: 'comitto.stageAll',
+            title: 'Alle Änderungen stagen'
+        };
+        items.push(stageAllItem);
+
+        const stageSelectedItem = new vscode.TreeItem(
+            'Ausgewählte Dateien stagen',
+            vscode.TreeItemCollapsibleState.None
+        );
+        stageSelectedItem.iconPath = new vscode.ThemeIcon('checklist');
+        stageSelectedItem.command = {
+            command: 'comitto.stageSelected',
+            title: 'Ausgewählte Dateien stagen'
+        };
+        items.push(stageSelectedItem);
 
         return items;
     }
@@ -295,6 +338,31 @@ class SettingsViewProvider {
                 };
                 items.push(timeThresholdItem);
 
+                // Neue Trigger Optionen
+                const onSaveItem = new vscode.TreeItem(`Bei Speichern: ${rules.onSave ? 'Ja' : 'Nein'}`);
+                onSaveItem.iconPath = new vscode.ThemeIcon(rules.onSave ? 'check' : 'circle-slash');
+                onSaveItem.command = {
+                    command: 'comitto.toggleTriggerOnSave',
+                    title: 'Trigger bei Speichern umschalten'
+                };
+                items.push(onSaveItem);
+
+                const onIntervalItem = new vscode.TreeItem(`Intervall-Trigger: ${rules.onInterval ? `Alle ${rules.intervalMinutes} Min.` : 'Deaktiviert'}`);
+                onIntervalItem.iconPath = new vscode.ThemeIcon(rules.onInterval ? 'history' : 'circle-slash');
+                onIntervalItem.command = {
+                    command: 'comitto.toggleTriggerOnInterval',
+                    title: 'Intervall-Trigger umschalten'
+                };
+                items.push(onIntervalItem);
+
+                const onBranchSwitchItem = new vscode.TreeItem(`Bei Branch-Wechsel: ${rules.onBranchSwitch ? 'Ja' : 'Nein'}`);
+                onBranchSwitchItem.iconPath = new vscode.ThemeIcon(rules.onBranchSwitch ? 'git-branch' : 'circle-slash');
+                onBranchSwitchItem.command = {
+                    command: 'comitto.toggleTriggerOnBranchSwitch',
+                    title: 'Trigger bei Branch-Wechsel umschalten'
+                };
+                items.push(onBranchSwitchItem);
+
                 const filePatternsItem = new vscode.TreeItem(`Dateimuster: ${rules.filePatterns.join(', ')}`);
                 filePatternsItem.iconPath = new vscode.ThemeIcon('file-code');
                 filePatternsItem.command = {
@@ -331,7 +399,7 @@ class SettingsViewProvider {
                 };
                 items.push(branchItem);
 
-                const langItem = new vscode.TreeItem(`Nachrichtensprache: ${gitSettings.commitMessageLanguage}`);
+                const langItem = new vscode.TreeItem(`Nachrichtensprache: ${gitSettings.commitMessageLanguage || 'en'}`);
                 langItem.iconPath = new vscode.ThemeIcon('globe');
                 langItem.command = {
                     command: 'comitto.selectCommitLanguage',
@@ -339,13 +407,36 @@ class SettingsViewProvider {
                 };
                 items.push(langItem);
 
-                const styleItem = new vscode.TreeItem(`Nachrichtenstil: ${gitSettings.commitMessageStyle}`);
+                const styleItem = new vscode.TreeItem(`Nachrichtenstil: ${gitSettings.commitMessageStyle || 'conventional'}`);
                 styleItem.iconPath = new vscode.ThemeIcon('symbol-string');
                 styleItem.command = {
                     command: 'comitto.selectCommitStyle',
                     title: 'Stil auswählen'
                 };
                 items.push(styleItem);
+
+                // Neue Staging-Modus Option
+                const stageModeItem = new vscode.TreeItem(`Staging-Modus: ${getStageModeLabel(gitSettings.stageMode)}`);
+                stageModeItem.iconPath = new vscode.ThemeIcon('add');
+                stageModeItem.command = {
+                    command: 'comitto.selectStageMode',
+                    title: 'Staging-Modus auswählen'
+                };
+                items.push(stageModeItem);
+
+                // Staging-Muster Option, wenn stagingMode 'specific' ist
+                if (gitSettings.stageMode === 'specific') {
+                    const stagingPatternsItem = new vscode.TreeItem(
+                        `Staging-Muster: ${(gitSettings.specificStagingPatterns || []).join(', ')}`,
+                        vscode.TreeItemCollapsibleState.None
+                    );
+                    stagingPatternsItem.iconPath = new vscode.ThemeIcon('filter');
+                    stagingPatternsItem.command = {
+                        command: 'comitto.editStagingPatterns',
+                        title: 'Staging-Muster bearbeiten'
+                    };
+                    items.push(stagingPatternsItem);
+                }
 
                 const useGitignoreItem = new vscode.TreeItem(`Gitignore verwenden: ${gitSettings.useGitignore ? 'Ja' : 'Nein'}`);
                 useGitignoreItem.iconPath = new vscode.ThemeIcon(gitSettings.useGitignore ? 'check' : 'circle-slash');
@@ -382,6 +473,15 @@ class SettingsViewProvider {
                     title: 'Benachrichtigungen umschalten'
                 };
                 items.push(notificationsItem);
+
+                // Neuer Eintrag für Theme
+                const themeItem = new vscode.TreeItem(`Theme: ${getThemeLabel(uiSettings.theme)}`);
+                themeItem.iconPath = new vscode.ThemeIcon('color-mode');
+                themeItem.command = {
+                    command: 'comitto.selectTheme',
+                    title: 'Theme auswählen'
+                };
+                items.push(themeItem);
                 break;
         }
 
@@ -415,7 +515,7 @@ class QuickActionsViewProvider {
         const items = [];
 
         // Einfache Benutzeroberfläche anzeigen
-        const simpleUIItem = new vscode.TreeItem('Einfache Benutzeroberfläche');
+        const simpleUIItem = new vscode.TreeItem('Einfache Benutzeroberfläche', vscode.TreeItemCollapsibleState.None);
         simpleUIItem.iconPath = new vscode.ThemeIcon('rocket');
         simpleUIItem.command = {
             command: 'comitto.showSimpleUI',
@@ -424,13 +524,30 @@ class QuickActionsViewProvider {
         items.push(simpleUIItem);
 
         // Manuellen Commit ausführen
-        const commitItem = new vscode.TreeItem('Manuellen Commit ausführen');
+        const commitItem = new vscode.TreeItem('Manuellen Commit ausführen', vscode.TreeItemCollapsibleState.None);
         commitItem.iconPath = new vscode.ThemeIcon('git-commit');
         commitItem.command = {
             command: 'comitto.performManualCommit',
             title: 'Manuellen Commit ausführen'
         };
         items.push(commitItem);
+
+        // Staging-Optionen hinzufügen
+        const stageAllItem = new vscode.TreeItem('Alle Änderungen stagen', vscode.TreeItemCollapsibleState.None);
+        stageAllItem.iconPath = new vscode.ThemeIcon('add');
+        stageAllItem.command = {
+            command: 'comitto.stageAll',
+            title: 'Alle Änderungen stagen'
+        };
+        items.push(stageAllItem);
+
+        const stageSelectedItem = new vscode.TreeItem('Ausgewählte Dateien stagen', vscode.TreeItemCollapsibleState.None);
+        stageSelectedItem.iconPath = new vscode.ThemeIcon('checklist');
+        stageSelectedItem.command = {
+            command: 'comitto.stageSelected',
+            title: 'Ausgewählte Dateien stagen'
+        };
+        items.push(stageSelectedItem);
 
         // KI-Provider konfigurieren
         const config = vscode.workspace.getConfiguration('comitto');
@@ -522,6 +639,34 @@ function getOpenAIModelOptions() {
 }
 
 /**
+ * Gibt ein lesbares Label für den Staging-Modus zurück
+ * @param {string} mode Der Staging-Modus
+ * @returns {string} Lesbares Label
+ */
+function getStageModeLabel(mode) {
+    switch (mode) {
+        case 'all': return 'Alle Dateien';
+        case 'specific': return 'Spezifische Dateien';
+        case 'prompt': return 'Nachfragen';
+        default: return mode;
+    }
+}
+
+/**
+ * Gibt ein lesbares Label für das Theme zurück
+ * @param {string} theme Das Theme
+ * @returns {string} Lesbares Label
+ */
+function getThemeLabel(theme) {
+    switch (theme) {
+        case 'light': return 'Hell';
+        case 'dark': return 'Dunkel';
+        case 'auto': return 'Automatisch';
+        default: return theme;
+    }
+}
+
+/**
  * Registriert alle UI-Komponenten
  * @param {vscode.ExtensionContext} context 
  * @returns {Object} Die Provider-Instanzen
@@ -578,5 +723,7 @@ module.exports = {
     SettingsViewProvider,
     getProviderDisplayName,
     getProviderIcon,
-    getOpenAIModelOptions
+    getOpenAIModelOptions,
+    getStageModeLabel,
+    getThemeLabel
 }; 

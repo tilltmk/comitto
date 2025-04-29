@@ -123,6 +123,16 @@
         "command": "comitto.showSimpleUI",
         "title": "Comitto: Einfache Benutzeroberfläche anzeigen",
         "icon": "$(rocket)"
+      },
+      {
+        "command": "comitto.stageAll",
+        "title": "Comitto: Alle Änderungen stagen",
+        "icon": "$(add)"
+      },
+      {
+        "command": "comitto.stageSelected",
+        "title": "Comitto: Ausgewählte Dateien stagen",
+        "icon": "$(checklist)"
       }
     ],
     "menus": {
@@ -175,6 +185,14 @@
         },
         {
           "command": "comitto.showSimpleUI",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.stageAll",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.stageSelected",
           "when": "workspaceHasGit"
         }
       ]
@@ -247,7 +265,11 @@
             "timeThresholdMinutes": 30,
             "filePatterns": [
               "**/*"
-            ]
+            ],
+            "onSave": false,
+            "onInterval": true,
+            "intervalMinutes": 5,
+            "onBranchSwitch": true
           },
           "description": "Regeln, die automatische Commits auslösen"
         },
@@ -259,7 +281,12 @@
         "comitto.gitSettings": {
           "type": "object",
           "default": {
-            "commitMessageLanguage": "en"
+            "commitMessageLanguage": "en",
+            "autoPush": false,
+            "branch": "",
+            "stageMode": "all",
+            "specificStagingPatterns": ["**/*.js", "**/*.ts", "**/*.json"],
+            "commitMessageStyle": "conventional"
           },
           "description": "Git-bezogene Einstellungen",
           "properties": {
@@ -268,6 +295,22 @@
               "default": "en",
               "enum": ["en", "de"],
               "description": "Die Sprache, in der Commit-Nachrichten generiert werden sollen"
+            },
+            "autoPush": {
+              "type": "boolean",
+              "default": false,
+              "description": "Nach dem Commit automatisch pushen"
+            },
+            "branch": {
+              "type": "string",
+              "default": "",
+              "description": "Branch zum Commiten verwenden (leer für aktuellen Branch)"
+            },
+            "stageMode": {
+              "type": "string",
+              "default": "all",
+              "enum": ["all", "specific", "prompt"],
+              "description": "Wie Dateien für Commits gestaged werden sollen"
             }
           }
         },
@@ -281,9 +324,20 @@
           "default": {
             "simpleMode": false,
             "confirmBeforeCommit": true,
-            "showNotifications": true
+            "showNotifications": true,
+            "theme": "auto"
           },
           "description": "Einstellungen für die Benutzeroberfläche"
+        },
+        "comitto.notifications": {
+          "type": "object",
+          "default": {
+            "onCommit": true,
+            "onPush": true,
+            "onError": true,
+            "onTriggerFired": true
+          },
+          "description": "Benachrichtigungseinstellungen"
         }
       }
     }

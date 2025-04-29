@@ -7,6 +7,7 @@ const ignore = require('ignore');
 const ui = require('./ui');
 const commands = require('./commands');
 const { executeGitCommand, getStatusText } = require('./utils'); // Nur executeGitCommand und getStatusText importieren
+const os = require('os');
 
 /**
  * @type {vscode.StatusBarItem}
@@ -48,12 +49,53 @@ let uiProviders = null;
  */
 let intervalTimer = null;
 
+// Globale Variable für Debug-Logs
+let debugLogs = [];
+const MAX_DEBUG_LOGS = 100;
+
+/**
+ * Fügt einen Eintrag zum Debug-Log hinzu
+ * @param {string} message Die Nachricht
+ * @param {string} type Der Typ des Logs (info, warning, error)
+ */
+function addDebugLog(message, type = 'info') {
+    const timestamp = new Date().toISOString();
+    const logEntry = { timestamp, message, type };
+    
+    debugLogs.unshift(logEntry); // Am Anfang einfügen
+    
+    // Maximale Größe einhalten
+    if (debugLogs.length > MAX_DEBUG_LOGS) {
+        debugLogs = debugLogs.slice(0, MAX_DEBUG_LOGS);
+    }
+    
+    // In die Konsole schreiben
+    const consoleMethod = type === 'error' ? console.error : 
+                         type === 'warning' ? console.warn : 
+                         console.log;
+    consoleMethod(`[Comitto Debug] ${message}`);
+    
+    // Webview aktualisieren, falls das Dashboard offen ist
+    try {
+        vscode.window.webviews.forEach(webview => {
+            if (webview.viewType === 'comittoDashboard' && webview.visible) {
+                webview.postMessage({ 
+                    type: 'debugLog', 
+                    content: `[${type.toUpperCase()}] ${message}` 
+                });
+            }
+        });
+    } catch (error) {
+        console.error('Fehler beim Senden des Debug-Logs an das Dashboard:', error);
+    }
+}
+
 /**
  * Hauptaktivierungsfunktion der Erweiterung.
  * @param {vscode.ExtensionContext} context
  */
 async function activate(context) {
-    console.log('Die Erweiterung "comitto" wird aktiviert.');
+    addDebugLog('Die Erweiterung "comitto" wird aktiviert.', 'info');
 
     // Sicherstellen, dass das Ressourcenverzeichnis existiert
     ensureResourceDirs(context);
@@ -72,6 +114,12 @@ async function activate(context) {
     // Git-Status prüfen und Kontext setzen
     const hasGit = await checkGitRepository(context);
     vscode.commands.executeCommand('setContext', 'workspaceHasGit', hasGit);
+    
+    if (hasGit) {
+        addDebugLog('Git-Repository gefunden.', 'info');
+    } else {
+        addDebugLog('Kein Git-Repository gefunden. Einige Funktionen sind deaktiviert.', 'warning');
+    }
 
     // Befehle zentral registrieren und Abhängigkeiten übergeben
     commands.registerCommands(
@@ -92,6 +140,7 @@ async function activate(context) {
     if (config.get('autoCommitEnabled') && hasGit) {
         setupFileWatcher(context);
         statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+        addDebugLog('Comitto wurde automatisch aktiviert.', 'info');
     } else if (!hasGit) {
         statusBarItem.text = "$(warning) Comitto: Kein Git-Repo";
         statusBarItem.tooltip = "Kein Git-Repository im aktuellen Workspace gefunden";
@@ -100,10 +149,34 @@ async function activate(context) {
         statusBarItem.text = "$(git-commit) Comitto: Inaktiv";
     }
 
+    // Debug-Befehle registrieren
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.showDiagnostics', () => {
+        const diagnostics = getDiagnosticInfo();
+        
+        // Debug-Info in einer temporären Datei anzeigen
+        const tempFile = path.join(os.tmpdir(), 'comitto-diagnostics.json');
+        fs.writeFileSync(tempFile, JSON.stringify(diagnostics, null, 2));
+        
+        vscode.workspace.openTextDocument(tempFile).then(doc => {
+            vscode.window.showTextDocument(doc);
+        });
+    }));
+    
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.clearDebugLogs', () => {
+        debugLogs = [];
+        addDebugLog('Debug-Logs wurden gelöscht.', 'info');
+        vscode.window.showInformationMessage('Debug-Logs wurden gelöscht.');
+    }));
+    
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.forceRunCommit', async () => {
+        addDebugLog('Manueller Commit über Debug-Befehl ausgelöst.', 'info');
+        await performAutoCommit(true);
+    }));
+
     // Konfigurationsänderungen überwachen
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async event => {
         if (event.affectsConfiguration('comitto')) {
-            console.log('Comitto-Konfiguration geändert.');
+            addDebugLog('Comitto-Konfiguration geändert.', 'info');
             const currentConfig = vscode.workspace.getConfiguration('comitto');
             const gitAvailable = await checkGitRepository(context); // Erneut prüfen
 
@@ -111,17 +184,30 @@ async function activate(context) {
                 if (currentConfig.get('autoCommitEnabled') && gitAvailable) {
                     setupFileWatcher(context); // Re-setup mit neuer Konfig
                      if (statusBarItem) statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+                     addDebugLog('Automatische Commits wurden aktiviert.', 'info');
                 } else {
                     disableFileWatcher(); // Stoppt Watcher und Timer
                      if (statusBarItem) {
                           statusBarItem.text = gitAvailable ? "$(git-commit) Comitto: Inaktiv" : "$(warning) Comitto: Kein Git-Repo";
                           statusBarItem.command = gitAvailable ? "comitto.toggleAutoCommit" : undefined;
+                          if (!currentConfig.get('autoCommitEnabled')) {
+                              addDebugLog('Automatische Commits wurden deaktiviert.', 'info');
+                          }
                      }
                 }
             }
             
             if (event.affectsConfiguration('comitto.gitSettings.useGitignore')) {
                 loadGitignore(); // .gitignore neu laden
+                addDebugLog('.gitignore-Konfiguration wurde aktualisiert.', 'info');
+            }
+            
+            // Debug-Einstellungen überprüfen
+            if (event.affectsConfiguration('comitto.debug')) {
+                const debugSettings = currentConfig.get('debug');
+                if (debugSettings && debugSettings.extendedLogging) {
+                    addDebugLog('Erweitertes Logging wurde aktiviert.', 'info');
+                }
             }
             
             // UI immer aktualisieren bei Comitto-Änderungen
@@ -139,6 +225,12 @@ async function activate(context) {
                         if (webview.viewType === 'comittoDashboard') {
                             try {
                                 webview.html = commands.generateDashboardHTML(context);
+                                
+                                // Diagnostics an Dashboard senden
+                                webview.postMessage({ 
+                                    type: 'diagnosticsUpdated', 
+                                    diagnostics: getDiagnosticInfo() 
+                                });
                             } catch (error) {
                                 console.error('Fehler beim Aktualisieren des Dashboard-Panels:', error);
                             }
@@ -155,9 +247,13 @@ async function activate(context) {
                 });
             } catch (error) {
                 console.error('Fehler bei der Panel-Aktualisierung:', error);
+                addDebugLog(`Fehler bei der Panel-Aktualisierung: ${error.message}`, 'error');
             }
         }
     }));
+
+    // Automatische Hintergrundüberwachung einrichten
+    setupAutoBackgroundMonitoring(context);
     
     // Eventuell kurze Verzögerung für initiale UI-Aktualisierung
     setTimeout(() => {
@@ -171,7 +267,7 @@ async function activate(context) {
     // Willkommensnachricht anzeigen (einmalig)
     showWelcomeNotification(context);
 
-    console.log('Comitto-Aktivierung abgeschlossen.');
+    addDebugLog('Comitto-Aktivierung abgeschlossen.', 'info');
 }
 
 /**
@@ -867,14 +963,20 @@ async function stageChanges(mode) {
 }
 
 /**
- * Zeigt eine Benachrichtigung an, wenn entsprechend konfiguriert
+ * Zeigt eine Benachrichtigung an, wenn entsprechend konfiguriert,
+ * und fügt sie immer zum Debug-Log hinzu
  * @param {string} message Die anzuzeigende Nachricht
  * @param {string} type Der Typ der Nachricht (info, warning, error)
  */
 function showNotification(message, type = 'info') {
     const config = vscode.workspace.getConfiguration('comitto');
     const uiSettings = config.get('uiSettings');
+    const debug = config.get('debug');
     
+    // Zum Debug-Log hinzufügen
+    addDebugLog(message, type);
+    
+    // Benachrichtigung anzeigen, wenn aktiviert
     if (uiSettings && uiSettings.showNotifications) {
         switch (type) {
             case 'info':
@@ -891,8 +993,18 @@ function showNotification(message, type = 'info') {
         }
     }
     
-    // Immer in die Konsole loggen
-    console.log(`Comitto [${type}]: ${message}`);
+    // Status in der Statusleiste aktualisieren
+    if (type === 'error' && statusBarItem) {
+        const originalText = statusBarItem.text;
+        statusBarItem.text = "$(error) Comitto: Fehler";
+        
+        // Nach 3 Sekunden zurücksetzen
+        setTimeout(() => {
+            if (statusBarItem) {
+                statusBarItem.text = originalText;
+            }
+        }, 3000);
+    }
 }
 
 /**
@@ -1143,6 +1255,119 @@ async function generateWithAnthropic(prompt) {
         console.error('Anthropic API-Fehler:', error.response?.data || error.message);
         throw new Error(`Fehler bei der Kommunikation mit Anthropic: ${error.message}`);
     }
+}
+
+/**
+ * Ruft diagnostische Informationen für das Debugging ab
+ * @returns {Object} Diagnostische Informationen
+ */
+function getDiagnosticInfo() {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    
+    return {
+        version: vscode.extensions.getExtension('tilltmk.comitto')?.packageJSON.version || 'unbekannt',
+        platform: process.platform,
+        arch: process.arch,
+        nodeVersion: process.version,
+        vsCodeVersion: vscode.version,
+        isAutoCommitEnabled: config.get('autoCommitEnabled'),
+        aiProvider: config.get('aiProvider'),
+        isWatcherActive: fileWatcher !== null,
+        isIntervalActive: intervalTimer !== null,
+        hasGitRepo: workspaceFolders ? true : false,
+        changedFilesCount: changedFiles ? changedFiles.size : 0,
+        lastCommitTime: lastCommitTime ? lastCommitTime.toISOString() : 'Nie',
+        isCommitInProgress: isCommitInProgress,
+        debugLogs: debugLogs.slice(0, 50) // Nur die letzten 50 Logs
+    };
+}
+
+/**
+ * Richtet eine automatische Hintergrundüberwachung ein
+ * @param {vscode.ExtensionContext} context 
+ */
+function setupAutoBackgroundMonitoring(context) {
+    // Überwachung für Git-Status (alle 10 Minuten)
+    setInterval(async () => {
+        try {
+            const config = vscode.workspace.getConfiguration('comitto');
+            if (!config.get('autoCommitEnabled')) return;
+            
+            const debugSettings = config.get('debug') || {};
+            
+            // Git-Repository-Status prüfen
+            const hasGit = await checkGitRepository(context);
+            if (!hasGit) {
+                addDebugLog('Hintergrundprüfung: Kein aktives Git-Repository gefunden.', 'warning');
+                return;
+            }
+            
+            // Prüfen, ob ungespeicherte Änderungen vorliegen, die noch nicht committed wurden
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders) return;
+            
+            const repoPath = workspaceFolders[0].uri.fsPath;
+            const gitStatus = await executeGitCommand('git status --porcelain', repoPath);
+            
+            if (gitStatus.trim() && changedFiles.size === 0) {
+                // Es gibt Änderungen, die nicht in changedFiles erfasst wurden
+                addDebugLog('Hintergrundprüfung: Nicht erfasste Änderungen gefunden.', 'info');
+                
+                // Dateien dem Tracking hinzufügen
+                gitStatus.split('\n')
+                    .filter(line => line.trim().length > 0)
+                    .forEach(line => {
+                        const filePath = line.substring(3).trim();
+                        if (filePath && !isFileIgnored(filePath)) {
+                            changedFiles.add(path.join(repoPath, filePath));
+                        }
+                    });
+                
+                if (debugSettings.extendedLogging) {
+                    addDebugLog(`Hintergrund-Synchronisierung: ${changedFiles.size} Dateien werden nun überwacht.`, 'info');
+                }
+                
+                // Trigger-Check ausführen
+                if (config.get('autoCommitEnabled')) {
+                    checkCommitTrigger();
+                }
+            }
+        } catch (error) {
+            console.error('Fehler bei der Hintergrundüberwachung:', error);
+            addDebugLog(`Fehler bei der Hintergrundüberwachung: ${error.message}`, 'error');
+        }
+    }, 10 * 60 * 1000); // 10 Minuten
+    
+    // Regelmäßiger Gesundheitscheck
+    setInterval(() => {
+        try {
+            const config = vscode.workspace.getConfiguration('comitto');
+            if (!config.get('autoCommitEnabled')) return;
+            
+            const debugSettings = config.get('debug') || {};
+            
+            // Prüfen, ob der Watcher noch aktiv ist
+            if (!fileWatcher && config.get('autoCommitEnabled')) {
+                addDebugLog('Gesundheitscheck: FileWatcher ist nicht aktiv. Starte neu...', 'warning');
+                setupFileWatcher(context);
+            }
+            
+            // Prüfen, ob der Interval-Timer noch aktiv ist
+            const triggerRules = config.get('triggerRules');
+            if (triggerRules.onInterval && !intervalTimer && config.get('autoCommitEnabled')) {
+                addDebugLog('Gesundheitscheck: Interval-Timer ist nicht aktiv. Starte neu...', 'warning');
+                setupIntervalTrigger(triggerRules.intervalMinutes);
+            }
+            
+            if (debugSettings.extendedLogging) {
+                addDebugLog('Gesundheitscheck durchgeführt.', 'info');
+            }
+        } catch (error) {
+            console.error('Fehler beim Gesundheitscheck:', error);
+            addDebugLog(`Fehler beim Gesundheitscheck: ${error.message}`, 'error');
+        }
+    }, 30 * 60 * 1000); // 30 Minuten
 }
 
 function deactivate() {

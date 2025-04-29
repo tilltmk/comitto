@@ -599,8 +599,8 @@ async function handleEditPromptTemplateCommand() {
  */
 async function handleShowDashboardCommand(context) {
     try {
-        // Bestehendes Panel abrufen
-        let panel = vscode.window.createWebviewPanel(
+        // Neues Panel erstellen
+        const panel = vscode.window.createWebviewPanel(
             'comittoDashboard',
             'Comitto Dashboard',
             vscode.ViewColumn.One,
@@ -616,38 +616,76 @@ async function handleShowDashboardCommand(context) {
         // Nachrichten vom Webview verarbeiten
         panel.webview.onDidReceiveMessage(
             async (message) => {
-                switch (message.command) {
-                    case 'refresh':
-                        try {
-                            panel.webview.html = generateDashboardHTML(context);
-                        } catch (error) {
-                            console.error('Fehler beim Aktualisieren des Dashboards:', error);
-                            vscode.window.showErrorMessage(`Fehler beim Aktualisieren des Dashboards: ${error.message}`);
-                        }
-                        break;
-                    case 'toggleAutoCommit':
-                        try {
-                            const config = vscode.workspace.getConfiguration('comitto');
-                            const enabled = !config.get('autoCommitEnabled');
-                            await config.update('autoCommitEnabled', enabled, vscode.ConfigurationTarget.Global);
-                            panel.webview.html = generateDashboardHTML(context);
-                        } catch (error) {
-                            console.error('Fehler beim Umschalten des Auto-Commit-Status:', error);
-                            vscode.window.showErrorMessage(`Fehler beim Umschalten des Auto-Commit-Status: ${error.message}`);
-                        }
-                        break;
-                    case 'manualCommit':
-                        vscode.commands.executeCommand('comitto.performManualCommit');
-                        break;
-                    case 'openSettings':
-                        vscode.commands.executeCommand('comitto.openSettings');
-                        break;
-                    case 'configureProvider':
-                        vscode.commands.executeCommand('comitto.configureAIProvider');
-                        break;
-                    case 'configureTriggers':
-                        vscode.commands.executeCommand('comitto.configureTriggers');
-                        break;
+                try {
+                    switch (message.command) {
+                        case 'refresh':
+                            try {
+                                panel.webview.html = generateDashboardHTML(context);
+                            } catch (error) {
+                                console.error('Fehler beim Aktualisieren des Dashboards:', error);
+                                vscode.window.showErrorMessage(`Fehler beim Aktualisieren des Dashboards: ${error.message}`);
+                            }
+                            break;
+                        case 'toggleAutoCommit':
+                            try {
+                                const config = vscode.workspace.getConfiguration('comitto');
+                                const enabled = !config.get('autoCommitEnabled');
+                                await config.update('autoCommitEnabled', enabled, vscode.ConfigurationTarget.Global);
+                                panel.webview.html = generateDashboardHTML(context);
+                            } catch (error) {
+                                console.error('Fehler beim Umschalten des Auto-Commit-Status:', error);
+                                vscode.window.showErrorMessage(`Fehler beim Umschalten des Auto-Commit-Status: ${error.message}`);
+                            }
+                            break;
+                        case 'manualCommit':
+                            vscode.commands.executeCommand('comitto.performManualCommit');
+                            break;
+                        case 'openSettings':
+                            vscode.commands.executeCommand('comitto.openSettings');
+                            break;
+                        case 'configureProvider':
+                            vscode.commands.executeCommand('comitto.configureAIProvider');
+                            break;
+                        case 'configureTriggers':
+                            vscode.commands.executeCommand('comitto.configureTriggers');
+                            break;
+                        // Debug-Befehle
+                        case 'debugForceCommit':
+                            // Log zum Panel senden
+                            panel.webview.postMessage({ 
+                                type: 'debugLog', 
+                                content: 'Force Commit wird ausgeführt...' 
+                            });
+                            
+                            try {
+                                // Commit ohne Validierung erzwingen
+                                await vscode.commands.executeCommand('comitto.performManualCommit');
+                                panel.webview.postMessage({ 
+                                    type: 'debugLog', 
+                                    content: 'Force Commit erfolgreich durchgeführt.' 
+                                });
+                            } catch (error) {
+                                console.error('Debug Force Commit fehlgeschlagen:', error);
+                                panel.webview.postMessage({ 
+                                    type: 'debugLog', 
+                                    content: `Fehler: ${error.message}` 
+                                });
+                            }
+                            break;
+                        case 'debugViewChangedFiles':
+                            // Liste der aktuell beobachteten Dateien an das Panel senden
+                            panel.webview.postMessage({ 
+                                type: 'changedFiles', 
+                                files: Array.from(changedFiles) 
+                            });
+                            break;
+                    }
+                } catch (error) {
+                    console.error('Fehler bei der Verarbeitung des Dashboard-Befehls:', error);
+                    panel.webview.postMessage({ 
+                        type: 'debugLog', 
+                        content: `Fehler bei der Befehlsverarbeitung: ${error.message}` 
+                    });
                 }
             },
             undefined,

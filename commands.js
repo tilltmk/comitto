@@ -598,68 +598,117 @@ async function handleEditPromptTemplateCommand() {
  * @param {vscode.ExtensionContext} context 
  */
 async function handleShowDashboardCommand(context) {
-    // Bestehendes Panel prüfen und wiederverwenden
-    let panel = context.globalState.get('comittoDashboardPanel');
-    
-    if (panel) {
-        // Panel bereits vorhanden, fokussieren
-        panel.reveal(vscode.ViewColumn.One);
-    } else {
-        // Neues Panel erstellen
-        panel = vscode.window.createWebviewPanel(
-            'comittoDashboard',
-            'Comitto Dashboard',
-            vscode.ViewColumn.One,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [
-                    vscode.Uri.joinPath(context.extensionUri, 'resources')
-                ]
-            }
-        );
+    try {
+        // Bestehendes Panel prüfen und wiederverwenden
+        let panel = context.globalState.get('comittoDashboardPanel');
         
-        // Panel im globalen Zustand speichern
-        context.globalState.update('comittoDashboardPanel', panel);
+        if (panel) {
+            try {
+                // Panel bereits vorhanden, fokussieren
+                panel.reveal(vscode.ViewColumn.One);
+            } catch (error) {
+                console.error('Fehler beim Zugriff auf das bestehende Panel:', error);
+                // Wenn das Panel nicht mehr gültig ist, es aus dem State entfernen
+                context.globalState.update('comittoDashboardPanel', undefined);
+                panel = null;
+            }
+        }
+        
+        if (!panel) {
+            console.log('Erstelle neues Dashboard-Panel');
+            // Neues Panel erstellen
+            panel = vscode.window.createWebviewPanel(
+                'comittoDashboard',
+                'Comitto Dashboard',
+                vscode.ViewColumn.One,
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true,
+                    localResourceRoots: [
+                        vscode.Uri.joinPath(context.extensionUri, 'resources')
+                    ]
+                }
+            );
+            
+            // Panel im globalen Zustand speichern
+            context.globalState.update('comittoDashboardPanel', panel);
+            
+            // Nachrichten vom Webview verarbeiten
+            panel.webview.onDidReceiveMessage(
+                async (message) => {
+                    switch (message.command) {
+                        case 'refresh':
+                            try {
+                                panel.webview.html = generateDashboardHTML(context);
+                            } catch (error) {
+                                console.error('Fehler beim Aktualisieren des Dashboards:', error);
+                                vscode.window.showErrorMessage(`Fehler beim Aktualisieren des Dashboards: ${error.message}`);
+                            }
+                            break;
+                        case 'toggleAutoCommit':
+                            try {
+                                const config = vscode.workspace.getConfiguration('comitto');
+                                const enabled = !config.get('autoCommitEnabled');
+                                await config.update('autoCommitEnabled', enabled, vscode.ConfigurationTarget.Global);
+                                panel.webview.html = generateDashboardHTML(context);
+                            } catch (error) {
+                                console.error('Fehler beim Umschalten des Auto-Commit-Status:', error);
+                                vscode.window.showErrorMessage(`Fehler beim Umschalten des Auto-Commit-Status: ${error.message}`);
+                            }
+                            break;
+                        case 'manualCommit':
+                            vscode.commands.executeCommand('comitto.performManualCommit');
+                            break;
+                        case 'openSettings':
+                            vscode.commands.executeCommand('comitto.openSettings');
+                            break;
+                        case 'configureProvider':
+                            vscode.commands.executeCommand('comitto.configureAIProvider');
+                            break;
+                        case 'configureTriggers':
+                            vscode.commands.executeCommand('comitto.configureTriggers');
+                            break;
+                    }
+                },
+                undefined,
+                context.subscriptions
+            );
+
+            // Bereinigen, wenn das Panel geschlossen wird
+            panel.onDidDispose(() => {
+                console.log('Dashboard-Panel wurde geschlossen');
+                context.globalState.update('comittoDashboardPanel', undefined);
+            }, null, context.subscriptions);
+        }
         
         // HTML für das Webview generieren und setzen
-        panel.webview.html = generateDashboardHTML(context);
-        
-        // Nachrichten vom Webview verarbeiten
-        panel.webview.onDidReceiveMessage(
-            async (message) => {
-                switch (message.command) {
-                    case 'refresh':
-                        panel.webview.html = generateDashboardHTML(context);
-                        break;
-                    case 'toggleAutoCommit':
-                        const config = vscode.workspace.getConfiguration('comitto');
-                        const enabled = !config.get('autoCommitEnabled');
-                        await config.update('autoCommitEnabled', enabled, vscode.ConfigurationTarget.Global);
-                        panel.webview.html = generateDashboardHTML(context);
-                        break;
-                    case 'manualCommit':
-                        vscode.commands.executeCommand('comitto.performManualCommit');
-                        break;
-                    case 'openSettings':
-                        vscode.commands.executeCommand('comitto.openSettings');
-                        break;
-                    case 'configureProvider':
-                        vscode.commands.executeCommand('comitto.configureAIProvider');
-                        break;
-                    case 'configureTriggers':
-                        vscode.commands.executeCommand('comitto.configureTriggers');
-                        break;
-                }
-            },
-            undefined,
-            context.subscriptions
-        );
-
-        // Bereinigen, wenn das Panel geschlossen wird
-        panel.onDidDispose(() => {
-            context.globalState.update('comittoDashboardPanel', undefined);
-        }, null, context.subscriptions);
+        console.log('Setze Dashboard-HTML');
+        try {
+            panel.webview.html = generateDashboardHTML(context);
+        } catch (error) {
+            console.error('Fehler beim Generieren des Dashboard-HTML:', error);
+            vscode.window.showErrorMessage(`Fehler beim Öffnen des Dashboards: ${error.message}`);
+            
+            // Fallback-HTML setzen
+            panel.webview.html = `
+                <html>
+                <head>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; }
+                        .error { color: red; }
+                    </style>
+                </head>
+                <body>
+                    <h1>Fehler beim Laden des Dashboards</h1>
+                    <p class="error">${error.message}</p>
+                    <p>Bitte schließen Sie das Dashboard und versuchen Sie es erneut zu öffnen.</p>
+                </body>
+                </html>
+            `;
+        }
+    } catch (error) {
+        console.error('Fehler beim Öffnen des Dashboards:', error);
+        vscode.window.showErrorMessage(`Fehler beim Öffnen des Comitto-Dashboards: ${error.message}`);
     }
 }
 
@@ -991,7 +1040,7 @@ function generateSimpleUIHTML(autoCommitEnabled, providerName, context) {
     const simpleUIJsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'simpleUI.js');
     const styleUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'styles.css');
     const animationsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'animations.css');
-    const logoUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'comitto_icon_color.svg');
+    const logoUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icon.svg');
 
     // Webview URIs erstellen
     let panel = context.globalState.get('comittoSimpleUIPanel');

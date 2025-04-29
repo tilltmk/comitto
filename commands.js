@@ -1179,8 +1179,7 @@ function generateDashboardHTML(context) {
     const styleUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'styles.css');
     const animationsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'animations.css');
     const logoUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icon.svg');
-    const chartJsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'chart.min.js');
-
+    
     // Webview URIs erstellen
     let panel = context.globalState.get('comittoDashboardPanel');
     if (!panel) return "<div>Dashboard konnte nicht geladen werden. Panel nicht gefunden.</div>";
@@ -1189,7 +1188,6 @@ function generateDashboardHTML(context) {
     const styleWebviewUri = panel.webview.asWebviewUri(styleUri);
     const animationsWebviewUri = panel.webview.asWebviewUri(animationsUri);
     const logoWebviewUri = panel.webview.asWebviewUri(logoUri);
-    const chartJsWebviewUri = panel.webview.asWebviewUri(chartJsUri);
     
     // Nonce für CSP
     const nonce = getNonce();

@@ -4,11 +4,13 @@
 (function() {
     // Warten, bis das DOM geladen ist
     document.addEventListener('DOMContentLoaded', () => {
+        console.log('Dashboard DOM geladen');
         initializeDashboard();
     });
 
     // Hauptinitialisierungsfunktion
     function initializeDashboard() {
+        console.log('Dashboard wird initialisiert');
         // Elemente abrufen
         const toggleBtn = document.getElementById('toggleBtn');
         const commitBtn = document.getElementById('commitBtn');

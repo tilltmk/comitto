@@ -2,6 +2,21 @@
 
 Alle wesentlichen Änderungen an der Comitto-Erweiterung werden in dieser Datei dokumentiert.
 
+## [0.2.0] - 2023-12-20
+
+### Hinzugefügt
+- Grafische Benutzeroberfläche in der Seitenleiste zur einfachen Konfiguration
+- Status-Ansicht mit Übersicht über aktuelle Einstellungen
+- Einstellungs-Ansicht zur interaktiven Konfiguration aller Parameter
+- Icon für die Extension und die Seitenleiste
+- Verbesserte Befehlsstruktur für einfacheren Zugriff
+- Zusätzliche Benutzerführung und Hilfetexte
+
+### Verbessert
+- Modularisierung des Codes für bessere Wartbarkeit
+- Benutzerfreundlichkeit durch grafische Oberfläche statt JSON-Konfiguration
+- UI/UX mit klaren visuellen Indikatoren und Feedback
+
 ## [0.1.0] - 2023-12-15
 
 ### Hinzugefügt

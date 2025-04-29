@@ -9,6 +9,7 @@ Comitto ist eine VS Code-Erweiterung, die automatisch Commit-Nachrichten mit ver
 - **Konfigurierbare Trigger**: Passt an, wann automatische Commits ausgeführt werden sollen
 - **Umfangreiche Git-Einstellungen**: Konfigurieren Sie Repository-Pfad, Branch, Auto-Push und mehr
 - **Anpassbare Prompts**: Passen Sie die Vorlage für die Generierung von Commit-Nachrichten an
+- **Benutzerfreundliche Oberfläche**: Alle Einstellungen können bequem über die Seitenleiste angepasst werden
 - **Statusanzeige**: Zeigt den aktuellen Status der Erweiterung in der VS Code-Statusleiste an
 
 ## Voraussetzungen
@@ -16,6 +17,28 @@ Comitto ist eine VS Code-Erweiterung, die automatisch Commit-Nachrichten mit ver
 - Visual Studio Code Version 1.70.0 oder höher
 - Git muss auf dem System installiert und im Workspace initialisiert sein
 - Je nach Konfiguration: Ollama lokal oder API-Schlüssel für OpenAI/Anthropic
+
+## Benutzeroberfläche
+
+Comitto bietet eine benutzerfreundliche Oberfläche in der Seitenleiste von VS Code:
+
+### Statusansicht
+
+Zeigt den aktuellen Status der Erweiterung und bietet schnellen Zugriff auf häufig verwendete Funktionen:
+- Status (aktiviert/deaktiviert)
+- Aktueller KI-Provider
+- Trigger-Regeln
+- Manuellen Commit ausführen
+
+### Einstellungsansicht
+
+Ermöglicht die einfache Konfiguration aller Parameter ohne JSON-Bearbeitung:
+- KI-Provider und Modelleinstellungen
+- Trigger-Regeln
+- Git-Einstellungen
+- Prompt-Vorlagen
+
+Klicken Sie auf einen Eintrag, um die entsprechende Einstellung zu bearbeiten.
 
 ## KI-Provider einrichten
 
@@ -36,7 +59,7 @@ Für die Verwendung von OpenAI benötigen Sie einen API-Schlüssel.
 1. Besuchen Sie [platform.openai.com](https://platform.openai.com/)
 2. Erstellen Sie ein Konto oder melden Sie sich an
 3. Navigieren Sie zum API-Bereich und erstellen Sie einen API-Schlüssel
-4. Kopieren Sie den Schlüssel in die Einstellungen der Erweiterung
+4. Kopieren Sie den Schlüssel in die Einstellungen der Erweiterung (über die Seitenleiste)
 
 ### Anthropic
 
@@ -45,11 +68,11 @@ Für die Verwendung von Anthropic benötigen Sie einen API-Schlüssel.
 1. Besuchen Sie [console.anthropic.com](https://console.anthropic.com/)
 2. Erstellen Sie ein Konto oder melden Sie sich an
 3. Erstellen Sie einen API-Schlüssel
-4. Kopieren Sie den Schlüssel in die Einstellungen der Erweiterung
+4. Kopieren Sie den Schlüssel in die Einstellungen der Erweiterung (über die Seitenleiste)
 
 ## Konfiguration
 
-Diese Erweiterung bietet folgende Konfigurationsoptionen:
+Alle Einstellungen können bequem über die Seitenleiste angepasst werden. Alternativ können Sie auch die VS Code-Einstellungen verwenden:
 
 | Einstellung | Beschreibung | Standardwert |
 |-------------|--------------|--------------|
@@ -99,7 +122,7 @@ Die Git-Einstellungen können wie folgt konfiguriert werden:
 
 ### Prompt-Vorlage
 
-Sie können die Vorlage für die KI-Generierung anpassen:
+Sie können die Vorlage für die KI-Generierung anpassen. Dies kann bequem über die Seitenleiste erfolgen, wo ein Editor geöffnet wird:
 
 ```
 "comitto.promptTemplate": "Generiere eine aussagekräftige Commit-Nachricht für die folgenden Änderungen: \n\n{changes}\n\nVerwende das Conventional Commits Format (feat, fix, docs, etc.) und halte die Nachricht unter 80 Zeichen."
@@ -110,12 +133,14 @@ Der Platzhalter `{changes}` wird automatisch durch die Liste der geänderten Dat
 ## Verwendung
 
 1. Installieren Sie die Erweiterung in VS Code
-2. Konfigurieren Sie den gewünschten KI-Provider und weitere Einstellungen
-3. Aktivieren Sie die automatischen Commits über:
+2. Klicken Sie auf das Comitto-Symbol in der Aktivitätsleiste, um die Seitenleiste zu öffnen
+3. Konfigurieren Sie den gewünschten KI-Provider und weitere Einstellungen über die Seitenleiste
+4. Aktivieren Sie die automatischen Commits über:
+   - Die Schaltfläche in der Statusanzeige
    - Den Befehl "Comitto: Automatische Commits aktivieren" im Befehls-Paletten (Strg+Shift+P)
    - Klicken auf das Comitto-Symbol in der Statusleiste
-4. Arbeiten Sie normal weiter - die Erweiterung erledigt den Rest!
-5. Sie können auch jederzeit einen manuellen KI-Commit mit dem Befehl "Comitto: Manuellen KI-Commit ausführen" durchführen
+5. Arbeiten Sie normal weiter - die Erweiterung erledigt den Rest!
+6. Sie können auch jederzeit einen manuellen KI-Commit mit dem Befehl "Comitto: Manuellen KI-Commit ausführen" oder über die Statusanzeige durchführen
 
 ## Befehle
 
@@ -125,6 +150,8 @@ Die Erweiterung bietet folgende Befehle:
 - `comitto.disableAutoCommit`: Deaktiviert automatische Commits
 - `comitto.toggleAutoCommit`: Wechselt zwischen aktiviertem und deaktiviertem Zustand
 - `comitto.performManualCommit`: Führt einen manuellen KI-Commit durch
+- `comitto.refreshSettings`: Aktualisiert die Einstellungsanzeige
+- `comitto.openSettings`: Öffnet die VS Code-Einstellungen für Comitto
 
 ## Datenschutz und Sicherheit
 
@@ -144,6 +171,7 @@ Wenn Sie Probleme mit der Erweiterung haben:
    - OpenAI/Anthropic: API-Schlüssel muss gültig sein
 2. Überprüfen Sie, ob Git korrekt eingerichtet ist und `git status` im Workspace funktioniert
 3. Überprüfen Sie die VS Code-Ausgabe der Erweiterung auf Fehlermeldungen
+4. Aktualisieren Sie die Einstellungsanzeige über die Schaltfläche "Aktualisieren"
 
 ## Bekannte Einschränkungen
 

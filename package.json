@@ -2,8 +2,12 @@
   "name": "comitto",
   "displayName": "Comitto",
   "description": "Automatische Generierung von Commit-Nachrichten mit KI (Ollama, OpenAI, Anthropic)",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "comitto",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tilltmk/comitto"
+  },
   "engines": {
     "vscode": "^1.70.0"
   },
@@ -11,7 +15,6 @@
     "Other",
     "SCM Providers"
   ],
-  "icon": "resources/icon.png",
   "activationEvents": [
     "onStartupFinished",
     "onView:comitto-settings",

@@ -6,6 +6,7 @@ const fs = require('fs');
 const ignore = require('ignore');
 const ui = require('./ui');
 const commands = require('./commands');
+const { executeGitCommand, getStatusDescription, getStatusText } = require('./utils'); // Utils importieren
 
 /**
  * @type {vscode.StatusBarItem}
@@ -48,274 +49,192 @@ let uiProviders = null;
 let intervalTimer = null;
 
 /**
+ * Hauptaktivierungsfunktion der Erweiterung.
  * @param {vscode.ExtensionContext} context
  */
-function activate(context) {
-    console.log('Die Erweiterung "comitto" wurde aktiviert.');
+async function activate(context) {
+    console.log('Die Erweiterung "comitto" wird aktiviert.');
 
-    // Sicherstellen, dass das Seitenleisten-Icon aus den Ressourcen geladen wird
-    const iconPath = path.join(context.extensionPath, 'resources', 'sidebar-icon.svg');
-    if (!fs.existsSync(iconPath)) {
-        console.error('Seitenleisten-Icon konnte nicht gefunden werden:', iconPath);
-    }
+    // Sicherstellen, dass das Ressourcenverzeichnis existiert
+    ensureResourceDirs(context);
 
     // UI-Komponenten registrieren
     uiProviders = ui.registerUI(context);
 
-    // Befehle registrieren
-    commands.registerCommands(context, uiProviders);
-
     // Statusleistenelement erstellen
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    statusBarItem.text = "$(git-commit) Comitto: Inaktiv";
-    statusBarItem.tooltip = "Automatisches Commit mit KI";
-    statusBarItem.command = "comitto.toggleAutoCommit";
+    statusBarItem.text = "$(git-commit) Comitto: Initialisiere...";
+    statusBarItem.tooltip = "Comitto: Klicke zum Aktivieren/Deaktivieren oder manuellen Commit";
+    statusBarItem.command = "comitto.toggleAutoCommit"; // Standardaktion
     context.subscriptions.push(statusBarItem);
     statusBarItem.show();
 
-    // Willkommensnachricht anzeigen
-    showWelcomeNotification(context);
+    // Git-Status prüfen und Kontext setzen
+    const hasGit = await checkGitRepository(context);
+    vscode.commands.executeCommand('setContext', 'workspaceHasGit', hasGit);
 
-    // Explizit die Seitenleiste zur Activity Bar hinzufügen
-    // (Sollte bereits über package.json eingebunden sein, aber zur Sicherheit)
-    vscode.commands.executeCommand('setContext', 'workspaceHasGit', true);
-
-    // Seitenleiste fokussieren, um sicherzustellen, dass sie angezeigt wird
-    vscode.commands.executeCommand('comitto-sidebar.focus');
-
-    // Alle Befehle registrieren
-    // Befehl zum Öffnen der Einstellungen
-    context.subscriptions.push(
-        vscode.commands.registerCommand('comitto.openSettings', () => {
-            vscode.commands.executeCommand('workbench.action.openSettings', 'comitto');
-        })
+    // Befehle zentral registrieren und Abhängigkeiten übergeben
+    commands.registerCommands(
+        context,
+        uiProviders,
+        statusBarItem,
+        setupFileWatcher,       // Funktion übergeben
+        disableFileWatcher,     // Funktion übergeben
+        performAutoCommit,      // Funktion übergeben
+        showNotification        // Funktion übergeben
     );
-
-    // Befehl zum Aktualisieren der Einstellungsansicht
-    context.subscriptions.push(
-        vscode.commands.registerCommand('comitto.refreshSettings', () => {
-            if (uiProviders) {
-                uiProviders.statusProvider.refresh();
-                uiProviders.settingsProvider.refresh();
-                uiProviders.quickActionsProvider.refresh();
-            }
-            vscode.window.showInformationMessage('Comitto-Einstellungen wurden aktualisiert.');
-        })
-    );
-
-    // Befehl zum Aktivieren/Deaktivieren der automatischen Commits
-    let toggleCmd = vscode.commands.registerCommand('comitto.toggleAutoCommit', () => {
-        const config = vscode.workspace.getConfiguration('comitto');
-        const isEnabled = !config.get('autoCommitEnabled');
-        config.update('autoCommitEnabled', isEnabled, vscode.ConfigurationTarget.Global);
-        
-        if (isEnabled) {
-            setupFileWatcher(context);
-            statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
-        } else {
-            disableFileWatcher();
-            statusBarItem.text = "$(git-commit) Comitto: Inaktiv";
-        }
-        
-        // UI aktualisieren
-        if (uiProviders) {
-            uiProviders.statusProvider.refresh();
-            uiProviders.quickActionsProvider.refresh();
-        }
-        
-        const uiSettings = config.get('uiSettings');
-        if (uiSettings && uiSettings.showNotifications) {
-            vscode.window.showInformationMessage(`Automatische Commits sind ${isEnabled ? 'aktiviert' : 'deaktiviert'}.`);
-        }
-    });
-
-    // Befehle zum Aktivieren/Deaktivieren der automatischen Commits
-    let enableCmd = vscode.commands.registerCommand('comitto.enableAutoCommit', () => {
-        vscode.workspace.getConfiguration('comitto').update('autoCommitEnabled', true, vscode.ConfigurationTarget.Global);
-        setupFileWatcher(context);
-        statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
-        
-        // UI aktualisieren
-        if (uiProviders) {
-            uiProviders.statusProvider.refresh();
-            uiProviders.quickActionsProvider.refresh();
-        }
-        
-        const config = vscode.workspace.getConfiguration('comitto');
-        const uiSettings = config.get('uiSettings');
-        if (uiSettings && uiSettings.showNotifications) {
-            vscode.window.showInformationMessage('Automatische Commits sind aktiviert.');
-        }
-    });
-
-    let disableCmd = vscode.commands.registerCommand('comitto.disableAutoCommit', () => {
-        vscode.workspace.getConfiguration('comitto').update('autoCommitEnabled', false, vscode.ConfigurationTarget.Global);
-        disableFileWatcher();
-        statusBarItem.text = "$(git-commit) Comitto: Inaktiv";
-        
-        // UI aktualisieren
-        if (uiProviders) {
-            uiProviders.statusProvider.refresh();
-            uiProviders.quickActionsProvider.refresh();
-        }
-        
-        const config = vscode.workspace.getConfiguration('comitto');
-        const uiSettings = config.get('uiSettings');
-        if (uiSettings && uiSettings.showNotifications) {
-            vscode.window.showInformationMessage('Automatische Commits sind deaktiviert.');
-        }
-    });
-
-    // Befehl zum manuellen Ausführen eines KI-generierten Commits
-    let manualCommitCmd = vscode.commands.registerCommand('comitto.performManualCommit', async () => {
-        try {
-            const config = vscode.workspace.getConfiguration('comitto');
-            const uiSettings = config.get('uiSettings');
-            
-            // Optional Bestätigung anfordern
-            let shouldProceed = true;
-            if (uiSettings && uiSettings.confirmBeforeCommit) {
-                shouldProceed = await vscode.window.showInformationMessage(
-                    'Möchten Sie einen manuellen KI-Commit durchführen?',
-                    'Ja', 'Abbrechen'
-                ) === 'Ja';
-            }
-            
-            if (shouldProceed) {
-                await performAutoCommit(true);
-                if (uiSettings && uiSettings.showNotifications) {
-                    vscode.window.showInformationMessage('Manueller KI-Commit wurde erfolgreich durchgeführt.');
-                }
-            }
-        } catch (error) {
-            vscode.window.showErrorMessage(`Fehler beim manuellen Commit: ${error.message}`);
-        }
-    });
-
-    context.subscriptions.push(toggleCmd, enableCmd, disableCmd, manualCommitCmd);
-
-    // .gitignore einlesen, wenn vorhanden
+    
+    // .gitignore einlesen, wenn vorhanden und konfiguriert
     loadGitignore();
 
-    // FileSystemWatcher initialisieren, wenn automatische Commits aktiviert sind
-    if (vscode.workspace.getConfiguration('comitto').get('autoCommitEnabled')) {
+    // Initialen Status setzen und FileSystemWatcher/Timer ggf. starten
+    const config = vscode.workspace.getConfiguration('comitto');
+    if (config.get('autoCommitEnabled') && hasGit) {
         setupFileWatcher(context);
         statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+    } else if (!hasGit) {
+        statusBarItem.text = "$(warning) Comitto: Kein Git-Repo";
+        statusBarItem.tooltip = "Kein Git-Repository im aktuellen Workspace gefunden";
+        statusBarItem.command = undefined; // Keine Aktion bei Klick
+    } else {
+        statusBarItem.text = "$(git-commit) Comitto: Inaktiv";
     }
 
     // Konfigurationsänderungen überwachen
-    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async event => {
         if (event.affectsConfiguration('comitto')) {
-            if (vscode.workspace.getConfiguration('comitto').get('autoCommitEnabled')) {
-                setupFileWatcher(context);
-            } else {
-                disableFileWatcher();
+            console.log('Comitto-Konfiguration geändert.');
+            const currentConfig = vscode.workspace.getConfiguration('comitto');
+            const gitAvailable = await checkGitRepository(context); // Erneut prüfen
+
+            if (event.affectsConfiguration('comitto.autoCommitEnabled') || event.affectsConfiguration('comitto.triggerRules')) {
+                if (currentConfig.get('autoCommitEnabled') && gitAvailable) {
+                    setupFileWatcher(context); // Re-setup mit neuer Konfig
+                     if (statusBarItem) statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+                } else {
+                    disableFileWatcher(); // Stoppt Watcher und Timer
+                     if (statusBarItem) {
+                          statusBarItem.text = gitAvailable ? "$(git-commit) Comitto: Inaktiv" : "$(warning) Comitto: Kein Git-Repo";
+                          statusBarItem.command = gitAvailable ? "comitto.toggleAutoCommit" : undefined;
+                     }
+                }
             }
             
             if (event.affectsConfiguration('comitto.gitSettings.useGitignore')) {
-                loadGitignore();
+                loadGitignore(); // .gitignore neu laden
             }
             
-            // UI aktualisieren
+            // UI immer aktualisieren bei Comitto-Änderungen
             if (uiProviders) {
                 uiProviders.statusProvider.refresh();
                 uiProviders.settingsProvider.refresh();
                 uiProviders.quickActionsProvider.refresh();
             }
+
+            // Dashboard aktualisieren, falls offen
+            let dashboardPanel = context.globalState.get('comittoDashboardPanel');
+            if (dashboardPanel && dashboardPanel.visible) {
+                 dashboardPanel.webview.html = commands.generateDashboardHTML(context); // HTML neu generieren
+            }
+             let simpleUIPanel = context.globalState.get('comittoSimpleUIPanel');
+             if (simpleUIPanel && simpleUIPanel.visible) {
+                 const newEnabled = currentConfig.get('autoCommitEnabled');
+                 const newProvider = currentConfig.get('aiProvider');
+                 simpleUIPanel.webview.html = commands.generateSimpleUIHTML(newEnabled, ui.getProviderDisplayName(newProvider), context);
+             }
         }
     }));
     
-    // Nach der Aktivierung einen kurzen Verzögerungstimer setzen, um sicherzustellen,
-    // dass die Seitenleiste korrekt initialisiert wird
+    // Eventuell kurze Verzögerung für initiale UI-Aktualisierung
     setTimeout(() => {
         if (uiProviders) {
             uiProviders.statusProvider.refresh();
             uiProviders.settingsProvider.refresh();
             uiProviders.quickActionsProvider.refresh();
         }
-    }, 1000);
+    }, 1500);
 
-    context.subscriptions.push(
-        vscode.commands.registerCommand('comitto.openai.selectModel', async () => {
-            await commands.handleCommand('openai', context);
-        })
-    );
-    
-    context.subscriptions.push(
-        vscode.commands.registerCommand('comitto.selectCommitMessageLanguage', async () => {
-            await commands.handleCommitMessageLanguageCommand();
-        })
-    );
+    // Willkommensnachricht anzeigen (einmalig)
+    showWelcomeNotification(context);
 
-    // Staging-Befehle registrieren
-    context.subscriptions.push(
-        vscode.commands.registerCommand('comitto.stageAll', async () => {
-            try {
-                await stageChanges('all');
-                showNotification('Alle Änderungen wurden gestaged.', 'info');
-            } catch (error) {
-                showNotification(`Fehler beim Stagen der Änderungen: ${error.message}`, 'error');
-            }
-        })
-    );
+    console.log('Comitto-Aktivierung abgeschlossen.');
+}
 
-    context.subscriptions.push(
-        vscode.commands.registerCommand('comitto.stageSelected', async () => {
-            try {
-                await stageChanges('specific');
-                showNotification('Ausgewählte Änderungen wurden gestaged.', 'info');
-            } catch (error) {
-                showNotification(`Fehler beim Stagen der Änderungen: ${error.message}`, 'error');
-            }
-        })
-    );
-
-    // Weitere Trigger-Events registrieren
-    const config = vscode.workspace.getConfiguration('comitto');
-    const triggerRules = config.get('triggerRules');
-    
-    // Datei-Speicher-Event
-    if (triggerRules.onSave) {
-        context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
-            if (vscode.workspace.getConfiguration('comitto').get('autoCommitEnabled')) {
-                checkCommitTrigger();
-            }
-        }));
+/**
+ * Prüft, ob im Workspace ein Git-Repository vorhanden ist.
+ * @param {vscode.ExtensionContext} context
+ * @returns {Promise<boolean>}
+ */
+async function checkGitRepository(context) {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        return false;
     }
-    
-    // Branch-Wechsel-Event
-    if (triggerRules.onBranchSwitch) {
-        context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
-            if (event.affectsConfiguration('git.branchCheckedOut')) {
-                if (vscode.workspace.getConfiguration('comitto').get('autoCommitEnabled')) {
-                    setTimeout(() => {
-                        showNotification('Branch-Wechsel erkannt. Prüfe auf ausstehende Commits...', 'info');
-                        checkCommitTrigger();
-                    }, 1000);
-                }
-            }
-        }));
+    const repoPath = workspaceFolders[0].uri.fsPath;
+    try {
+        await executeGitCommand('git rev-parse --is-inside-work-tree', repoPath);
+        console.log('Git-Repository gefunden.');
+        return true;
+    } catch (error) {
+        console.log('Kein Git-Repository gefunden oder Git nicht verfügbar.');
+        return false;
     }
 }
 
 /**
- * Zeigt eine Willkommensnachricht beim Start der Extension an
+ * Stellt sicher, dass die notwendigen Ressourcenverzeichnisse existieren.
+ * @param {vscode.ExtensionContext} context 
+ */
+function ensureResourceDirs(context) {
+    const dirsToEnsure = ['resources', 'resources/ui'];
+    dirsToEnsure.forEach(dir => {
+        const dirPath = vscode.Uri.joinPath(context.extensionUri, dir).fsPath;
+        if (!fs.existsSync(dirPath)) {
+            try {
+                fs.mkdirSync(dirPath, { recursive: true });
+                console.log(`Verzeichnis erstellt: ${dirPath}`);
+            } catch (error) {
+                console.error(`Fehler beim Erstellen des Verzeichnisses ${dirPath}:`, error);
+            }
+        }
+    });
+}
+
+/**
+ * Zeigt eine Willkommensnachricht beim ersten Start nach einer Installation/Update.
  * @param {vscode.ExtensionContext} context
  */
 function showWelcomeNotification(context) {
-    // Prüfen, ob die Nachricht bereits angezeigt wurde
-    const hasShownWelcome = context.globalState.get('comitto.hasShownWelcome', false);
-    if (!hasShownWelcome) {
+    const currentVersion = context.extension.packageJSON.version;
+    const previousVersion = context.globalState.get('comitto.version');
+
+    if (previousVersion !== currentVersion) {
+        // Nach erstem Start oder Update anzeigen
         vscode.window.showInformationMessage(
-            'Comitto wurde aktiviert! Öffnen Sie die Comitto-Seitenleiste über das Icon in der Activity Bar.',
-            'Öffnen', 'Nicht mehr anzeigen'
+            `Comitto v${currentVersion} wurde aktiviert! Konfigurieren Sie es über die Seitenleiste.`,
+            'Seitenleiste öffnen', 'Changelog anzeigen'
         ).then(selection => {
-            if (selection === 'Öffnen') {
-                vscode.commands.executeCommand('comitto-sidebar.focus');
-            } else if (selection === 'Nicht mehr anzeigen') {
-                context.globalState.update('comitto.hasShownWelcome', true);
+            if (selection === 'Seitenleiste öffnen') {
+                vscode.commands.executeCommand('workbench.view.extension.comitto-sidebar');
+            } else if (selection === 'Changelog anzeigen') {
+                // Prüfen, ob die Nachricht bereits angezeigt wurde
+                const hasShownWelcome = context.globalState.get('comitto.hasShownWelcome', false);
+                if (!hasShownWelcome) {
+                    vscode.window.showInformationMessage(
+                        'Comitto wurde aktiviert! Öffnen Sie die Comitto-Seitenleiste über das Icon in der Activity Bar.',
+                        'Öffnen', 'Nicht mehr anzeigen'
+                    ).then(selection => {
+                        if (selection === 'Öffnen') {
+                            vscode.commands.executeCommand('comitto-sidebar.focus');
+                        } else if (selection === 'Nicht mehr anzeigen') {
+                            context.globalState.update('comitto.hasShownWelcome', true);
+                        }
+                    });
+                }
             }
         });
+        // Version speichern
+        context.globalState.update('comitto.version', currentVersion);
     }
 
     // Status der UI anzeigen
@@ -869,7 +788,7 @@ async function generateCommitMessage(gitStatus, diffOutput) {
     if (diffOutput && diffOutput.length > 0) {
         // Eine gekürzte Version des Diffs anhängen, um den Kontext zu verbessern,
         // aber nicht zu viel Token zu verwenden
-        const maxDiffLength = 3000; // Maximale Anzahl der Zeichen des Diffs
+        const maxDiffLength = 4000; // Maximale Anzahl der Zeichen des Diffs
         const shortenedDiff = diffOutput.length > maxDiffLength 
             ? diffOutput.substring(0, maxDiffLength) + `...\n[Diff wurde gekürzt, insgesamt ${diffOutput.length} Zeichen]`
             : diffOutput;

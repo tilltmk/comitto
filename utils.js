@@ -8,7 +8,8 @@ const { exec } = require('child_process');
  */
 function executeGitCommand(command, cwd) {
     return new Promise((resolve, reject) => {
-        exec(command, { cwd }, (error, stdout, stderr) => {
+        // Erhöhe maxBuffer auf 10 MB (10 * 1024 * 1024), um große Ausgaben zu unterstützen
+        exec(command, { cwd, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
             if (error) {
                 // Detailliertere Fehlermeldung
                 const errorMessage = stderr || error.message || 'Unbekannter Git-Fehler';

@@ -379,7 +379,11 @@ function registerCommands(context, providers) {
         );
         
         if (selected) {
+            // Wähle ausschließlich einen Provider aus und deaktiviere die anderen
             await vscode.workspace.getConfiguration('comitto').update('aiProvider', selected.id, vscode.ConfigurationTarget.Global);
+            
+            // Zeige deutlich an, dass nur ein Provider ausgewählt ist
+            vscode.window.showInformationMessage(`KI-Provider wurde auf "${selected.label}" gesetzt. Andere Provider sind deaktiviert.`);
             
             // Provider-spezifische Einstellungen
             switch (selected.id) {
@@ -459,40 +463,59 @@ function registerCommands(context, providers) {
         }
     }));
 
-    // Trigger konfigurieren
+    // Trigger konfigurieren mit grafischer UI
     context.subscriptions.push(vscode.commands.registerCommand('comitto.configureTriggers', async () => {
-        const rules = vscode.workspace.getConfiguration('comitto').get('triggerRules');
-        
-        const options = [
-            { label: `Datei-Anzahl: ${rules.fileCountThreshold}`, id: 'fileCountThreshold' },
-            { label: `Änderungs-Anzahl: ${rules.minChangeCount}`, id: 'minChangeCount' },
-            { label: `Zeit-Schwellwert: ${rules.timeThresholdMinutes} Minuten`, id: 'timeThresholdMinutes' },
-            { label: 'Dateimuster bearbeiten', id: 'filePatterns' },
-            { label: 'Spezifische Dateien bearbeiten', id: 'specificFiles' }
+        // Optionen zum Öffnen des grafischen Konfigurators oder zum schnellen Bearbeiten
+        const configOptions = [
+            { label: 'Grafischer Trigger-Konfigurator öffnen', id: 'graphical' },
+            { label: 'Trigger-Regeln direkt bearbeiten', id: 'direct' }
         ];
         
-        const selected = await vscode.window.showQuickPick(options, {
-            placeHolder: 'Welchen Trigger möchten Sie konfigurieren?',
-            title: 'Comitto - Trigger konfigurieren'
+        const selectedOption = await vscode.window.showQuickPick(configOptions, {
+            placeHolder: 'Wie möchten Sie die Trigger konfigurieren?',
+            title: 'Comitto - Trigger-Konfigurationsmethode'
         });
         
-        if (selected) {
-            switch (selected.id) {
-                case 'fileCountThreshold':
-                    vscode.commands.executeCommand('comitto.editFileCountThreshold');
-                    break;
-                case 'minChangeCount':
-                    vscode.commands.executeCommand('comitto.editMinChangeCount');
-                    break;
-                case 'timeThresholdMinutes':
-                    vscode.commands.executeCommand('comitto.editTimeThreshold');
-                    break;
-                case 'filePatterns':
-                    vscode.commands.executeCommand('comitto.editFilePatterns');
-                    break;
-                case 'specificFiles':
-                    vscode.commands.executeCommand('comitto.editSpecificFiles');
-                    break;
+        if (!selectedOption) return;
+        
+        if (selectedOption.id === 'graphical') {
+            // Grafischen Konfigurator öffnen
+            showTriggerConfigWebview(context, providers);
+        } else {
+            // Direkte Bearbeitung wie bisher
+            const rules = vscode.workspace.getConfiguration('comitto').get('triggerRules');
+            
+            const options = [
+                { label: `Datei-Anzahl: ${rules.fileCountThreshold}`, id: 'fileCountThreshold' },
+                { label: `Änderungs-Anzahl: ${rules.minChangeCount}`, id: 'minChangeCount' },
+                { label: `Zeit-Schwellwert: ${rules.timeThresholdMinutes} Minuten`, id: 'timeThresholdMinutes' },
+                { label: 'Dateimuster bearbeiten', id: 'filePatterns' },
+                { label: 'Spezifische Dateien bearbeiten', id: 'specificFiles' }
+            ];
+            
+            const selected = await vscode.window.showQuickPick(options, {
+                placeHolder: 'Welchen Trigger möchten Sie konfigurieren?',
+                title: 'Comitto - Trigger konfigurieren'
+            });
+            
+            if (selected) {
+                switch (selected.id) {
+                    case 'fileCountThreshold':
+                        vscode.commands.executeCommand('comitto.editFileCountThreshold');
+                        break;
+                    case 'minChangeCount':
+                        vscode.commands.executeCommand('comitto.editMinChangeCount');
+                        break;
+                    case 'timeThresholdMinutes':
+                        vscode.commands.executeCommand('comitto.editTimeThreshold');
+                        break;
+                    case 'filePatterns':
+                        vscode.commands.executeCommand('comitto.editFilePatterns');
+                        break;
+                    case 'specificFiles':
+                        vscode.commands.executeCommand('comitto.editSpecificFiles');
+                        break;
+                }
             }
         }
     }));
@@ -693,6 +716,398 @@ function generateDashboardHTML() {
     </body>
     </html>
     `;
+}
+
+/**
+ * Zeigt den grafischen Trigger-Konfigurator als Webview an
+ * @param {vscode.ExtensionContext} context Extension-Kontext
+ * @param {Object} providers UI-Provider-Instanzen
+ */
+function showTriggerConfigWebview(context, providers) {
+    // Aktuelle Konfiguration abrufen
+    const config = vscode.workspace.getConfiguration('comitto');
+    const rules = config.get('triggerRules');
+    
+    // Panel für Webview erstellen
+    const panel = vscode.window.createWebviewPanel(
+        'comittoTriggerConfig',
+        'Comitto Trigger-Konfigurator',
+        vscode.ViewColumn.One,
+        {
+            enableScripts: true,
+            retainContextWhenHidden: true
+        }
+    );
+    
+    // HTML-Inhalt erstellen
+    panel.webview.html = `
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Comitto Trigger-Konfigurator</title>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                margin: 0;
+                padding: 20px;
+                color: var(--vscode-foreground);
+                background-color: var(--vscode-editor-background);
+            }
+            .container {
+                max-width: 800px;
+                margin: 0 auto;
+            }
+            .header {
+                display: flex;
+                align-items: center;
+                margin-bottom: 20px;
+                border-bottom: 1px solid var(--vscode-panel-border);
+                padding-bottom: 10px;
+            }
+            h1 {
+                margin: 0;
+                color: var(--vscode-editor-foreground);
+            }
+            .section {
+                background-color: var(--vscode-editor-inactiveSelectionBackground);
+                padding: 15px;
+                margin-bottom: 15px;
+                border-radius: 5px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            .section h2 {
+                margin-top: 0;
+                margin-bottom: 10px;
+                color: var(--vscode-editor-foreground);
+            }
+            .form-group {
+                margin-bottom: 15px;
+            }
+            label {
+                display: block;
+                margin-bottom: 5px;
+                font-weight: bold;
+            }
+            input, textarea, select {
+                width: 100%;
+                padding: 8px;
+                border-radius: 3px;
+                border: 1px solid var(--vscode-input-border);
+                background-color: var(--vscode-input-background);
+                color: var(--vscode-input-foreground);
+            }
+            input[type="range"] {
+                width: 80%;
+            }
+            .range-value {
+                display: inline-block;
+                margin-left: 10px;
+                min-width: 30px;
+                text-align: center;
+            }
+            .checkbox-group {
+                display: flex;
+                align-items: center;
+            }
+            input[type="checkbox"] {
+                width: auto;
+                margin-right: 10px;
+            }
+            .chip-container {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 5px;
+                margin-top: 10px;
+            }
+            .chip {
+                background-color: var(--vscode-button-background);
+                color: var(--vscode-button-foreground);
+                padding: 4px 8px;
+                border-radius: 12px;
+                display: inline-flex;
+                align-items: center;
+            }
+            .chip button {
+                background: none;
+                border: none;
+                color: var(--vscode-button-foreground);
+                margin-left: 5px;
+                cursor: pointer;
+                font-weight: bold;
+            }
+            .buttons {
+                display: flex;
+                justify-content: flex-end;
+                gap: 10px;
+                margin-top: 20px;
+            }
+            button {
+                background-color: var(--vscode-button-background);
+                color: var(--vscode-button-foreground);
+                border: none;
+                padding: 8px 16px;
+                border-radius: 3px;
+                cursor: pointer;
+            }
+            button:hover {
+                background-color: var(--vscode-button-hoverBackground);
+            }
+            .add-button {
+                margin-top: 5px;
+            }
+            .tag-input {
+                display: flex;
+                gap: 5px;
+            }
+            .tag-input button {
+                flex-shrink: 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>Comitto Trigger-Konfigurator</h1>
+            </div>
+            
+            <div class="section">
+                <h2>Schwellenwerte</h2>
+                
+                <div class="form-group">
+                    <label for="fileCountThreshold">Datei-Anzahl Schwellenwert</label>
+                    <div style="display: flex; align-items: center;">
+                        <input type="range" id="fileCountThreshold" min="1" max="20" value="${rules.fileCountThreshold}" oninput="document.getElementById('fileCountValue').textContent = this.value">
+                        <span id="fileCountValue" class="range-value">${rules.fileCountThreshold}</span>
+                    </div>
+                    <small>Commit auslösen, wenn diese Anzahl an Dateien geändert wurde</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="minChangeCount">Änderungs-Anzahl Schwellenwert</label>
+                    <div style="display: flex; align-items: center;">
+                        <input type="range" id="minChangeCount" min="1" max="100" value="${rules.minChangeCount}" oninput="document.getElementById('changeCountValue').textContent = this.value">
+                        <span id="changeCountValue" class="range-value">${rules.minChangeCount}</span>
+                    </div>
+                    <small>Commit auslösen, wenn diese Anzahl an Änderungen erreicht wurde</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="timeThresholdMinutes">Zeit-Schwellenwert (Minuten)</label>
+                    <div style="display: flex; align-items: center;">
+                        <input type="range" id="timeThresholdMinutes" min="1" max="120" value="${rules.timeThresholdMinutes}" oninput="document.getElementById('timeValue').textContent = this.value">
+                        <span id="timeValue" class="range-value">${rules.timeThresholdMinutes}</span>
+                    </div>
+                    <small>Commit auslösen, wenn seit dem letzten Commit diese Zeit vergangen ist</small>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>Dateimuster</h2>
+                <div class="form-group">
+                    <label for="filePattern">Dateimuster hinzufügen</label>
+                    <div class="tag-input">
+                        <input type="text" id="filePattern" placeholder="z.B. **/*.js, **/*.ts">
+                        <button onclick="addFilePattern()">Hinzufügen</button>
+                    </div>
+                    <small>Glob-Muster für Dateien, die überwacht werden sollen (z.B. **/*.js für alle JavaScript-Dateien)</small>
+                    
+                    <div class="chip-container" id="filePatterns">
+                        ${rules.filePatterns.map(pattern => `
+                            <div class="chip" data-value="${pattern}">
+                                ${pattern}
+                                <button onclick="removeFilePattern('${pattern}')">×</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>Spezifische Dateien</h2>
+                <div class="form-group">
+                    <label for="specificFile">Spezifische Datei hinzufügen</label>
+                    <div class="tag-input">
+                        <input type="text" id="specificFile" placeholder="z.B. package.json, README.md">
+                        <button onclick="addSpecificFile()">Hinzufügen</button>
+                    </div>
+                    <small>Spezifische Dateien, die immer überwacht werden sollen (z.B. package.json)</small>
+                    
+                    <div class="chip-container" id="specificFiles">
+                        ${rules.specificFiles.map(file => `
+                            <div class="chip" data-value="${file}">
+                                ${file}
+                                <button onclick="removeSpecificFile('${file}')">×</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="buttons">
+                <button onclick="saveConfig()">Speichern</button>
+                <button onclick="resetConfig()">Zurücksetzen</button>
+            </div>
+        </div>
+        
+        <script>
+            (function() {
+                const vscode = acquireVsCodeApi();
+                
+                // Speicherkopie der aktuellen Konfiguration
+                let currentConfig = ${JSON.stringify(rules)};
+                
+                // Methode zum Speichern der Konfiguration
+                window.saveConfig = function() {
+                    // Alle Schwellenwerte abrufen
+                    const fileCountThreshold = parseInt(document.getElementById('fileCountThreshold').value);
+                    const minChangeCount = parseInt(document.getElementById('minChangeCount').value);
+                    const timeThresholdMinutes = parseInt(document.getElementById('timeThresholdMinutes').value);
+                    
+                    // Alle Dateimuster sammeln
+                    const filePatterns = [];
+                    document.querySelectorAll('#filePatterns .chip').forEach(chip => {
+                        filePatterns.push(chip.dataset.value);
+                    });
+                    
+                    // Alle spezifischen Dateien sammeln
+                    const specificFiles = [];
+                    document.querySelectorAll('#specificFiles .chip').forEach(chip => {
+                        specificFiles.push(chip.dataset.value);
+                    });
+                    
+                    // Konfiguration an die Erweiterung senden
+                    vscode.postMessage({
+                        command: 'saveConfig',
+                        config: {
+                            fileCountThreshold,
+                            minChangeCount,
+                            timeThresholdMinutes,
+                            filePatterns: filePatterns.length > 0 ? filePatterns : ['**/*'],
+                            specificFiles
+                        }
+                    });
+                };
+                
+                // Methode zum Zurücksetzen der Konfiguration
+                window.resetConfig = function() {
+                    vscode.postMessage({
+                        command: 'resetConfig'
+                    });
+                };
+                
+                // Methode zum Hinzufügen eines Dateimusters
+                window.addFilePattern = function() {
+                    const input = document.getElementById('filePattern');
+                    const value = input.value.trim();
+                    
+                    if (value) {
+                        // Prüfen, ob das Muster bereits existiert
+                        const exists = Array.from(document.querySelectorAll('#filePatterns .chip')).some(chip => 
+                            chip.dataset.value === value
+                        );
+                        
+                        if (!exists) {
+                            const container = document.getElementById('filePatterns');
+                            const chipDiv = document.createElement('div');
+                            chipDiv.className = 'chip';
+                            chipDiv.dataset.value = value;
+                            chipDiv.innerHTML = value + '<button onclick="removeFilePattern(\'' + value + '\')">×</button>';
+                            container.appendChild(chipDiv);
+                            input.value = '';
+                        }
+                    }
+                };
+                
+                // Methode zum Entfernen eines Dateimusters
+                window.removeFilePattern = function(value) {
+                    document.querySelectorAll('#filePatterns .chip').forEach(chip => {
+                        if (chip.dataset.value === value) {
+                            chip.remove();
+                        }
+                    });
+                };
+                
+                // Methode zum Hinzufügen einer spezifischen Datei
+                window.addSpecificFile = function() {
+                    const input = document.getElementById('specificFile');
+                    const value = input.value.trim();
+                    
+                    if (value) {
+                        // Prüfen, ob die Datei bereits existiert
+                        const exists = Array.from(document.querySelectorAll('#specificFiles .chip')).some(chip => 
+                            chip.dataset.value === value
+                        );
+                        
+                        if (!exists) {
+                            const container = document.getElementById('specificFiles');
+                            const chipDiv = document.createElement('div');
+                            chipDiv.className = 'chip';
+                            chipDiv.dataset.value = value;
+                            chipDiv.innerHTML = value + '<button onclick="removeSpecificFile(\'' + value + '\')">×</button>';
+                            container.appendChild(chipDiv);
+                            input.value = '';
+                        }
+                    }
+                };
+                
+                // Methode zum Entfernen einer spezifischen Datei
+                window.removeSpecificFile = function(value) {
+                    document.querySelectorAll('#specificFiles .chip').forEach(chip => {
+                        if (chip.dataset.value === value) {
+                            chip.remove();
+                        }
+                    });
+                };
+            })();
+        </script>
+    </body>
+    </html>
+    `;
+    
+    // Nachrichtenhandling für Webview
+    panel.webview.onDidReceiveMessage(
+        async message => {
+            switch (message.command) {
+                case 'saveConfig':
+                    // Konfiguration speichern
+                    await vscode.workspace.getConfiguration('comitto').update('triggerRules', message.config, vscode.ConfigurationTarget.Global);
+                    vscode.window.showInformationMessage('Trigger-Konfiguration wurde gespeichert.');
+                    
+                    // UI aktualisieren
+                    if (providers) {
+                        providers.statusProvider.refresh();
+                        providers.settingsProvider.refresh();
+                    }
+                    
+                    panel.dispose();
+                    break;
+                    
+                case 'resetConfig':
+                    // Standardwerte wiederherstellen
+                    const defaultConfig = {
+                        fileCountThreshold: 3,
+                        minChangeCount: 10,
+                        timeThresholdMinutes: 30,
+                        filePatterns: ['**/*'],
+                        specificFiles: []
+                    };
+                    
+                    await vscode.workspace.getConfiguration('comitto').update('triggerRules', defaultConfig, vscode.ConfigurationTarget.Global);
+                    vscode.window.showInformationMessage('Trigger-Konfiguration wurde zurückgesetzt.');
+                    
+                    // UI aktualisieren
+                    if (providers) {
+                        providers.statusProvider.refresh();
+                        providers.settingsProvider.refresh();
+                    }
+                    
+                    panel.dispose();
+                    break;
+            }
+        }
+    );
 }
 
 module.exports = {

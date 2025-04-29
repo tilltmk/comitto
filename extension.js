@@ -48,6 +48,12 @@ let uiProviders = null;
 function activate(context) {
     console.log('Die Erweiterung "comitto" wurde aktiviert.');
 
+    // Sicherstellen, dass das Seitenleisten-Icon aus den Ressourcen geladen wird
+    const iconPath = path.join(context.extensionPath, 'resources', 'sidebar-icon.svg');
+    if (!fs.existsSync(iconPath)) {
+        console.error('Seitenleisten-Icon konnte nicht gefunden werden:', iconPath);
+    }
+
     // UI-Komponenten registrieren
     uiProviders = ui.registerUI(context);
 
@@ -61,6 +67,13 @@ function activate(context) {
     statusBarItem.command = "comitto.toggleAutoCommit";
     context.subscriptions.push(statusBarItem);
     statusBarItem.show();
+
+    // Explizit die Seitenleiste zur Activity Bar hinzufügen
+    // (Sollte bereits über package.json eingebunden sein, aber zur Sicherheit)
+    vscode.commands.executeCommand('setContext', 'workspaceHasGit', true);
+
+    // Seitenleiste fokussieren, um sicherzustellen, dass sie angezeigt wird
+    vscode.commands.executeCommand('comitto-sidebar.focus');
 
     // Befehl zum Aktivieren/Deaktivieren der automatischen Commits
     let toggleCmd = vscode.commands.registerCommand('comitto.toggleAutoCommit', () => {
@@ -79,6 +92,7 @@ function activate(context) {
         // UI aktualisieren
         if (uiProviders) {
             uiProviders.statusProvider.refresh();
+            uiProviders.quickActionsProvider.refresh();
         }
         
         vscode.window.showInformationMessage(`Automatische Commits sind ${isEnabled ? 'aktiviert' : 'deaktiviert'}.`);
@@ -93,6 +107,7 @@ function activate(context) {
         // UI aktualisieren
         if (uiProviders) {
             uiProviders.statusProvider.refresh();
+            uiProviders.quickActionsProvider.refresh();
         }
         
         vscode.window.showInformationMessage('Automatische Commits sind aktiviert.');
@@ -106,6 +121,7 @@ function activate(context) {
         // UI aktualisieren
         if (uiProviders) {
             uiProviders.statusProvider.refresh();
+            uiProviders.quickActionsProvider.refresh();
         }
         
         vscode.window.showInformationMessage('Automatische Commits sind deaktiviert.');
@@ -149,9 +165,20 @@ function activate(context) {
             if (uiProviders) {
                 uiProviders.statusProvider.refresh();
                 uiProviders.settingsProvider.refresh();
+                uiProviders.quickActionsProvider.refresh();
             }
         }
     }));
+    
+    // Nach der Aktivierung einen kurzen Verzögerungstimer setzen, um sicherzustellen,
+    // dass die Seitenleiste korrekt initialisiert wird
+    setTimeout(() => {
+        if (uiProviders) {
+            uiProviders.statusProvider.refresh();
+            uiProviders.settingsProvider.refresh();
+            uiProviders.quickActionsProvider.refresh();
+        }
+    }, 1000);
 }
 
 /**

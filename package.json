@@ -161,7 +161,7 @@
             "anthropic"
           ],
           "default": "ollama",
-          "description": "KI-Provider für die Generierung von Commit-Nachrichten"
+          "description": "KI-Provider für die Generierung von Commit-Nachrichten (nur einer aktiv)"
         },
         "comitto.ollama.endpoint": {
           "type": "string",

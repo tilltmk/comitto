@@ -34,7 +34,7 @@ class StatusViewProvider {
             vscode.TreeItemCollapsibleState.None
         );
         statusItem.contextValue = enabled ? 'comitto-status-enabled' : 'comitto-status-disabled';
-        statusItem.iconPath = new vscode.ThemeIcon(enabled ? 'eye' : 'eye-closed');
+        statusItem.iconPath = new vscode.ThemeIcon(enabled ? 'check' : 'circle-slash');
         statusItem.tooltip = enabled ? 'Comitto überwacht aktiv Änderungen' : 'Comitto ist derzeit deaktiviert';
         statusItem.command = {
             command: enabled ? 'comitto.disableAutoCommit' : 'comitto.enableAutoCommit',
@@ -42,14 +42,14 @@ class StatusViewProvider {
         };
         items.push(statusItem);
 
-        // AI Provider mit mehr Details
+        // AI Provider mit mehr Details und exklusiver Auswahl
         const provider = config.get('aiProvider');
         const providerItem = new vscode.TreeItem(
             `KI-Provider: ${getProviderDisplayName(provider)}`,
             vscode.TreeItemCollapsibleState.None
         );
         providerItem.iconPath = new vscode.ThemeIcon('symbol-enum');
-        providerItem.tooltip = `Aktueller KI-Provider für Commit-Nachrichten: ${getProviderDisplayName(provider)}`;
+        providerItem.tooltip = `Aktueller KI-Provider für Commit-Nachrichten: ${getProviderDisplayName(provider)} (exklusive Auswahl)`;
         providerItem.command = {
             command: 'comitto.configureAIProvider',
             title: 'KI-Provider konfigurieren'
@@ -62,7 +62,7 @@ class StatusViewProvider {
             `Trigger: ${rules.fileCountThreshold} Dateien / ${rules.minChangeCount} Änderungen`,
             vscode.TreeItemCollapsibleState.None
         );
-        rulesItem.iconPath = new vscode.ThemeIcon('trigger');
+        rulesItem.iconPath = new vscode.ThemeIcon('settings-gear');
         rulesItem.tooltip = `Commit bei ${rules.fileCountThreshold} Dateien, ${rules.minChangeCount} Änderungen oder nach ${rules.timeThresholdMinutes} Minuten`;
         rulesItem.command = {
             command: 'comitto.configureTriggers',
@@ -84,18 +84,14 @@ class StatusViewProvider {
         };
         items.push(gitItem);
 
-        // Letzte Aktivität / Statistik
-        const statsItem = new vscode.TreeItem(
-            'Aktivität: Bereit',
-            vscode.TreeItemCollapsibleState.None
-        );
-        statsItem.iconPath = new vscode.ThemeIcon('pulse');
-        statsItem.tooltip = 'Überwachte Dateien und Aktivität';
-        statsItem.command = {
-            command: 'comitto.showDashboard',
-            title: 'Dashboard anzeigen'
+        // Manuellen Commit-Button hinzufügen
+        const manualCommitItem = new vscode.TreeItem('Manuellen Commit ausführen');
+        manualCommitItem.iconPath = new vscode.ThemeIcon('git-commit');
+        manualCommitItem.command = {
+            command: 'comitto.performManualCommit',
+            title: 'Manuellen Commit ausführen'
         };
-        items.push(statsItem);
+        items.push(manualCommitItem);
 
         return items;
     }
@@ -369,12 +365,12 @@ class QuickActionsViewProvider {
         };
         items.push(aiProviderItem);
 
-        // Trigger konfigurieren
-        const triggerItem = new vscode.TreeItem('Trigger konfigurieren');
+        // Trigger grafisch konfigurieren
+        const triggerItem = new vscode.TreeItem('Trigger grafisch konfigurieren');
         triggerItem.iconPath = new vscode.ThemeIcon('settings-gear');
         triggerItem.command = {
             command: 'comitto.configureTriggers',
-            title: 'Trigger konfigurieren'
+            title: 'Trigger grafisch konfigurieren'
         };
         items.push(triggerItem);
 
@@ -449,6 +445,19 @@ function registerUI(context) {
         showCollapseAll: true
     });
     context.subscriptions.push(settingsTreeView);
+
+    // Nach kurzer Verzögerung Refresh ausführen, um sicherzustellen, dass die UI aktualisiert wird
+    setTimeout(() => {
+        statusProvider.refresh();
+        quickActionsProvider.refresh();
+        settingsProvider.refresh();
+    }, 500);
+
+    // Registriere einen Event-Handler, der die Seitenleiste sichtbar macht
+    context.subscriptions.push(vscode.extensions.onDidChange(() => {
+        // Setze den Kontext, dass ein Git-Repository vorhanden ist
+        vscode.commands.executeCommand('setContext', 'workspaceHasGit', true);
+    }));
 
     return {
         statusProvider,

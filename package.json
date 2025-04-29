@@ -203,140 +203,85 @@
     },
     "configuration": {
       "title": "Comitto",
+      "type": "object",
       "properties": {
-        "comitto.aiProvider": {
-          "type": "string",
-          "default": "ollama",
-          "enum": [
-            "ollama",
-            "openai",
-            "anthropic"
-          ],
-          "description": "KI-Provider für die Generierung von Commit-Nachrichten"
-        },
-        "comitto.ollama.endpoint": {
-          "type": "string",
-          "default": "http://localhost:11434/api/generate",
-          "description": "Ollama API-Endpunkt"
-        },
-        "comitto.ollama.model": {
-          "type": "string",
-          "default": "llama3",
-          "description": "Ollama Modell für die Generierung von Commit-Nachrichten"
-        },
-        "comitto.openai.apiKey": {
-          "type": "string",
-          "default": "",
-          "description": "OpenAI API-Schlüssel"
-        },
-        "comitto.openai.model": {
-          "type": "string",
-          "default": "gpt-4o",
-          "description": "Das OpenAI-Modell, das für die Generierung von Commit-Nachrichten verwendet werden soll",
-          "enum": [
-            "gpt-3.5-turbo",
-            "gpt-3.5-turbo-0125",
-            "gpt-3.5-turbo-1106",
-            "gpt-4o",
-            "gpt-4o-mini",
-            "gpt-4",
-            "gpt-4-turbo",
-            "gpt-4-0125-preview",
-            "gpt-4-1106-preview",
-            "gpt-4-vision-preview"
-          ]
-        },
-        "comitto.anthropic.apiKey": {
-          "type": "string",
-          "default": "",
-          "description": "Anthropic API-Schlüssel"
-        },
-        "comitto.anthropic.model": {
-          "type": "string",
-          "default": "claude-3-haiku-20240307",
-          "enum": [
-            "claude-3-haiku-20240307",
-            "claude-3-sonnet-20240229",
-            "claude-3-opus-20240229",
-            "claude-2.1",
-            "claude-2.0",
-            "claude-instant-1.2"
-          ],
-          "description": "Anthropic Claude-Modell für die Generierung von Commit-Nachrichten"
+        "comitto.autoCommitEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatische Commits aktivieren"
         },
         "comitto.triggerRules": {
           "type": "object",
           "default": {
+            "onSave": true,
+            "onInterval": false,
+            "onBranchSwitch": false,
             "fileCountThreshold": 3,
-            "specificFiles": [],
             "minChangeCount": 10,
             "timeThresholdMinutes": 30,
+            "intervalMinutes": 15,
             "filePatterns": [
               "**/*"
             ],
-            "onSave": false,
-            "onInterval": true,
-            "intervalMinutes": 5,
-            "onBranchSwitch": true
+            "specificFiles": []
           },
-          "description": "Regeln, die automatische Commits auslösen"
-        },
-        "comitto.autoCommitEnabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "Aktiviert oder deaktiviert automatische Commits"
+          "description": "Regeln für den Auslöser von automatischen Commits"
         },
         "comitto.gitSettings": {
           "type": "object",
           "default": {
-            "commitMessageLanguage": "en",
             "autoPush": false,
-            "branch": "",
+            "pushOptions": "",
+            "pushRetryCount": 3,
+            "pullBeforePush": true,
             "stageMode": "all",
-            "specificStagingPatterns": [
-              "**/*.js",
-              "**/*.ts",
-              "**/*.json"
-            ],
-            "commitMessageStyle": "conventional"
+            "specificStagingPatterns": [],
+            "branch": "",
+            "useGitignore": true,
+            "commitMessageStyle": "conventional",
+            "commitMessageLanguage": "en",
+            "maxCommitAttempts": 3
           },
-          "description": "Git-bezogene Einstellungen",
-          "properties": {
-            "commitMessageLanguage": {
-              "type": "string",
-              "default": "en",
-              "enum": [
-                "en",
-                "de"
-              ],
-              "description": "Die Sprache, in der Commit-Nachrichten generiert werden sollen"
-            },
-            "autoPush": {
-              "type": "boolean",
-              "default": false,
-              "description": "Nach dem Commit automatisch pushen"
-            },
-            "branch": {
-              "type": "string",
-              "default": "",
-              "description": "Branch zum Commiten verwenden (leer für aktuellen Branch)"
-            },
-            "stageMode": {
-              "type": "string",
-              "default": "all",
-              "enum": [
-                "all",
-                "specific",
-                "prompt"
-              ],
-              "description": "Wie Dateien für Commits gestaged werden sollen"
-            }
-          }
+          "description": "Git-Einstellungen für Comitto"
+        },
+        "comitto.aiProvider": {
+          "type": "string",
+          "enum": [
+            "openai",
+            "anthropic",
+            "ollama"
+          ],
+          "default": "openai",
+          "description": "KI-Provider für Commit-Nachrichtengenerierung"
+        },
+        "comitto.openai": {
+          "type": "object",
+          "default": {
+            "apiKey": "",
+            "model": "gpt-3.5-turbo"
+          },
+          "description": "OpenAI API-Einstellungen"
+        },
+        "comitto.ollama": {
+          "type": "object",
+          "default": {
+            "endpoint": "http://localhost:11434/api/generate",
+            "model": "llama3"
+          },
+          "description": "Ollama API-Einstellungen"
+        },
+        "comitto.anthropic": {
+          "type": "object",
+          "default": {
+            "apiKey": "",
+            "model": "claude-3-haiku-20240307"
+          },
+          "description": "Anthropic API-Einstellungen"
         },
         "comitto.promptTemplate": {
           "type": "string",
-          "default": "Generate a meaningful commit message in English, using the Conventional Commits format. Keep it under 80 characters. Here is the diff of changes:\n\n{{diff}}",
-          "description": "Die Vorlage für den Prompt zur Generierung von Commit-Nachrichten"
+          "default": "Generiere eine aussagekräftige Commit-Nachricht auf Deutsch im Format der Conventional Commits oder mit einem passenden Emoji am Anfang.\nHalte sie unter 80 Zeichen. Hier sind die Änderungen:\n\n{changes}",
+          "description": "Vorlage für den KI-Prompt zur Generierung der Commit-Nachricht"
         },
         "comitto.uiSettings": {
           "type": "object",
@@ -346,7 +291,7 @@
             "showNotifications": true,
             "theme": "auto"
           },
-          "description": "Einstellungen für die Benutzeroberfläche"
+          "description": "UI-Einstellungen für Comitto"
         },
         "comitto.notifications": {
           "type": "object",
@@ -354,9 +299,18 @@
             "onCommit": true,
             "onPush": true,
             "onError": true,
-            "onTriggerFired": true
+            "onTriggerFired": false
           },
           "description": "Benachrichtigungseinstellungen"
+        },
+        "comitto.debug": {
+          "type": "object",
+          "default": {
+            "enabled": false,
+            "extendedLogging": false,
+            "commitDiagnostics": false
+          },
+          "description": "Debug-Einstellungen für Comitto"
         }
       }
     }

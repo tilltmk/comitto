@@ -1159,6 +1159,16 @@ function generateSimpleUIHTML(autoCommitEnabled, providerName, context) {
  * @returns {string} HTML-Inhalt
  */
 function generateDashboardHTML(context) {
+    // Bestehendes Panel abrufen
+    let panel = context.globalState.get('comittoDashboardPanel');
+    if (!panel || !panel.webview) {
+        console.error('Dashboard-Panel nicht gefunden oder webview nicht verfügbar');
+        // Das Panel sollte bereits erstellt worden sein, bevor diese Funktion aufgerufen wird
+        // Statt undefined zurückzugeben, geben wir eine Fehlermeldung zurück
+        return `<html><body><h1>Fehler beim Initialisieren des Dashboards</h1>
+                <p>Bitte schließen Sie das Dashboard und versuchen Sie es erneut zu öffnen.</p></body></html>`;
+    }
+    
     const config = vscode.workspace.getConfiguration('comitto');
     const enabled = config.get('autoCommitEnabled');
     const provider = config.get('aiProvider');
@@ -1181,9 +1191,6 @@ function generateDashboardHTML(context) {
     const logoUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icon.svg');
     
     // Webview URIs erstellen
-    let panel = context.globalState.get('comittoDashboardPanel');
-    if (!panel) return "<div>Dashboard konnte nicht geladen werden. Panel nicht gefunden.</div>";
-
     const dashboardJsWebviewUri = panel.webview.asWebviewUri(dashboardJsUri);
     const styleWebviewUri = panel.webview.asWebviewUri(styleUri);
     const animationsWebviewUri = panel.webview.asWebviewUri(animationsUri);

@@ -202,7 +202,7 @@
       "properties": {
         "comitto.aiProvider": {
           "type": "string",
-          "default": "openai",
+          "default": "ollama",
           "enum": ["ollama", "openai", "anthropic"],
           "description": "KI-Provider für die Generierung von Commit-Nachrichten"
         },

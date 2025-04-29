@@ -1595,24 +1595,96 @@ async function configureAIProvider(context) {
  * Konfiguriert die Ollama-Einstellungen
  */
 async function configureOllamaSettings() {
-    const endpoint = await vscode.window.showInputBox({
-        placeHolder: 'http://localhost:11434/api/generate',
-        prompt: 'Ollama API-Endpunkt',
-        value: vscode.workspace.getConfiguration('comitto').get('ollama.endpoint')
-    });
-    
-    if (endpoint !== undefined) {
-        await vscode.workspace.getConfiguration('comitto').update('ollama.endpoint', endpoint, vscode.ConfigurationTarget.Global);
-    }
-    
-    const model = await vscode.window.showInputBox({
-        placeHolder: 'llama3',
-        prompt: 'Ollama Modell',
-        value: vscode.workspace.getConfiguration('comitto').get('ollama.model')
-    });
-    
-    if (model !== undefined) {
-        await vscode.workspace.getConfiguration('comitto').update('ollama.model', model, vscode.ConfigurationTarget.Global);
+    try {
+        const config = vscode.workspace.getConfiguration('comitto');
+        const currentEndpoint = config.get('ollama.endpoint') || 'http://localhost:11434/api/generate';
+        const currentModel = config.get('ollama.model') || 'llama3';
+        
+        // Konfiguration des Endpoints
+        const endpoint = await vscode.window.showInputBox({
+            placeHolder: 'http://localhost:11434/api/generate',
+            prompt: 'Ollama API-Endpunkt',
+            value: currentEndpoint,
+            validateInput: value => {
+                if (!value) return 'Der Endpunkt darf nicht leer sein';
+                if (!value.startsWith('http://') && !value.startsWith('https://')) {
+                    return 'Der Endpunkt muss mit http:// oder https:// beginnen';
+                }
+                return null; // Kein Fehler
+            }
+        });
+        
+        if (endpoint) {
+            await config.update('ollama.endpoint', endpoint, vscode.ConfigurationTarget.Global);
+            
+            // Versuche, die Verbindung zu Ollama zu testen
+            try {
+                vscode.window.showInformationMessage('Teste Verbindung zu Ollama...');
+                
+                const axios = require('axios');
+                await axios.get(endpoint.replace('/api/generate', '/api/tags'), { timeout: 5000 });
+                
+                vscode.window.showInformationMessage('Verbindung zu Ollama erfolgreich hergestellt!');
+            } catch (error) {
+                vscode.window.showWarningMessage(
+                    `Warnung: Konnte keine Verbindung zu Ollama herstellen (${error.message}). ` +
+                    'Bitte stellen Sie sicher, dass Ollama läuft und der Endpunkt korrekt ist.'
+                );
+            }
+        }
+        
+        // Konfiguration des Modells
+        const popularModels = [
+            'llama3', 
+            'mistral', 
+            'mixtral', 
+            'phi', 
+            'gemma', 
+            'codellama', 
+            'orca-mini'
+        ];
+        
+        // Lade verfügbare Modelle von Ollama
+        let availableModels = [];
+        try {
+            if (endpoint) {
+                const axios = require('axios');
+                const response = await axios.get(endpoint.replace('/api/generate', '/api/tags'), { timeout: 5000 });
+                if (response.data && response.data.models) {
+                    availableModels = response.data.models.map(model => model.name);
+                }
+            }
+        } catch (error) {
+            console.error('Fehler beim Abrufen der Ollama-Modelle:', error);
+            // Weiter mit populären Modellen als Fallback
+        }
+        
+        // Kombiniere populäre und verfügbare Modelle ohne Duplikate
+        const allModels = [...new Set([...popularModels, ...availableModels])];
+        
+        // Zeige QuickPick für Modell-Auswahl an
+        const selectedModel = await vscode.window.showQuickPick(
+            allModels.map(model => ({
+                label: model,
+                description: availableModels.includes(model) ? '(Verfügbar)' : '',
+                detail: model === currentModel ? '(Aktuell ausgewählt)' : ''
+            })),
+            {
+                placeHolder: 'Wählen Sie ein Ollama-Modell',
+                ignoreFocusOut: true
+            }
+        );
+        
+        if (selectedModel) {
+            await config.update('ollama.model', selectedModel.label, vscode.ConfigurationTarget.Global);
+            vscode.window.showInformationMessage(`Ollama-Modell auf "${selectedModel.label}" gesetzt.`);
+        }
+        
+        return true;
+    } catch (error) {
+        vscode.window.showErrorMessage(`Fehler bei der Konfiguration von Ollama: ${error.message}`);
+        console.error('Fehler bei der Konfiguration von Ollama:', error);
+        return false;
     }
 }
 

@@ -544,6 +544,13 @@ async function performAutoCommit(isManualTrigger = false) {
         const repoPath = gitSettings.repositoryPath || workspaceFolders[0].uri.fsPath;
         
         try {
+            // Prüfen, ob Git initialisiert ist
+            try {
+                await executeGitCommand('git rev-parse --is-inside-work-tree', repoPath);
+            } catch (error) {
+                throw new Error('Kein Git-Repository gefunden. Bitte initialisieren Sie zuerst ein Git-Repository.');
+            }
+            
             // Dateien zum Staging hinzufügen
             await stageChanges(gitSettings.stageMode);
             
@@ -562,12 +569,19 @@ async function performAutoCommit(isManualTrigger = false) {
             // Änderungen abrufen
             const diffOutput = await executeGitCommand('git diff --cached', repoPath);
             
+            statusBarItem.text = "$(sync~spin) Comitto: Generiere Commit-Nachricht...";
+            
             // Commit-Nachricht mit ausgewähltem KI-Modell generieren
             const commitMessage = await generateCommitMessage(gitStatus, diffOutput);
+            
+            if (!commitMessage || commitMessage.trim().length === 0) {
+                throw new Error('Keine gültige Commit-Nachricht generiert. Bitte versuchen Sie es erneut.');
+            }
             
             // Verzweigen, falls ein bestimmter Branch konfiguriert ist
             if (gitSettings.branch) {
                 try {
+                    statusBarItem.text = "$(sync~spin) Comitto: Prüfe Branch...";
                     // Prüfen, ob der Branch existiert
                     const branches = await executeGitCommand('git branch', repoPath);
                     if (!branches.includes(gitSettings.branch)) {
@@ -582,6 +596,8 @@ async function performAutoCommit(isManualTrigger = false) {
                     // Fortfahren mit dem aktuellen Branch
                 }
             }
+            
+            statusBarItem.text = "$(sync~spin) Comitto: Führe Commit aus...";
             
             // git commit ausführen
             await executeGitCommand(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`, repoPath);
@@ -598,6 +614,7 @@ async function performAutoCommit(isManualTrigger = false) {
             // Automatischen Push ausführen, wenn konfiguriert
             if (gitSettings.autoPush) {
                 try {
+                    statusBarItem.text = "$(sync~spin) Comitto: Pushe Änderungen...";
                     const currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
                     await executeGitCommand(`git push origin ${currentBranch}`, repoPath);
                     
@@ -619,9 +636,20 @@ async function performAutoCommit(isManualTrigger = false) {
         } catch (error) {
             console.error('Git-Befehl fehlgeschlagen:', error);
             const notificationSettings = vscode.workspace.getConfiguration('comitto').get('notifications');
-            if (notificationSettings.onError) {
-                showNotification(`Git-Befehl fehlgeschlagen: ${error.message}`, 'error');
+            
+            // Benutzerfreundlichere Fehlermeldung
+            let errorMessage = error.message;
+            if (errorMessage.includes('fatal: not a git repository')) {
+                errorMessage = 'Dieses Verzeichnis ist kein Git-Repository. Bitte initialisieren Sie zuerst ein Git-Repository.';
+            } else if (errorMessage.includes('fatal: unable to access')) {
+                errorMessage = 'Fehler beim Zugriff auf das Remote-Repository. Bitte prüfen Sie Ihre Netzwerkverbindung und Zugangsrechte.';
             }
+            
+            if (notificationSettings.onError) {
+                showNotification(`Git-Befehl fehlgeschlagen: ${errorMessage}`, 'error');
+            }
+            
+            statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
             throw error;
         }
     } catch (error) {
@@ -869,27 +897,60 @@ async function generateCommitMessage(gitStatus, diffOutput) {
  */
 async function generateWithOllama(prompt) {
     const config = vscode.workspace.getConfiguration('comitto');
-    const endpoint = config.get('ollama.endpoint');
-    const model = config.get('ollama.model');
+    const endpoint = config.get('ollama.endpoint') || 'http://localhost:11434/api/generate';
+    const model = config.get('ollama.model') || 'llama3';
     
     try {
+        statusBarItem.text = "$(sync~spin) Comitto: Generiere Commit-Nachricht mit Ollama...";
+        
         const response = await axios.post(endpoint, {
             model: model,
             prompt: prompt,
             stream: false
+        }, {
+            timeout: 30000 // 30 Sekunden Timeout für lokale Modelle
         });
         
         if (response.data && response.data.response) {
+            statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+            
             // Formatierung der Nachricht: Leerzeichen und Anführungszeichen entfernen
-            return response.data.response.trim()
+            let commitMessage = response.data.response.trim()
                 .replace(/^["']|["']$/g, '')  // Entfernt Anführungszeichen am Anfang und Ende
                 .replace(/\n/g, ' ');  // Ersetzt Zeilenumbrüche durch Leerzeichen
+            
+            // Prüfen, ob die Nachricht zu lang ist und ggf. kürzen
+            if (commitMessage.length > 100) {
+                commitMessage = commitMessage.substring(0, 97) + '...';
+            }
+            
+            return commitMessage;
         } else {
             throw new Error('Unerwartetes Antwortformat von Ollama');
         }
     } catch (error) {
         console.error('Ollama API-Fehler:', error.response?.data || error.message);
-        throw new Error(`Fehler bei der Kommunikation mit Ollama: ${error.message}`);
+        
+        // Detaillierte Fehlermeldung
+        let errorMessage = 'Fehler bei der Kommunikation mit Ollama';
+        
+        if (error.code === 'ECONNREFUSED') {
+            errorMessage = 'Verbindung zu Ollama fehlgeschlagen. Bitte stellen Sie sicher, dass Ollama läuft und erreichbar ist.';
+        } else if (error.code === 'ETIMEDOUT' || error.code === 'TIMEOUT') {
+            errorMessage = 'Zeitüberschreitung bei der Anfrage an Ollama. Bitte prüfen Sie die Verbindung oder versuchen Sie ein kleineres Modell.';
+        } else if (error.response?.status === 404) {
+            errorMessage = `Das Ollama-Modell "${model}" wurde nicht gefunden. Bitte stellen Sie sicher, dass das Modell installiert ist.`;
+        } else if (error.response?.data) {
+            errorMessage = `Ollama-Fehler: ${error.response.data.error || JSON.stringify(error.response.data)}`;
+        } else {
+            errorMessage = `Ollama-Fehler: ${error.message}`;
+        }
+        
+        statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+        vscode.window.showErrorMessage(errorMessage);
+        
+        // Fallback: Einfache, generische Commit-Nachricht
+        return "chore: Änderungen commited";
     }
 }
 

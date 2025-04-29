@@ -1178,7 +1178,7 @@ function generateDashboardHTML(context) {
     const dashboardJsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'dashboard.js');
     const styleUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'styles.css');
     const animationsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'animations.css');
-    const logoUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'comitto_icon_color.svg');
+    const logoUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icon.svg');
     const chartJsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'chart.min.js');
 
     // Webview URIs erstellen
@@ -1195,7 +1195,7 @@ function generateDashboardHTML(context) {
     const nonce = getNonce();
     
     // Version aus package.json lesen
-    let version = '0.9.5'; // Aktuelle Version
+    let version = '0.9.6'; // Aktuelle Version
     try {
         const pkgPath = vscode.Uri.joinPath(context.extensionUri, 'package.json').fsPath;
         const pkg = JSON.parse(require('fs').readFileSync(pkgPath, 'utf8'));

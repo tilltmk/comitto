@@ -2,7 +2,7 @@
   "name": "comitto",
   "displayName": "Comitto",
   "description": "Automatische Generierung von Commit-Nachrichten mit KI (Ollama, OpenAI, Anthropic)",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "publisher": "comitto",
   "repository": {
     "type": "git",
@@ -26,7 +26,7 @@
     "onCommand:comitto.toggleAutoCommit",
     "onCommand:comitto.performManualCommit"
   ],
-  "main": "./extension.js",
+  "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -116,7 +116,7 @@
       },
       {
         "command": "comitto.configureTriggers",
-        "title": "Comitto: Trigger konfigurieren", 
+        "title": "Comitto: Trigger konfigurieren",
         "icon": "$(settings-gear)"
       },
       {
@@ -203,7 +203,11 @@
         "comitto.aiProvider": {
           "type": "string",
           "default": "ollama",
-          "enum": ["ollama", "openai", "anthropic"],
+          "enum": [
+            "ollama",
+            "openai",
+            "anthropic"
+          ],
           "description": "KI-Provider für die Generierung von Commit-Nachrichten"
         },
         "comitto.ollama.endpoint": {
@@ -285,7 +289,11 @@
             "autoPush": false,
             "branch": "",
             "stageMode": "all",
-            "specificStagingPatterns": ["**/*.js", "**/*.ts", "**/*.json"],
+            "specificStagingPatterns": [
+              "**/*.js",
+              "**/*.ts",
+              "**/*.json"
+            ],
             "commitMessageStyle": "conventional"
           },
           "description": "Git-bezogene Einstellungen",
@@ -293,7 +301,10 @@
             "commitMessageLanguage": {
               "type": "string",
               "default": "en",
-              "enum": ["en", "de"],
+              "enum": [
+                "en",
+                "de"
+              ],
               "description": "Die Sprache, in der Commit-Nachrichten generiert werden sollen"
             },
             "autoPush": {
@@ -309,7 +320,11 @@
             "stageMode": {
               "type": "string",
               "default": "all",
-              "enum": ["all", "specific", "prompt"],
+              "enum": [
+                "all",
+                "specific",
+                "prompt"
+              ],
               "description": "Wie Dateien für Commits gestaged werden sollen"
             }
           }
@@ -343,7 +358,9 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run webpack",
+    "webpack": "webpack --mode production",
+    "webpack:dev": "webpack --mode development",
     "compile": "echo 'No compilation needed'",
     "lint": "echo 'No linting configured'",
     "test": "echo 'No tests configured'"
@@ -354,6 +371,8 @@
   },
   "devDependencies": {
     "@types/node": "^16.11.7",
-    "@types/vscode": "^1.70.0"
+    "@types/vscode": "^1.70.0",
+    "webpack": "^5.99.7",
+    "webpack-cli": "^6.0.1"
   }
 }

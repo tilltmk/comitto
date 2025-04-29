@@ -905,24 +905,6 @@ async function generateWithAnthropic(prompt) {
     }
 }
 
-/**
- * Gibt einen lesbaren Text für den Git-Status-Code zurück
- * @param {string} statusCode Der Git-Status-Code
- * @returns {string} Lesbarer Status
- */
-function getStatusText(statusCode) {
-    switch(statusCode) {
-        case 'M': return 'Geändert:';
-        case 'A': return 'Hinzugefügt:';
-        case 'D': return 'Gelöscht:';
-        case 'R': return 'Umbenannt:';
-        case 'C': return 'Kopiert:';
-        case 'U': return 'Unmerged:';
-        case '??': return 'Unverfolgt:';
-        default: return statusCode;
-    }
-}
-
 function deactivate() {
     disableFileWatcher();
     if (statusBarItem) {

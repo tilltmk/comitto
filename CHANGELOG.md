@@ -1,5 +1,18 @@
 # Änderungsprotokoll
 
+## [0.8.0] - 2023-06-20
+
+### Behoben
+- Kritischen Fehler bei der Aktivierung behoben: fehlende utils.js-Datei hinzugefügt
+- Konflikte bei Funktionsdefinitionen zwischen extension.js und ui.js beseitigt
+- getStatusDescription-Funktionalität korrekt zwischen allen Modulen aufgeteilt
+- Module-Exports in ui.js um fehlende Funktionen erweitert
+
+### Verbessert
+- Robustere Fehlerbehandlung beim Import von Abhängigkeiten
+- Bessere Strukturierung der Hilfsfunktionen
+- Konsistente Nutzung importierter Funktionen
+
 ## [0.7.0] - 2023-06-18
 
 ### Behoben

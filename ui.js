@@ -968,6 +968,40 @@ function getThemeLabel(theme) {
 }
 
 /**
+ * Gibt eine lesbare Beschreibung für den Git-Status-Code zurück
+ * @param {string} statusCode Der Git-Status-Code
+ * @returns {string} Lesbare Beschreibung des Status
+ */
+function getStatusDescription(statusCode) {
+    const firstChar = statusCode.charAt(0);
+    const secondChar = statusCode.charAt(1);
+    
+    let description = '';
+    
+    // Index-Status (erster Buchstabe)
+    if (firstChar === 'M') description = 'Modifiziert im Index';
+    else if (firstChar === 'A') description = 'Zum Index hinzugefügt';
+    else if (firstChar === 'D') description = 'Aus Index gelöscht';
+    else if (firstChar === 'R') description = 'Im Index umbenannt';
+    else if (firstChar === 'C') description = 'Im Index kopiert';
+    else if (firstChar === 'U') description = 'Ungemerged im Index';
+    
+    // Working Directory Status (zweiter Buchstabe)
+    if (secondChar === 'M') {
+        if (description) description += ', modifiziert im Arbeitsverzeichnis';
+        else description = 'Modifiziert im Arbeitsverzeichnis';
+    } else if (secondChar === 'D') {
+        if (description) description += ', gelöscht im Arbeitsverzeichnis';
+        else description = 'Gelöscht im Arbeitsverzeichnis';
+    }
+    
+    // Untracked files
+    if (statusCode === '??') description = 'Nicht verfolgte Datei';
+    
+    return description || statusCode;
+}
+
+/**
  * Registriert alle UI-Komponenten
  * @param {vscode.ExtensionContext} context 
  * @returns {Object} Die Provider-Instanzen
@@ -1029,5 +1063,6 @@ module.exports = {
     getProviderIcon,
     getOpenAIModelOptions,
     getStageModeLabel,
-    getThemeLabel
+    getThemeLabel,
+    getStatusDescription
 }; 

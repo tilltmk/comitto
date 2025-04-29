@@ -1622,30 +1622,38 @@ async function configureOllamaSettings() {
 async function handleOpenAIModelSelectionCommand() {
     try {
         const config = vscode.workspace.getConfiguration('comitto');
-        const currentModel = config.get('openai.model');
+        const aiSettings = config.get('aiSettings') || {};
+        const openAISettings = aiSettings.openai || {};
+        const currentModel = openAISettings.model || 'gpt-3.5-turbo';
         
         const models = [
-            'gpt-3.5-turbo',
-            'gpt-3.5-turbo-0125',
-            'gpt-3.5-turbo-1106',
-            'gpt-4o',
-            'gpt-4o-mini',
-            'gpt-4',
-            'gpt-4-turbo',
-            'gpt-4-0125-preview',
-            'gpt-4-1106-preview',
-            'gpt-4-vision-preview'
+            { label: 'GPT-3.5 Turbo', value: 'gpt-3.5-turbo' },
+            { label: 'GPT-3.5 Turbo 16K', value: 'gpt-3.5-turbo-16k' },
+            { label: 'GPT-4', value: 'gpt-4' },
+            { label: 'GPT-4 Turbo', value: 'gpt-4-turbo-preview' },
+            { label: 'GPT-4o', value: 'gpt-4o' }
         ];
         
-        const selectedModel = await vscode.window.showQuickPick(models, {
-            placeHolder: 'Wählen Sie ein OpenAI-Modell',
-            canPickMany: false,
-            ignoreFocusOut: true
-        });
+        const selectedModel = await vscode.window.showQuickPick(
+            models.map(model => ({
+                label: model.label,
+                value: model.value,
+                description: currentModel === model.value ? '(Aktuell)' : ''
+            })),
+            {
+                placeHolder: 'OpenAI-Modell wählen',
+                canPickMany: false,
+                ignoreFocusOut: true
+            }
+        );
         
         if (selectedModel) {
-            await config.update('openai.model', selectedModel, vscode.ConfigurationTarget.Global);
-            vscode.window.showInformationMessage(`OpenAI-Modell auf ${selectedModel} geändert.`);
+            // Aktualisiere die Konfiguration mit dem ausgewählten Modell
+            const updatedOpenAISettings = { ...openAISettings, model: selectedModel.value };
+            const updatedAISettings = { ...aiSettings, openai: updatedOpenAISettings };
+            
+            await config.update('aiSettings', updatedAISettings, vscode.ConfigurationTarget.Global);
+            vscode.window.showInformationMessage(`OpenAI-Modell auf ${selectedModel.label} geändert.`);
         }
     } catch (error) {
         vscode.window.showErrorMessage(`Fehler bei der Modellauswahl: ${error.message}`);
@@ -1739,7 +1747,7 @@ async function generateCommitMessage(changes) {
 async function handleCommitMessageLanguageCommand() {
     try {
         const config = vscode.workspace.getConfiguration('comitto');
-        const gitSettings = config.get('gitSettings');
+        const gitSettings = config.get('gitSettings') || {};
         const currentLanguage = gitSettings.commitMessageLanguage || 'en';
         
         const languages = [
@@ -1748,7 +1756,11 @@ async function handleCommitMessageLanguageCommand() {
         ];
         
         const selectedLanguage = await vscode.window.showQuickPick(
-            languages.map(lang => ({ label: lang.label, value: lang.value, description: currentLanguage === lang.value ? '(Aktuell)' : '' })),
+            languages.map(lang => ({ 
+                label: lang.label, 
+                value: lang.value, 
+                description: currentLanguage === lang.value ? '(Aktuell)' : '' 
+            })),
             {
                 placeHolder: 'Sprache für Commit-Nachrichten wählen',
                 canPickMany: false,
@@ -1757,16 +1769,37 @@ async function handleCommitMessageLanguageCommand() {
         );
         
         if (selectedLanguage) {
+            // Sicherstellen, dass gitSettings existiert und aktualisieren
             const updatedSettings = { ...gitSettings, commitMessageLanguage: selectedLanguage.value };
             await config.update('gitSettings', updatedSettings, vscode.ConfigurationTarget.Global);
             
             // Aktualisiere auch den promptTemplate entsprechend
-            const promptTemplate = config.get('promptTemplate');
-            const updatedPrompt = promptTemplate.replace(
-                /Generate a meaningful commit message in (English|German)/,
-                `Generate a meaningful commit message in ${selectedLanguage.value === 'en' ? 'English' : 'German'}`
-            );
-            await config.update('promptTemplate', updatedPrompt, vscode.ConfigurationTarget.Global);
+            let promptTemplate = config.get('promptTemplate') || '';
+            
+            // Anpassen des Prompts basierend auf der ausgewählten Sprache
+            if (selectedLanguage.value === 'en') {
+                promptTemplate = promptTemplate.replace(
+                    /in (German|Deutsch|Englisch)/i,
+                    'in English'
+                );
+                
+                if (!promptTemplate.includes('in English')) {
+                    // Standardtext für englische Prompts hinzufügen
+                    promptTemplate = "Generate a meaningful commit message in English for the following changes:\n\n{changes}\n\nUse the Conventional Commits format (feat, fix, docs, etc.) and keep the message under 80 characters.";
+                }
+            } else if (selectedLanguage.value === 'de') {
+                promptTemplate = promptTemplate.replace(
+                    /in (English|Englisch|German)/i,
+                    'in German'
+                );
+                
+                if (!promptTemplate.includes('in German')) {
+                    // Standardtext für deutsche Prompts hinzufügen
+                    promptTemplate = "Generate a meaningful commit message in German for the following changes:\n\n{changes}\n\nUse the Conventional Commits format (feat, fix, docs, etc.) and keep the message under 80 characters.";
+                }
+            }
+            
+            await config.update('promptTemplate', promptTemplate, vscode.ConfigurationTarget.Global);
             
             vscode.window.showInformationMessage(`Sprache für Commit-Nachrichten auf ${selectedLanguage.label} geändert.`);
         }

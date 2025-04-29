@@ -1664,32 +1664,6 @@ async function generateWithAnthropic(prompt) {
 }
 
 /**
- * Ruft diagnostische Informationen für das Debugging ab
- * @returns {Object} Diagnostische Informationen
- */
-function getDiagnosticInfo() {
-    const config = vscode.workspace.getConfiguration('comitto');
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    
-    return {
-        version: vscode.extensions.getExtension('tilltmk.comitto')?.packageJSON.version || 'unbekannt',
-        platform: process.platform,
-        arch: process.arch,
-        nodeVersion: process.version,
-        vsCodeVersion: vscode.version,
-        isAutoCommitEnabled: config.get('autoCommitEnabled'),
-        aiProvider: config.get('aiProvider'),
-        isWatcherActive: fileWatcher !== null,
-        isIntervalActive: intervalTimer !== null,
-        hasGitRepo: workspaceFolders ? true : false,
-        changedFilesCount: changedFiles ? changedFiles.size : 0,
-        lastCommitTime: lastCommitTime ? lastCommitTime.toISOString() : 'Nie',
-        isCommitInProgress: isCommitInProgress,
-        debugLogs: debugLogs.slice(0, 50) // Nur die letzten 50 Logs
-    };
-}
-
-/**
  * Richtet eine automatische Hintergrundüberwachung ein
  * @param {vscode.ExtensionContext} context 
  */

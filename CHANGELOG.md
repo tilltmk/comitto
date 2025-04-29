@@ -1,6 +1,6 @@
 # Änderungsprotokoll
 
-## [0.8.0] - 2023-06-20
+## [0.8.0] - 2025-04-29
 
 ### Behoben
 - Kritischen Fehler bei der Aktivierung behoben: fehlende utils.js-Datei hinzugefügt
@@ -13,7 +13,7 @@
 - Bessere Strukturierung der Hilfsfunktionen
 - Konsistente Nutzung importierter Funktionen
 
-## [0.7.0] - 2023-06-18
+## [0.7.0] - 2025-04-29
 
 ### Behoben
 - Kritischer Fehler bei der Befehlsregistrierung für "comitto.enableAutoCommit" behoben
@@ -25,7 +25,7 @@
 - Bessere Validierung von Konfigurationsänderungen
 - Optimierte Benutzerrückmeldungen bei Status-Änderungen
 
-## [0.6.0] - 2023-06-15
+## [0.6.0] - 2025-04-29
 
 ### Hinzugefügt
 - Verbesserte Fehlerbehandlung bei API-Verbindungsproblemen
@@ -52,7 +52,7 @@
 - Inkonsistenzen in der Benutzeroberfläche bei verschiedenen Themes
 - Verbesserte Fehlerbehandlung bei der OpenAI-Modellauswahl
 
-## [0.5.0] - 2024-07-15
+## [0.5.0] - 2025-04-29
 
 ### Hinzugefügt
 - Ollama als Standard-KI-Provider für einfachere lokale Nutzung
@@ -71,7 +71,7 @@
 - Verhinderung von Abstürzen bei fehlenden Git-Repositories
 - Besserer Umgang mit Netzwerkproblemen bei Ollama-Verbindungen
 
-## [0.4.0] - 2024-07-05
+## [0.4.0] - 2025-04-29
 
 ### Hinzugefügt
 - Verbesserte Sprachauswahl für Commit-Nachrichten (Deutsch/Englisch)
@@ -82,7 +82,7 @@
 - Benutzeroberfläche für Einstellungen und Konfiguration
 - Robustere Fehlerbehandlung
 
-## [0.3.0] - 2024-07-01
+## [0.3.0] - 2025-04-29
 
 ### Hinzugefügt
 - Verbesserte Fehlerbehandlung für alle KI-Verbindungen
@@ -96,7 +96,7 @@
 - Behoben: Probleme bei der Erkennung von Git-Änderungen
 - Behoben: UI-Aktualisierung nach Konfigurationsänderungen
 
-## [0.2.0] - 2023-12-20
+## [0.2.0] - 2025-04-29
 
 ### Hinzugefügt
 - Grafische Benutzeroberfläche in der Seitenleiste zur einfachen Konfiguration
@@ -111,7 +111,7 @@
 - Benutzerfreundlichkeit durch grafische Oberfläche statt JSON-Konfiguration
 - UI/UX mit klaren visuellen Indikatoren und Feedback
 
-## [0.1.0] - 2023-12-15
+## [0.1.0] - 2025-04-29
 
 ### Hinzugefügt
 - Unterstützung für mehrere KI-Provider: Ollama, OpenAI und Anthropic
@@ -128,7 +128,7 @@
 - Fehlerbehandlung und Benutzerrückmeldungen
 - Konfigurationsmanagement mit automatischer Aktualisierung bei Änderungen
 
-## [0.0.1] - 2023-12-01
+## [0.0.1] - 2025-04-29
 
 ### Hinzugefügt
 - Erste Version der Erweiterung

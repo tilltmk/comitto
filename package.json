@@ -2,7 +2,7 @@
   "name": "comitto",
   "displayName": "Comitto",
   "description": "Automatische Generierung von Commit-Nachrichten mit KI (Ollama, OpenAI, Anthropic)",
-  "version": "0.8.0",
+  "version": "0.9.5",
   "publisher": "comitto",
   "repository": {
     "type": "git",
@@ -15,7 +15,7 @@
     "Other",
     "SCM Providers"
   ],
-  "icon": "comitto.png",
+  "icon": "resources/comitto.png",
   "activationEvents": [
     "onStartupFinished",
     "onView:comitto-settings",
@@ -27,6 +27,10 @@
     "onCommand:comitto.performManualCommit"
   ],
   "main": "./dist/extension.js",
+  "files": [
+    "dist",
+    "resources"
+  ],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -366,12 +370,17 @@
     "test": "echo 'No tests configured'"
   },
   "dependencies": {
+    "animate.css": "^4.1.1",
     "axios": "^1.9.0",
     "ignore": "^5.3.2"
   },
   "devDependencies": {
+    "@babel/core": "^7.26.10",
+    "@babel/preset-env": "^7.26.9",
     "@types/node": "^16.11.7",
     "@types/vscode": "^1.70.0",
+    "babel-loader": "^10.0.0",
+    "copy-webpack-plugin": "^13.0.0",
     "webpack": "^5.99.7",
     "webpack-cli": "^6.0.1"
   }

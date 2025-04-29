@@ -67,7 +67,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
             showNotification('Automatische Commits sind deaktiviert.', 'info');
         }
     }));
-    
+
     // Befehl zum Umschalten der automatischen Commits
     context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleAutoCommit', async () => {
         const config = vscode.workspace.getConfiguration('comitto');
@@ -126,7 +126,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
             await vscode.workspace.getConfiguration('comitto').update('aiProvider', selected.id, vscode.ConfigurationTarget.Global);
             if (providers) {
                 providers.statusProvider.refresh();
-                providers.settingsProvider.refresh();
+            providers.settingsProvider.refresh();
                 providers.quickActionsProvider.refresh();
             }
             showNotification(`KI-Provider auf "${selected.label}" gesetzt.`, 'info');
@@ -313,11 +313,11 @@ async function handleEditTriggerRuleCommand(ruleKey, promptText, placeHolder, in
         valueToString = currentValue !== undefined ? currentValue.toString() : '';
     }
 
-    const value = await vscode.window.showInputBox({
+        const value = await vscode.window.showInputBox({
         value: valueToString,
         prompt: promptText,
         placeHolder: placeHolder,
-        validateInput: text => {
+            validateInput: text => {
             if (inputType === 'number') {
                 if (!text) return 'Eingabe darf nicht leer sein.';
                 const num = parseInt(text);
@@ -327,10 +327,10 @@ async function handleEditTriggerRuleCommand(ruleKey, promptText, placeHolder, in
             }
             // Keine spezielle Validierung für patterns/files hier, erfolgt beim Speichern
             return null;
-        }
-    });
-
-    if (value !== undefined) {
+            }
+        });
+        
+        if (value !== undefined) {
         let processedValue;
         if (inputType === 'number') {
             processedValue = parseInt(value);
@@ -392,13 +392,13 @@ async function handleEditGitSettingCommand(settingKey, promptText, placeHolder) 
     const gitSettings = { ...config.get('gitSettings') }; // Kopie erstellen
     const currentValue = gitSettings[settingKey];
 
-    const value = await vscode.window.showInputBox({
+        const value = await vscode.window.showInputBox({
         value: currentValue !== undefined ? currentValue.toString() : '',
         prompt: promptText,
         placeHolder: placeHolder,
-    });
-
-    if (value !== undefined) {
+        });
+        
+        if (value !== undefined) {
         gitSettings[settingKey] = value;
         await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
         vscode.window.showInformationMessage(`${promptText} aktualisiert.`);
@@ -482,15 +482,15 @@ async function handleToggleUISettingCommand(settingKey, settingName) {
 async function handleEditOpenAIKeyCommand() {
     const config = vscode.workspace.getConfiguration('comitto');
     const currentValue = config.get('openai.apiKey');
-    const value = await vscode.window.showInputBox({
-        value: currentValue,
+        const value = await vscode.window.showInputBox({
+            value: currentValue,
         prompt: 'Geben Sie Ihren OpenAI API-Schlüssel ein',
         placeHolder: 'sk-...',
         password: true,
         ignoreFocusOut: true
-    });
-    
-    if (value !== undefined) {
+        });
+        
+        if (value !== undefined) {
         await config.update('openai.apiKey', value, vscode.ConfigurationTarget.Global);
         vscode.window.showInformationMessage('OpenAI API-Schlüssel aktualisiert.');
     }
@@ -510,8 +510,8 @@ async function handleSelectAnthropicModelCommand() {
         'claude-2.0',
         'claude-instant-1.2'
     ];
-    
-    const selected = await vscode.window.showQuickPick(
+        
+        const selected = await vscode.window.showQuickPick(
         models.map(name => ({
             label: name,
             description: name === currentModel ? '(Aktuell)' : ''
@@ -520,9 +520,9 @@ async function handleSelectAnthropicModelCommand() {
             placeHolder: 'Claude-Modell auswählen',
             ignoreFocusOut: true
         }
-    );
-    
-    if (selected) {
+        );
+        
+        if (selected) {
         await config.update('anthropic.model', selected.label, vscode.ConfigurationTarget.Global);
         vscode.window.showInformationMessage(`Anthropic-Modell auf ${selected.label} gesetzt.`);
     }
@@ -554,8 +554,8 @@ async function handleEditAnthropicKeyCommand() {
 async function handleEditPromptTemplateCommand() {
     const config = vscode.workspace.getConfiguration('comitto');
     const currentValue = config.get('promptTemplate');
-    
-    // Temporäre Datei erstellen und öffnen
+        
+        // Temporäre Datei erstellen und öffnen
     try {
         const document = await vscode.workspace.openTextDocument({
             content: currentValue,
@@ -571,7 +571,7 @@ async function handleEditPromptTemplateCommand() {
                 // Nur aktualisieren, wenn sich der Inhalt geändert hat
                 if (newContent !== currentValue) {
                     await config.update('promptTemplate', newContent, vscode.ConfigurationTarget.Global);
-                    vscode.window.showInformationMessage('Prompt-Vorlage wurde gespeichert.');
+                vscode.window.showInformationMessage('Prompt-Vorlage wurde gespeichert.');
                 }
                 disposable.dispose(); // Listener entfernen
                 // Optional: Temporäres Dokument schließen?
@@ -598,55 +598,58 @@ async function handleEditPromptTemplateCommand() {
  * @param {vscode.ExtensionContext} context 
  */
 async function handleShowDashboardCommand(context) {
-    // Panel für Webview erstellen oder anzeigen
+    // Bestehendes Panel prüfen und wiederverwenden
     let panel = context.globalState.get('comittoDashboardPanel');
-    const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
-
+    
     if (panel) {
-        panel.reveal(column);
-        // Inhalt aktualisieren
-        panel.webview.html = generateDashboardHTML(context);
+        // Panel bereits vorhanden, fokussieren
+        panel.reveal(vscode.ViewColumn.One);
     } else {
+        // Neues Panel erstellen
         panel = vscode.window.createWebviewPanel(
             'comittoDashboard',
             'Comitto Dashboard',
-            column || vscode.ViewColumn.One,
+            vscode.ViewColumn.One,
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
-                localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'resources')]
+                localResourceRoots: [
+                    vscode.Uri.joinPath(context.extensionUri, 'resources')
+                ]
             }
         );
+        
+        // Panel im globalen Zustand speichern
         context.globalState.update('comittoDashboardPanel', panel);
-
+        
+        // HTML für das Webview generieren und setzen
         panel.webview.html = generateDashboardHTML(context);
-
-        // Nachrichtenhandling für Webview
+        
+        // Nachrichten vom Webview verarbeiten
         panel.webview.onDidReceiveMessage(
-            async message => {
+            async (message) => {
                 switch (message.command) {
                     case 'refresh':
                         panel.webview.html = generateDashboardHTML(context);
                         break;
                     case 'toggleAutoCommit':
-                        await vscode.commands.executeCommand('comitto.toggleAutoCommit');
-                        // UI wird durch Event-Listener aktualisiert
-                        // Panel-Inhalt auch aktualisieren
-                        setTimeout(() => panel.webview.html = generateDashboardHTML(context), 100); // Kurze Verzögerung
+                        const config = vscode.workspace.getConfiguration('comitto');
+                        const enabled = !config.get('autoCommitEnabled');
+                        await config.update('autoCommitEnabled', enabled, vscode.ConfigurationTarget.Global);
+                        panel.webview.html = generateDashboardHTML(context);
                         break;
-                    case 'performManualCommit':
-                        await vscode.commands.executeCommand('comitto.performManualCommit');
+                    case 'manualCommit':
+                        vscode.commands.executeCommand('comitto.performManualCommit');
                         break;
                     case 'openSettings':
-                         await vscode.commands.executeCommand('comitto.openSettings');
-                         break;
-                    case 'configureAI':
-                         await vscode.commands.executeCommand('comitto.configureAIProvider');
-                         setTimeout(() => panel.webview.html = generateDashboardHTML(context), 100); // Kurze Verzögerung
-                         break;
+                        vscode.commands.executeCommand('comitto.openSettings');
+                        break;
+                    case 'configureProvider':
+                        vscode.commands.executeCommand('comitto.configureAIProvider');
+                        break;
                     case 'configureTriggers':
-                         await vscode.commands.executeCommand('comitto.configureTriggers');
-                         break;
+                        vscode.commands.executeCommand('comitto.configureTriggers');
+                        break;
                 }
             },
             undefined,
@@ -655,7 +658,6 @@ async function handleShowDashboardCommand(context) {
 
         // Bereinigen, wenn das Panel geschlossen wird
         panel.onDidDispose(() => {
-            panel = undefined;
             context.globalState.update('comittoDashboardPanel', undefined);
         }, null, context.subscriptions);
     }
@@ -673,8 +675,8 @@ async function handleConfigureAIProviderCommand(providers) {
     ];
     
     const selectedProvider = await vscode.window.showQuickPick(providerOptions, {
-        placeHolder: 'KI-Provider auswählen',
-        title: 'Comitto - KI-Provider konfigurieren'
+                placeHolder: 'KI-Provider auswählen',
+                title: 'Comitto - KI-Provider konfigurieren'
     });
     
     if (!selectedProvider) return;
@@ -688,8 +690,8 @@ async function handleConfigureAIProviderCommand(providers) {
     switch (selectedProvider.id) {
         case 'ollama':
             configSuccess = await configureOllamaSettings();
-            break;
-        case 'openai':
+                    break;
+                case 'openai':
             await handleOpenAIModelSelectionCommand();
             await handleEditOpenAIKeyCommand(); // Fragen wir gleich nach dem Key
             break;
@@ -853,9 +855,9 @@ async function handleConfigureTriggersCommand(context, providers) {
     
     const selectedOption = await vscode.window.showQuickPick(configOptions, {
         placeHolder: 'Wie möchten Sie die Trigger konfigurieren?',
-        title: 'Comitto - Trigger konfigurieren'
-    });
-    
+            title: 'Comitto - Trigger konfigurieren'
+        });
+        
     if (!selectedOption) return;
     
     // if (selectedOption.id === 'graphical') {
@@ -893,81 +895,85 @@ async function handleConfigureTriggersCommand(context, providers) {
 }
 
 /**
- * Zeigt die einfache Benutzeroberfläche als Webview an.
+ * Zeigt eine einfache Benutzeroberfläche für grundlegende Funktionen.
  * @param {vscode.ExtensionContext} context 
  * @param {Object} providers 
  */
 function showSimpleUI(context, providers) {
-    const config = vscode.workspace.getConfiguration('comitto');
-    const autoCommitEnabled = config.get('autoCommitEnabled');
-    const aiProvider = config.get('aiProvider');
-    const providerName = ui.getProviderDisplayName(aiProvider); // ui-Modul verwenden
-    
+    // Bestehendes Panel prüfen und wiederverwenden
     let panel = context.globalState.get('comittoSimpleUIPanel');
-    const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
-
-    const htmlContent = generateSimpleUIHTML(autoCommitEnabled, providerName, context);
-
+    
     if (panel) {
-        panel.reveal(column);
-        panel.webview.html = htmlContent; // Immer aktualisieren
+        // Panel bereits vorhanden, fokussieren
+        panel.reveal(vscode.ViewColumn.One);
+        
+        // Inhalt aktualisieren
+        const config = vscode.workspace.getConfiguration('comitto');
+        const autoCommitEnabled = config.get('autoCommitEnabled');
+        const providerName = ui.getProviderDisplayName(config.get('aiProvider'));
+        panel.webview.html = generateSimpleUIHTML(autoCommitEnabled, providerName, context);
     } else {
+        // Neues Panel erstellen
         panel = vscode.window.createWebviewPanel(
             'comittoSimpleUI',
-            'Comitto - Einfache Bedienung',
-            column || vscode.ViewColumn.One,
+            'Comitto: Einfache Benutzeroberfläche',
+            vscode.ViewColumn.One,
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
-                localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'resources')]
+                localResourceRoots: [
+                    vscode.Uri.joinPath(context.extensionUri, 'resources')
+                ]
             }
         );
-        context.globalState.update('comittoSimpleUIPanel', panel);
-
-        panel.webview.html = htmlContent;
         
-        // Nachrichtenhandling für Webview
+        // Panel im globalen Zustand speichern
+        context.globalState.update('comittoSimpleUIPanel', panel);
+        
+        // Konfiguration auslesen
+        const config = vscode.workspace.getConfiguration('comitto');
+        const autoCommitEnabled = config.get('autoCommitEnabled');
+        const providerName = ui.getProviderDisplayName(config.get('aiProvider'));
+        
+        // HTML für das Webview generieren und setzen
+        panel.webview.html = generateSimpleUIHTML(autoCommitEnabled, providerName, context);
+        
+        // Nachrichten vom Webview verarbeiten
         panel.webview.onDidReceiveMessage(
-            async message => {
-                let refreshNeeded = false;
-                switch (message.command) {
-                    case 'toggleAutoCommit':
-                        await vscode.commands.executeCommand('comitto.toggleAutoCommit');
-                        refreshNeeded = true;
-                        break;
-                    case 'performManualCommit':
-                        await vscode.commands.executeCommand('comitto.performManualCommit');
-                        break;
-                    case 'openSettings':
-                        await vscode.commands.executeCommand('comitto.openSettings');
-                        break;
-                    case 'configureAI':
-                        await vscode.commands.executeCommand('comitto.configureAIProvider');
-                        refreshNeeded = true;
-                        break;
-                    case 'configureTriggers':
-                        await vscode.commands.executeCommand('comitto.configureTriggers');
-                        break;
-                }
-                // Panel neu laden, wenn nötig
-                if (refreshNeeded && panel) {
-                     // Kurze Verzögerung, damit Konfigurationsänderung wirksam wird
-                    setTimeout(() => {
-                         if(panel) { // Prüfen ob Panel noch existiert
-                            const newConfig = vscode.workspace.getConfiguration('comitto');
-                            const newEnabled = newConfig.get('autoCommitEnabled');
-                            const newProvider = newConfig.get('aiProvider');
-                            panel.webview.html = generateSimpleUIHTML(newEnabled, ui.getProviderDisplayName(newProvider), context);
-                         }
-                    }, 200);
+            async (message) => {
+                try {
+                    switch (message.command) {
+                        case 'toggleAutoCommit':
+                            const newEnabled = !autoCommitEnabled;
+                            await config.update('autoCommitEnabled', newEnabled, vscode.ConfigurationTarget.Global);
+                            // UI-Aktualisierung (wird automatisch durch Konfigurationsänderung ausgelöst)
+                    break;
+                        case 'performManualCommit':
+                            vscode.commands.executeCommand('comitto.performManualCommit');
+                    break;
+                        case 'selectProvider':
+                            vscode.commands.executeCommand('comitto.configureAIProvider');
+                    break;
+                        case 'configureTriggers':
+                            vscode.commands.executeCommand('comitto.configureTriggers');
+                    break;
+                        case 'openDashboard':
+                            vscode.commands.executeCommand('comitto.showDashboard');
+                            break;
+                        case 'openSettings':
+                            vscode.commands.executeCommand('comitto.openSettings');
+                    break;
+            }
+                } catch (error) {
+                    vscode.window.showErrorMessage(`Fehler bei der Verarbeitung der SimpleUI-Aktion: ${error.message}`);
                 }
             },
             undefined,
             context.subscriptions
         );
-
+        
+        // Bereinigen, wenn das Panel geschlossen wird
         panel.onDidDispose(() => {
-            panel = undefined;
             context.globalState.update('comittoSimpleUIPanel', undefined);
         }, null, context.subscriptions);
     }
@@ -982,20 +988,25 @@ function showSimpleUI(context, providers) {
  */
 function generateSimpleUIHTML(autoCommitEnabled, providerName, context) {
     // Pfade zu Ressourcen erstellen
-    const scriptUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'simpleUI.js');
+    const simpleUIJsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'simpleUI.js');
     const styleUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'styles.css');
-    const logoUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'comitto_icon_bw.svg'); // Beispiel-Logo
+    const animationsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'animations.css');
+    const logoUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'comitto_icon_color.svg');
 
     // Webview URIs erstellen
-    const scriptWebviewUri = panel.webview.asWebviewUri(scriptUri);
+    let panel = context.globalState.get('comittoSimpleUIPanel');
+    if (!panel) return "<div>Simple UI konnte nicht geladen werden.</div>";
+
+    const simpleUIJsWebviewUri = panel.webview.asWebviewUri(simpleUIJsUri);
     const styleWebviewUri = panel.webview.asWebviewUri(styleUri);
+    const animationsWebviewUri = panel.webview.asWebviewUri(animationsUri);
     const logoWebviewUri = panel.webview.asWebviewUri(logoUri);
     
     // Nonce für CSP
     const nonce = getNonce();
 
-    // Version aus package.json lesen (optional)
-    let version = '0.5.0'; // Fallback
+    // Version aus package.json lesen
+    let version = '0.9.5'; // Aktuelle Version
     try {
         const pkgPath = vscode.Uri.joinPath(context.extensionUri, 'package.json').fsPath;
         const pkg = JSON.parse(require('fs').readFileSync(pkgPath, 'utf8'));
@@ -1010,60 +1021,133 @@ function generateSimpleUIHTML(autoCommitEnabled, providerName, context) {
     <head>
         <meta charset="UTF-8">
         <!-- Content Security Policy -->
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${panel.webview.cspSource} 'unsafe-inline'; img-src ${panel.webview.cspSource} https: data:; script-src 'nonce-${nonce}';">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${panel.webview.cspSource} https://cdn.jsdelivr.net 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src ${panel.webview.cspSource} https: data:; script-src 'nonce-${nonce}' https://cdn.jsdelivr.net; connect-src 'none';">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        <!-- Tailwind CSS -->
+        <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+        
+        <!-- Custom Styles -->
         <link href="${styleWebviewUri}" rel="stylesheet">
+        <link href="${animationsWebviewUri}" rel="stylesheet">
+        
+        <!-- Google Fonts - Inter -->
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        
         <title>Comitto - Einfache Bedienung</title>
+        
+        <style nonce="${nonce}">
+            /* Spezifische Inline-Styles für diese Ansicht */
+            .animated-bg {
+                background: linear-gradient(-45deg, #6366f1, #4f46e5, #3b82f6, #0ea5e9);
+                background-size: 400% 400%;
+                animation: animated-bg 15s ease infinite;
+            }
+            
+            .status-box {
+                border-radius: 16px;
+                padding: 1rem;
+                margin: 1.5rem 0;
+                text-align: center;
+                font-size: 1.25rem;
+                font-weight: 500;
+                transition: all 0.3s ease;
+            }
+            
+            .provider-card {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                padding: 1rem;
+                border-radius: 12px;
+                background: rgba(255, 255, 255, 0.1);
+                margin-bottom: 1rem;
+            }
+            
+            .provider-icon {
+                font-size: 2rem;
+                width: 48px;
+                height: 48px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 12px;
+                background: rgba(99, 102, 241, 0.2);
+            }
+        </style>
     </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <img src="${logoWebviewUri}" alt="Comitto Logo" class="logo"/>
-                <h1>Comitto</h1>
+    <body class="vscode-dark">
+        <div class="container animated-bg">
+            <!-- Header mit Logo -->
+            <div class="header flex items-center justify-center py-6">
+                <img src="${logoWebviewUri}" alt="Comitto Logo" class="h-16 w-16 floating-element"/>
+                <h1 class="text-3xl font-bold ml-4 typing">Comitto</h1>
             </div>
             
-            <div class="status ${autoCommitEnabled ? 'status-enabled' : 'status-disabled'}">
-                Automatische Commits: <strong>${autoCommitEnabled ? 'AKTIVIERT' : 'DEAKTIVIERT'}</strong>
+            <!-- Status-Anzeige -->
+            <div class="status-box glass-container ${autoCommitEnabled ? 'bg-green-900 bg-opacity-20' : 'bg-red-900 bg-opacity-20'} border ${autoCommitEnabled ? 'border-green-500' : 'border-red-500'} shadow-lg">
+                <div class="flex items-center justify-center">
+                    <span class="status-indicator ${autoCommitEnabled ? 'status-active pulse' : 'status-inactive'} mr-2"></span>
+                    <span>Automatische Commits: <strong>${autoCommitEnabled ? 'AKTIVIERT' : 'DEAKTIVIERT'}</strong></span>
+                </div>
             </div>
             
-            <div class="action-buttons">
-                <button id="toggleBtn" data-enabled="${autoCommitEnabled}">
-                    <span class="icon">${autoCommitEnabled ? '🚫' : '✅'}</span>
+            <!-- Aktions-Buttons -->
+            <div class="action-buttons flex flex-col gap-4 mt-8">
+                <button id="toggleBtn" class="btn ${autoCommitEnabled ? 'btn-danger' : 'btn-secondary'} hover-lift w-full text-lg py-4" data-enabled="${autoCommitEnabled}">
+                    <span class="icon text-2xl">${autoCommitEnabled ? '🚫' : '✅'}</span>
                     ${autoCommitEnabled ? 'Auto-Commit deaktivieren' : 'Auto-Commit aktivieren'}
                 </button>
-                <button id="manualCommitBtn">
-                    <span class="icon">💾</span>
+                
+                <button id="manualCommitBtn" class="btn hover-lift w-full text-lg py-4">
+                    <span class="icon text-2xl">💾</span>
                     Manuellen Commit ausführen
                 </button>
             </div>
             
-            <div class="info-box">
-                <h2>KI-Provider</h2>
-                <div class="provider-box">
-                     <div class="provider-info">
-                        <span class="icon">🧠</span>
-                        <p>Aktiver Provider: <strong>${providerName}</strong></p>
-                     </div>
-                     <button id="configureAIBtn" class="settings-button">Konfigurieren</button>
+            <!-- KI-Provider Info -->
+            <div class="info-box glass-container mt-8 p-4 rounded-xl shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <span class="icon mr-2">🧠</span> KI-Provider
+                </h2>
+                <div class="provider-card">
+                    <div class="provider-icon">🤖</div>
+                    <div class="flex-1">
+                        <p>Aktiver Provider:</p>
+                        <p class="text-lg font-semibold">${providerName}</p>
+                    </div>
+                    <button id="configureAIBtn" class="btn btn-icon">
+                        <span class="icon">⚙️</span>
+                    </button>
                 </div>
             </div>
             
-             <div class="info-box">
-                <h2>Weitere Aktionen</h2>
-                <button id="configureTriggersBtn" class="settings-button full-width">
-                    <span class="icon">⚙️</span> Trigger konfigurieren
-                </button>
-                 <button id="openSettingsBtn" class="settings-button full-width">
-                    <span class="icon">🔧</span> Alle Einstellungen öffnen
-                </button>
+            <!-- Weitere Aktionen -->
+            <div class="info-box glass-container mt-6 p-4 rounded-xl shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <span class="icon mr-2">⚡</span> Weitere Aktionen
+                </h2>
+                <div class="grid grid-cols-1 gap-3">
+                    <button id="configureTriggersBtn" class="btn btn-secondary hover-lift">
+                        <span class="icon">⚙️</span> Trigger konfigurieren
+                    </button>
+                    <button id="openDashboardBtn" class="btn btn-secondary hover-lift">
+                        <span class="icon">📊</span> Dashboard öffnen
+                    </button>
+                    <button id="openSettingsBtn" class="btn btn-secondary hover-lift">
+                        <span class="icon">🔧</span> Alle Einstellungen
+                    </button>
+                </div>
             </div>
-
-            <div class="footer">
+            
+            <!-- Footer -->
+            <div class="footer mt-8 mb-4 text-center opacity-70">
                 <p>Comitto v${version}</p>
             </div>
         </div>
         
-        <script nonce="${nonce}" src="${scriptWebviewUri}"></script>
+        <!-- Simple UI JavaScript -->
+        <script nonce="${nonce}" src="${simpleUIJsWebviewUri}"></script>
     </body>
     </html>
     `;
@@ -1082,7 +1166,7 @@ function generateDashboardHTML(context) {
     const gitSettings = config.get('gitSettings');
     const providerName = ui.getProviderDisplayName(provider);
     const providerIcon = ui.getProviderIcon(provider); // Holen des Icons
-
+    
     let providerModel = '';
     switch (provider) {
         case 'ollama': providerModel = config.get('ollama.model'); break;
@@ -1091,23 +1175,27 @@ function generateDashboardHTML(context) {
     }
 
     // Pfade zu Ressourcen
-    const scriptUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'dashboard.js');
+    const dashboardJsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'dashboard.js');
     const styleUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'styles.css');
-    const logoUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'comitto_icon_color.svg'); // Farbige Version für Dashboard
+    const animationsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'animations.css');
+    const logoUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'comitto_icon_color.svg');
+    const chartJsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'chart.min.js');
 
-    // Webview URIs erstellen (benötigt das Panel-Objekt, holen wir es aus dem globalState)
+    // Webview URIs erstellen
     let panel = context.globalState.get('comittoDashboardPanel');
     if (!panel) return "<div>Dashboard konnte nicht geladen werden. Panel nicht gefunden.</div>";
 
-    const scriptWebviewUri = panel.webview.asWebviewUri(scriptUri);
+    const dashboardJsWebviewUri = panel.webview.asWebviewUri(dashboardJsUri);
     const styleWebviewUri = panel.webview.asWebviewUri(styleUri);
+    const animationsWebviewUri = panel.webview.asWebviewUri(animationsUri);
     const logoWebviewUri = panel.webview.asWebviewUri(logoUri);
+    const chartJsWebviewUri = panel.webview.asWebviewUri(chartJsUri);
     
     // Nonce für CSP
     const nonce = getNonce();
     
-    // Version aus package.json lesen (optional)
-    let version = '0.5.0'; // Fallback
+    // Version aus package.json lesen
+    let version = '0.9.5'; // Aktuelle Version
     try {
         const pkgPath = vscode.Uri.joinPath(context.extensionUri, 'package.json').fsPath;
         const pkg = JSON.parse(require('fs').readFileSync(pkgPath, 'utf8'));
@@ -1115,100 +1203,186 @@ function generateDashboardHTML(context) {
     } catch (e) {
         console.error("Fehler beim Lesen der package.json für Version", e);
     }
-
+    
     return `
     <!DOCTYPE html>
     <html lang="de">
     <head>
         <meta charset="UTF-8">
         <!-- Content Security Policy -->
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${panel.webview.cspSource} 'unsafe-inline'; img-src ${panel.webview.cspSource} https: data:; script-src 'nonce-${nonce}';">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${panel.webview.cspSource} https://cdn.jsdelivr.net 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src ${panel.webview.cspSource} https: data:; script-src 'nonce-${nonce}' https://cdn.jsdelivr.net; connect-src 'none';">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        <!-- Tailwind CSS -->
+        <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+        
+        <!-- Custom Styles -->
         <link href="${styleWebviewUri}" rel="stylesheet">
+        <link href="${animationsWebviewUri}" rel="stylesheet">
+        
+        <!-- Google Fonts - Inter -->
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        
         <title>Comitto Dashboard</title>
     </head>
-    <body>
-        <div class="container dashboard">
-            <div class="header">
-                 <img src="${logoWebviewUri}" alt="Comitto Logo" class="logo"/>
-                <h1>Comitto Dashboard</h1>
-                 <button id="refreshBtn" class="header-button" title="Aktualisieren">🔄</button>
-            </div>
-
-            <div class="action-buttons dashboard-actions">
-                <button id="commitBtn" title="Jetzt einen Commit mit KI generieren">
-                    <span class="icon">💾</span> Manueller Commit
-                </button>
-                <button id="toggleBtn" data-enabled="${enabled}" title="Automatische Commits an-/ausschalten">
-                    <span class="icon">${enabled ? '🚫' : '✅'}</span> ${enabled ? 'Deaktivieren' : 'Aktivieren'}
+    <body class="vscode-dark">
+        <div class="container glass-container animated-bg">
+            <div class="dashboard-header">
+                <div class="flex items-center gap-4">
+                    <img src="${logoWebviewUri}" alt="Comitto Logo" class="h-12 w-12 floating-element"/>
+                    <h1 class="dashboard-title typing">Comitto Dashboard</h1>
+                </div>
+                <button id="refreshBtn" class="btn btn-icon" title="Aktualisieren">
+                    <span class="icon">🔄</span>
                 </button>
             </div>
-
-            <div class="status ${enabled ? 'status-enabled' : 'status-disabled'}">
-                <strong>Status:</strong> Comitto ist derzeit ${enabled ? 'aktiviert' : 'deaktiviert'}
+            
+            <div class="flex justify-between items-center mb-6 fade-in" style="animation-delay: 0.2s">
+                <div class="status ${enabled ? 'status-enabled' : 'status-disabled'} flex items-center">
+                    <span class="status-indicator ${enabled ? 'status-active' : 'status-inactive'}"></span>
+                    <span><strong>Status:</strong> Comitto ist derzeit ${enabled ? 'aktiviert' : 'deaktiviert'}</span>
+                </div>
+                
+                <div class="flex gap-2">
+                    <button id="commitBtn" class="btn hover-lift" title="Jetzt einen Commit mit KI generieren">
+                        <span class="icon">💾</span> Manueller Commit
+                    </button>
+                    <button id="toggleBtn" class="btn ${enabled ? 'btn-danger' : 'btn-secondary'} hover-lift" data-enabled="${enabled}" title="Automatische Commits an-/ausschalten">
+                        <span class="icon">${enabled ? '🚫' : '✅'}</span> ${enabled ? 'Deaktivieren' : 'Aktivieren'}
+                    </button>
+                </div>
             </div>
             
-            <div class="card">
-                <h2><span class="icon">${providerIcon.id ? `$(${providerIcon.id})` : '🧠'}</span> KI-Konfiguration</h2>
-                <div class="card-content">
-                    <div class="card-item">
-                        <strong>Provider:</strong> ${providerName}
+            <div class="dashboard fade-in" style="animation-delay: 0.4s">
+                <!-- KI-Konfiguration -->
+                <div class="card interactive">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="icon">${providerIcon.id ? `$(${providerIcon.id})` : '🧠'}</span> KI-Konfiguration
+                        </h2>
+                        <span class="badge badge-primary">
+                            ${providerName}
+                        </span>
                     </div>
-                    <div class="card-item">
-                        <strong>Modell:</strong> ${providerModel || 'Nicht gesetzt'}
+                    <div class="card-content">
+                        <p class="mb-2"><strong>Modell:</strong> ${providerModel || 'Nicht gesetzt'}</p>
+                        <div class="flex justify-center mt-4">
+                            <button id="configureAIBtn" class="btn btn-secondary hover-lift">
+                                <span class="icon">⚙️</span> KI konfigurieren
+                            </button>
+                        </div>
                     </div>
                 </div>
-                 <button id="configureAIBtn" class="settings-button">Provider konfigurieren</button>
+                
+                <!-- Trigger-Regeln -->
+                <div class="card interactive">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="icon">⚙️</span> Trigger-Regeln
+                        </h2>
+                        <span class="badge ${rules.onSave || rules.onInterval ? 'badge-success' : 'badge-danger'}">
+                            ${rules.onSave || rules.onInterval ? 'Aktiv' : 'Inaktiv'}
+                        </span>
+                    </div>
+                    <div class="card-content">
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <div>
+                                <p><strong>Datei-Anzahl:</strong></p>
+                                <span class="badge">${rules.fileCountThreshold}</span>
+                            </div>
+                            <div>
+                                <p><strong>Änderungs-Anzahl:</strong></p>
+                                <span class="badge">${rules.minChangeCount}</span>
+                            </div>
+                            <div>
+                                <p><strong>Zeit-Schwellwert:</strong></p>
+                                <span class="badge">${rules.timeThresholdMinutes} Min.</span>
+                            </div>
+                            <div>
+                                <p><strong>Aktive Trigger:</strong></p>
+                                <div class="flex flex-wrap gap-1">
+                                    ${rules.onSave ? '<span class="badge badge-success">Speichern</span>' : ''}
+                                    ${rules.onInterval ? `<span class="badge badge-success">Intervall (${rules.intervalMinutes} Min.)</span>` : ''}
+                                    ${rules.onBranchSwitch ? '<span class="badge badge-success">Branch-Wechsel</span>' : ''}
+                                    ${!rules.onSave && !rules.onInterval && !rules.onBranchSwitch ? '<span class="badge badge-danger">Keine</span>' : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex justify-center">
+                            <button id="configureTriggersBtn" class="btn btn-secondary hover-lift">
+                                <span class="icon">⚙️</span> Trigger konfigurieren
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Git-Einstellungen -->
+                <div class="card interactive">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="icon">📝</span> Git-Einstellungen
+                        </h2>
+                        <span class="badge badge-primary">
+                            ${gitSettings.commitMessageLanguage === 'de' ? 'Deutsch' : 'Englisch'}
+                        </span>
+                    </div>
+                    <div class="card-content">
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <div>
+                                <p><strong>Auto-Push:</strong></p>
+                                <span class="badge ${gitSettings.autoPush ? 'badge-success' : 'badge-danger'}">
+                                    ${gitSettings.autoPush ? 'Ja' : 'Nein'}
+                                </span>
+                            </div>
+                            <div>
+                                <p><strong>Branch:</strong></p>
+                                <span class="badge tooltip">
+                                    ${gitSettings.branch || 'Aktueller Branch'}
+                                    <span class="tooltip-text">Aktiv für ${gitSettings.branch || 'aktuellen Branch'}</span>
+                                </span>
+                            </div>
+                            <div>
+                                <p><strong>Commit-Stil:</strong></p>
+                                <span class="badge">${gitSettings.commitMessageStyle}</span>
+                            </div>
+                            <div>
+                                <p><strong>Staging-Modus:</strong></p>
+                                <span class="badge">${ui.getStageModeLabel(gitSettings.stageMode)}</span>
+                            </div>
+                        </div>
+                        <div class="flex justify-center">
+                            <button id="openSettingsBtn" class="btn btn-secondary hover-lift">
+                                <span class="icon">🔧</span> Alle Einstellungen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Aktivitätsübersicht -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="icon">📊</span> Aktivitätsübersicht
+                        </h2>
+                    </div>
+                    <div class="card-content">
+                        <div class="h-40">
+                            <canvas id="commitChart"></canvas>
+                        </div>
+                    </div>
+                </div>
             </div>
             
-            <div class="card">
-                <h2><span class="icon">⚙️</span> Trigger-Regeln</h2>
-                <div class="card-content">
-                    <div class="card-item">
-                        <strong>Datei-Anzahl:</strong> ${rules.fileCountThreshold}
-                    </div>
-                    <div class="card-item">
-                        <strong>Änderungs-Anzahl:</strong> ${rules.minChangeCount}
-                    </div>
-                    <div class="card-item">
-                        <strong>Zeit-Schwellwert:</strong> ${rules.timeThresholdMinutes} Minuten
-                    </div>
-                    <div class="card-item">
-                        <strong>Aktive Trigger:</strong> 
-                        ${[rules.onSave && 'Speichern', rules.onInterval && `Intervall (${rules.intervalMinutes} Min.)`, rules.onBranchSwitch && 'Branch-Wechsel'].filter(Boolean).join(', ') || 'Keine'}
-                    </div>
-                </div>
-                 <button id="configureTriggersBtn" class="settings-button">Trigger konfigurieren</button>
-            </div>
-            
-            <div class="card">
-                <h2><span class="icon"></span> Git-Einstellungen</h2>
-                <div class="card-content">
-                    <div class="card-item">
-                        <strong>Auto-Push:</strong> ${gitSettings.autoPush ? 'Ja' : 'Nein'}
-                    </div>
-                    <div class="card-item">
-                        <strong>Branch:</strong> ${gitSettings.branch || 'Aktueller Branch'}
-                    </div>
-                    <div class="card-item">
-                        <strong>Sprache:</strong> ${gitSettings.commitMessageLanguage === 'de' ? 'Deutsch' : 'Englisch'}
-                    </div>
-                    <div class="card-item">
-                        <strong>Stil:</strong> ${gitSettings.commitMessageStyle}
-                    </div>
-                    <div class="card-item">
-                        <strong>Staging-Modus:</strong> ${ui.getStageModeLabel(gitSettings.stageMode)}
-                    </div>
-                </div>
-                <button id="openSettingsBtn" class="settings-button">Alle Einstellungen öffnen</button>
-            </div>
-
-             <div class="footer">
-                <p>Comitto v${version}</p>
+            <div class="flex justify-center mt-4 fade-in" style="animation-delay: 0.8s">
+                <div class="badge">Comitto v${version}</div>
             </div>
         </div>
         
-       <script nonce="${nonce}" src="${scriptWebviewUri}"></script>
+        <!-- Chart.js (optional) -->
+        <script nonce="${nonce}" src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+        
+        <!-- Dashboard JavaScript -->
+        <script nonce="${nonce}" src="${dashboardJsWebviewUri}"></script>
     </body>
     </html>
     `;

@@ -1,12 +1,8 @@
-# VSIX-Pakete
-*.vsix
-
 # Node-Module
 node_modules/
 
 # Zwischenablage
 .vscode-test/
-.vsix
 
 # Umgebungsvariablen
 .env

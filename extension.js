@@ -6,8 +6,9 @@ const fs = require('fs');
 const ignore = require('ignore');
 const ui = require('./ui');
 const commands = require('./commands');
-const { executeGitCommand, getStatusText } = require('./utils'); // Nur executeGitCommand und getStatusText importieren
+const { executeGitCommand, getStatusText, ComittoError, ErrorTypes, logError, getErrorLogs, withRetry, getDiagnosticInfo } = require('./utils');
 const os = require('os');
+const { WebviewPanel } = require('vscode');
 
 /**
  * @type {vscode.StatusBarItem}
@@ -91,183 +92,588 @@ function addDebugLog(message, type = 'info') {
 }
 
 /**
+ * Verbesserte Debug-Protokollierungsfunktion
+ */
+function debugLog(message, category = 'allgemein', level = 'info') {
+    const config = vscode.workspace.getConfiguration('comitto');
+    if (!config.get('debug')) return;
+    
+    const timestamp = new Date().toISOString();
+    const formattedMessage = `[${timestamp}] [${category}] [${level}] ${message}`;
+    
+    console.log(formattedMessage);
+    
+    // Debug-Ausgabe in Ausgabekanal
+    if (!outputChannel) {
+        outputChannel = vscode.window.createOutputChannel('Comitto Debug');
+    }
+    
+    outputChannel.appendLine(formattedMessage);
+    
+    // Bei Fehlern das Debug-Panel anzeigen
+    if (level === 'error') {
+        outputChannel.show(true);
+    }
+    
+    // Optional: In Datei protokollieren
+    try {
+        const logDir = path.join(process.env.HOME || process.env.USERPROFILE, '.comitto', 'logs');
+        if (!fs.existsSync(logDir)) {
+            fs.mkdirSync(logDir, { recursive: true });
+        }
+        
+        const logFile = path.join(logDir, `debug_${new Date().toISOString().split('T')[0]}.log`);
+        fs.appendFileSync(logFile, formattedMessage + '\n');
+    } catch (e) {
+        console.error('Fehler beim Schreiben des Debug-Protokolls:', e);
+    }
+}
+
+/**
+ * Fehlerbehandlungsfunktion für die Erweiterung
+ * @param {Error|ComittoError} error - Der aufgetretene Fehler
+ * @param {string} contextMessage - Kontextbezogene Nachricht
+ * @param {boolean} showToUser - Ob der Fehler dem Benutzer angezeigt werden soll
+ */
+async function handleError(error, contextMessage = '', showToUser = true) {
+    // Sicherstellen, dass wir mit einem ComittoError arbeiten
+    const comittoError = error instanceof ComittoError ? error : 
+        new ComittoError(
+            error.message || 'Unbekannter Fehler',
+            ErrorTypes.UNKNOWN,
+            error,
+            { context: contextMessage }
+        );
+    
+    // Fehler protokollieren
+    logError(comittoError);
+    
+    // Debug-Ausgabe
+    debugLog(
+        `Fehler: ${comittoError.message}${contextMessage ? ' - ' + contextMessage : ''}`,
+        'fehler',
+        'error'
+    );
+    
+    // Detaillierte Informationen in die Konsole schreiben
+    console.error('Detaillierter Fehler:', comittoError.toJSON());
+    
+    // Benutzerbenachrichtigung, falls erforderlich
+    if (showToUser) {
+        const viewDetailsButton = 'Details anzeigen';
+        const reportButton = 'Problem melden';
+        
+        const messagePrefix = contextMessage ? `${contextMessage}: ` : '';
+        const userMessage = await vscode.window.showErrorMessage(
+            `${messagePrefix}${comittoError.message}`, 
+            viewDetailsButton,
+            reportButton
+        );
+        
+        if (userMessage === viewDetailsButton) {
+            // Details in neuem Fenster anzeigen
+            showErrorDetails(comittoError);
+        } else if (userMessage === reportButton) {
+            // Öffne GitHub Issues oder sende Fehlerbericht
+            const issueBody = encodeURIComponent(
+                `## Fehlerbeschreibung\n${comittoError.message}\n\n` +
+                `## Kontext\n${contextMessage || 'Nicht angegeben'}\n\n` +
+                `## Fehlerdetails\n\`\`\`json\n${JSON.stringify(comittoError.toJSON(), null, 2)}\n\`\`\`\n\n` +
+                `## Diagnostische Informationen\n\`\`\`json\n${JSON.stringify(getDiagnosticInfo(), null, 2)}\n\`\`\`\n\n` +
+                `## Schritte zur Reproduktion\n\n` +
+                `## Erwartetes Verhalten\n\n` +
+                `## VSCode-Version\n${vscode.version}\n\n` +
+                `## Comitto-Version\n${vscode.extensions.getExtension('publisher.comitto').packageJSON.version || 'Unbekannt'}`
+            );
+            
+            vscode.env.openExternal(
+                vscode.Uri.parse(`https://github.com/publisher/comitto/issues/new?body=${issueBody}&title=Fehler: ${encodeURIComponent(comittoError.message)}`)
+            );
+        }
+    }
+}
+
+/**
+ * Zeigt detaillierte Fehlerinformationen in einem Webview-Panel an
+ * @param {ComittoError} error - Der anzuzeigende Fehler
+ */
+function showErrorDetails(error) {
+    const panel = vscode.window.createWebviewPanel(
+        'comittoErrorDetails',
+        'Comitto Fehlerdetails',
+        vscode.ViewColumn.One,
+        {
+            enableScripts: true
+        }
+    );
+    
+    const diagnosticInfo = getDiagnosticInfo();
+    
+    panel.webview.html = `
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Comitto Fehlerdetails</title>
+            <style>
+                body {
+                    font-family: var(--vscode-font-family);
+                    padding: 20px;
+                    color: var(--vscode-foreground);
+                }
+                h2 {
+                    margin-top: 20px;
+                    margin-bottom: 10px;
+                    border-bottom: 1px solid var(--vscode-editor-lineHighlightBorder);
+                    padding-bottom: 5px;
+                }
+                pre {
+                    background-color: var(--vscode-editor-background);
+                    padding: 15px;
+                    border-radius: 4px;
+                    overflow: auto;
+                }
+                .error-section {
+                    margin-bottom: 20px;
+                }
+                .label {
+                    font-weight: bold;
+                    margin-right: 10px;
+                }
+                .actions {
+                    margin-top: 20px;
+                }
+                button {
+                    background-color: var(--vscode-button-background);
+                    color: var(--vscode-button-foreground);
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin-right: 10px;
+                }
+                button:hover {
+                    background-color: var(--vscode-button-hoverBackground);
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Fehlerdetails</h1>
+            
+            <div class="error-section">
+                <h2>Fehlerinformationen</h2>
+                <div><span class="label">Typ:</span> ${error.type}</div>
+                <div><span class="label">Nachricht:</span> ${error.message}</div>
+                <div><span class="label">Zeitstempel:</span> ${error.timestamp.toISOString()}</div>
+            </div>
+            
+            <div class="error-section">
+                <h2>Fehlerkontext</h2>
+                <pre>${JSON.stringify(error.context, null, 2)}</pre>
+            </div>
+            
+            ${error.originalError ? `
+                <div class="error-section">
+                    <h2>Ursprünglicher Fehler</h2>
+                    <div><span class="label">Typ:</span> ${error.originalError.name}</div>
+                    <div><span class="label">Nachricht:</span> ${error.originalError.message}</div>
+                </div>
+            ` : ''}
+            
+            <div class="error-section">
+                <h2>Stack-Trace</h2>
+                <pre>${error.stack}</pre>
+            </div>
+            
+            <div class="error-section">
+                <h2>Diagnostische Informationen</h2>
+                <pre>${JSON.stringify(diagnosticInfo, null, 2)}</pre>
+            </div>
+            
+            <div class="actions">
+                <button id="copyDetails">Details kopieren</button>
+                <button id="reportIssue">Problem melden</button>
+            </div>
+            
+            <script>
+                const vscode = acquireVsCodeApi();
+                
+                document.getElementById('copyDetails').addEventListener('click', () => {
+                    const errorDetails = ${JSON.stringify(JSON.stringify({
+                        error: error.toJSON(),
+                        diagnosticInfo
+                    }, null, 2))};
+                    vscode.postMessage({
+                        command: 'copyToClipboard',
+                        text: errorDetails
+                    });
+                });
+                
+                document.getElementById('reportIssue').addEventListener('click', () => {
+                    vscode.postMessage({
+                        command: 'reportIssue',
+                        error: ${JSON.stringify(error.toJSON())}
+                    });
+                });
+            </script>
+        </body>
+        </html>
+    `;
+    
+    panel.webview.onDidReceiveMessage(
+        message => {
+            switch (message.command) {
+                case 'copyToClipboard':
+                    vscode.env.clipboard.writeText(message.text);
+                    vscode.window.showInformationMessage('Fehlerdetails wurden in die Zwischenablage kopiert');
+                    break;
+                case 'reportIssue':
+                    const issueBody = encodeURIComponent(
+                        `## Fehlerbeschreibung\n${error.message}\n\n` +
+                        `## Fehlerdetails\n\`\`\`json\n${JSON.stringify(error.toJSON(), null, 2)}\n\`\`\`\n\n` +
+                        `## Diagnostische Informationen\n\`\`\`json\n${JSON.stringify(diagnosticInfo, null, 2)}\n\`\`\`\n\n` +
+                        `## Schritte zur Reproduktion\n\n` +
+                        `## Erwartetes Verhalten\n\n` +
+                        `## VSCode-Version\n${vscode.version}\n\n` +
+                        `## Comitto-Version\n${vscode.extensions.getExtension('publisher.comitto').packageJSON.version || 'Unbekannt'}`
+                    );
+                    
+                    vscode.env.openExternal(
+                        vscode.Uri.parse(`https://github.com/publisher/comitto/issues/new?body=${issueBody}&title=Fehler: ${encodeURIComponent(error.message)}`)
+                    );
+                    break;
+            }
+        },
+        undefined,
+        undefined
+    );
+}
+
+/**
+ * Zeigt eine Liste der neuesten Fehlerprotokolle an
+ */
+function showErrorLogs() {
+    const logs = getErrorLogs();
+    
+    const panel = vscode.window.createWebviewPanel(
+        'comittoErrorLogs',
+        'Comitto Fehlerprotokolle',
+        vscode.ViewColumn.One,
+        {
+            enableScripts: true
+        }
+    );
+    
+    panel.webview.html = `
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Comitto Fehlerprotokolle</title>
+            <style>
+                body {
+                    font-family: var(--vscode-font-family);
+                    padding: 20px;
+                    color: var(--vscode-foreground);
+                }
+                h1 {
+                    margin-bottom: 20px;
+                }
+                .log-entry {
+                    margin-bottom: 20px;
+                    padding: 15px;
+                    background-color: var(--vscode-editor-background);
+                    border-radius: 4px;
+                    border-left: 4px solid #e74c3c;
+                }
+                .log-entry-header {
+                    display: flex;
+                    justify-content: space-between;
+                    margin-bottom: 10px;
+                }
+                .log-type {
+                    font-weight: bold;
+                    color: #e74c3c;
+                }
+                .log-timestamp {
+                    color: var(--vscode-descriptionForeground);
+                }
+                .log-message {
+                    margin-bottom: 10px;
+                }
+                .log-details-button {
+                    background: none;
+                    border: 1px solid var(--vscode-button-background);
+                    color: var(--vscode-button-background);
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                }
+                .log-details {
+                    display: none;
+                    margin-top: 10px;
+                    padding: 10px;
+                    background-color: var(--vscode-editor-inactiveSelectionBackground);
+                    border-radius: 4px;
+                }
+                .log-details pre {
+                    white-space: pre-wrap;
+                    word-break: break-all;
+                }
+                .actions {
+                    margin-top: 20px;
+                }
+                button {
+                    background-color: var(--vscode-button-background);
+                    color: var(--vscode-button-foreground);
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin-right: 10px;
+                }
+                button:hover {
+                    background-color: var(--vscode-button-hoverBackground);
+                }
+                .no-logs {
+                    margin: 30px 0;
+                    text-align: center;
+                    font-style: italic;
+                    color: var(--vscode-descriptionForeground);
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Fehlerprotokolle</h1>
+            
+            ${logs.length === 0 ? 
+                '<div class="no-logs">Keine Fehlerprotokolle vorhanden</div>' : 
+                logs.map((log, index) => `
+                    <div class="log-entry">
+                        <div class="log-entry-header">
+                            <span class="log-type">${log.type}</span>
+                            <span class="log-timestamp">${log.timestamp}</span>
+                        </div>
+                        <div class="log-message">${log.message}</div>
+                        <button class="log-details-button" onclick="toggleDetails(${index})">Details anzeigen</button>
+                        <div id="details-${index}" class="log-details">
+                            <pre>${JSON.stringify(log, null, 2)}</pre>
+                        </div>
+                    </div>
+                `).join('')
+            }
+            
+            <div class="actions">
+                <button id="clearLogs">Protokolle löschen</button>
+                <button id="exportLogs">Protokolle exportieren</button>
+            </div>
+            
+            <script>
+                const vscode = acquireVsCodeApi();
+                
+                function toggleDetails(index) {
+                    const details = document.getElementById('details-' + index);
+                    const button = details.previousElementSibling;
+                    
+                    if (details.style.display === 'block') {
+                        details.style.display = 'none';
+                        button.textContent = 'Details anzeigen';
+                    } else {
+                        details.style.display = 'block';
+                        button.textContent = 'Details ausblenden';
+                    }
+                }
+                
+                document.getElementById('clearLogs').addEventListener('click', () => {
+                    vscode.postMessage({
+                        command: 'clearLogs'
+                    });
+                });
+                
+                document.getElementById('exportLogs').addEventListener('click', () => {
+                    vscode.postMessage({
+                        command: 'exportLogs',
+                        logs: ${JSON.stringify(logs)}
+                    });
+                });
+            </script>
+        </body>
+        </html>
+    `;
+    
+    panel.webview.onDidReceiveMessage(
+        message => {
+            switch (message.command) {
+                case 'clearLogs':
+                    clearErrorLogs();
+                    vscode.window.showInformationMessage('Fehlerprotokolle wurden gelöscht');
+                    panel.dispose();
+                    break;
+                case 'exportLogs':
+                    vscode.window.showSaveDialog({
+                        defaultUri: vscode.Uri.file(path.join(os.homedir(), 'comitto_error_logs.json')),
+                        filters: {
+                            'JSON-Dateien': ['json']
+                        }
+                    }).then(fileUri => {
+                        if (fileUri) {
+                            fs.writeFileSync(fileUri.fsPath, JSON.stringify(message.logs, null, 2));
+                            vscode.window.showInformationMessage(`Fehlerprotokolle wurden nach ${fileUri.fsPath} exportiert`);
+                        }
+                    });
+                    break;
+            }
+        },
+        undefined,
+        undefined
+    );
+}
+
+/**
  * Hauptaktivierungsfunktion der Erweiterung.
  * @param {vscode.ExtensionContext} context
  */
 async function activate(context) {
-    addDebugLog('Die Erweiterung "comitto" wird aktiviert.', 'info');
-
-    // Sicherstellen, dass das Ressourcenverzeichnis existiert
-    ensureResourceDirs(context);
-
-    // UI-Komponenten registrieren
-    uiProviders = ui.registerUI(context);
-
-    // Statusleistenelement erstellen
-    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    statusBarItem.text = "$(git-commit) Comitto: Initialisiere...";
-    statusBarItem.tooltip = "Comitto: Klicke zum Aktivieren/Deaktivieren oder manuellen Commit";
-    statusBarItem.command = "comitto.toggleAutoCommit"; // Standardaktion
-    context.subscriptions.push(statusBarItem);
-    statusBarItem.show();
-
-    // Git-Status prüfen und Kontext setzen
-    const hasGit = await checkGitRepository(context);
-    vscode.commands.executeCommand('setContext', 'workspaceHasGit', hasGit);
-    
-    if (hasGit) {
-        addDebugLog('Git-Repository gefunden.', 'info');
-    } else {
-        addDebugLog('Kein Git-Repository gefunden. Einige Funktionen sind deaktiviert.', 'warning');
-    }
-
-    // Befehle zentral registrieren und Abhängigkeiten übergeben
-    commands.registerCommands(
-        context,
-        uiProviders,
-        statusBarItem,
-        setupFileWatcher,       // Funktion übergeben
-        disableFileWatcher,     // Funktion übergeben
-        performAutoCommit,      // Funktion übergeben
-        showNotification        // Funktion übergeben
-    );
-    
-    // .gitignore einlesen, wenn vorhanden und konfiguriert
-    loadGitignore();
-
-    // Initialen Status setzen und FileSystemWatcher/Timer ggf. starten
-    const config = vscode.workspace.getConfiguration('comitto');
-    if (config.get('autoCommitEnabled') && hasGit) {
-        setupFileWatcher(context);
-        statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
-        addDebugLog('Comitto wurde automatisch aktiviert.', 'info');
-    } else if (!hasGit) {
-        statusBarItem.text = "$(warning) Comitto: Kein Git-Repo";
-        statusBarItem.tooltip = "Kein Git-Repository im aktuellen Workspace gefunden";
-        statusBarItem.command = undefined; // Keine Aktion bei Klick
-    } else {
-        statusBarItem.text = "$(git-commit) Comitto: Inaktiv";
-    }
-
-    // Debug-Befehle registrieren
-    context.subscriptions.push(vscode.commands.registerCommand('comitto.showDiagnostics', () => {
-        const diagnostics = getDiagnosticInfo();
+    try {
+        debugLog('Comitto-Erweiterung wird aktiviert', 'aktivierung', 'info');
         
-        // Debug-Info in einer temporären Datei anzeigen
-        const tempFile = path.join(os.tmpdir(), 'comitto-diagnostics.json');
-        fs.writeFileSync(tempFile, JSON.stringify(diagnostics, null, 2));
+        addDebugLog('Die Erweiterung "comitto" wird aktiviert.', 'info');
+
+        // Sicherstellen, dass das Ressourcenverzeichnis existiert
+        ensureResourceDirs(context);
+
+        // UI-Komponenten registrieren
+        uiProviders = ui.registerUI(context);
+
+        // Statusleistenelement erstellen
+        statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+        statusBarItem.text = "$(git-commit) Comitto: Initialisiere...";
+        statusBarItem.tooltip = "Comitto: Klicke zum Aktivieren/Deaktivieren oder manuellen Commit";
+        statusBarItem.command = "comitto.toggleAutoCommit"; // Standardaktion
+        context.subscriptions.push(statusBarItem);
+        statusBarItem.show();
+
+        // Git-Status prüfen und Kontext setzen
+        const hasGit = await checkGitRepository(context);
+        vscode.commands.executeCommand('setContext', 'workspaceHasGit', hasGit);
         
-        vscode.workspace.openTextDocument(tempFile).then(doc => {
-            vscode.window.showTextDocument(doc);
-        });
-    }));
-    
-    context.subscriptions.push(vscode.commands.registerCommand('comitto.clearDebugLogs', () => {
-        debugLogs = [];
-        addDebugLog('Debug-Logs wurden gelöscht.', 'info');
-        vscode.window.showInformationMessage('Debug-Logs wurden gelöscht.');
-    }));
-    
-    context.subscriptions.push(vscode.commands.registerCommand('comitto.forceRunCommit', async () => {
-        addDebugLog('Manueller Commit über Debug-Befehl ausgelöst.', 'info');
-        await performAutoCommit(true);
-    }));
+        if (hasGit) {
+            addDebugLog('Git-Repository gefunden.', 'info');
+        } else {
+            addDebugLog('Kein Git-Repository gefunden. Einige Funktionen sind deaktiviert.', 'warning');
+        }
 
-    // Konfigurationsänderungen überwachen
-    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async event => {
-        if (event.affectsConfiguration('comitto')) {
-            addDebugLog('Comitto-Konfiguration geändert.', 'info');
-            const currentConfig = vscode.workspace.getConfiguration('comitto');
-            const gitAvailable = await checkGitRepository(context); // Erneut prüfen
+        // Befehle zentral registrieren und Abhängigkeiten übergeben
+        commands.registerCommands(
+            context,
+            uiProviders,
+            statusBarItem,
+            setupFileWatcher,       // Funktion übergeben
+            disableFileWatcher,     // Funktion übergeben
+            performAutoCommit,      // Funktion übergeben
+            showNotification        // Funktion übergeben
+        );
+        
+        // .gitignore einlesen, wenn vorhanden und konfiguriert
+        loadGitignore();
 
-            if (event.affectsConfiguration('comitto.autoCommitEnabled') || event.affectsConfiguration('comitto.triggerRules')) {
-                if (currentConfig.get('autoCommitEnabled') && gitAvailable) {
-                    setupFileWatcher(context); // Re-setup mit neuer Konfig
-                     if (statusBarItem) statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
-                     addDebugLog('Automatische Commits wurden aktiviert.', 'info');
-                } else {
-                    disableFileWatcher(); // Stoppt Watcher und Timer
-                     if (statusBarItem) {
-                          statusBarItem.text = gitAvailable ? "$(git-commit) Comitto: Inaktiv" : "$(warning) Comitto: Kein Git-Repo";
-                          statusBarItem.command = gitAvailable ? "comitto.toggleAutoCommit" : undefined;
-                          if (!currentConfig.get('autoCommitEnabled')) {
-                              addDebugLog('Automatische Commits wurden deaktiviert.', 'info');
-                          }
-                     }
+        // Initialen Status setzen und FileSystemWatcher/Timer ggf. starten
+        const config = vscode.workspace.getConfiguration('comitto');
+        if (config.get('autoCommitEnabled') && hasGit) {
+            setupFileWatcher(context);
+            statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+            addDebugLog('Comitto wurde automatisch aktiviert.', 'info');
+        } else if (!hasGit) {
+            statusBarItem.text = "$(warning) Comitto: Kein Git-Repo";
+            statusBarItem.tooltip = "Kein Git-Repository im aktuellen Workspace gefunden";
+            statusBarItem.command = undefined; // Keine Aktion bei Klick
+        } else {
+            statusBarItem.text = "$(git-commit) Comitto: Inaktiv";
+        }
+
+        // Debugging-Befehle registrieren
+        context.subscriptions.push(
+            vscode.commands.registerCommand('comitto.showErrorLogs', showErrorLogs),
+            vscode.commands.registerCommand('comitto.openDebugConsole', () => {
+                if (!outputChannel) {
+                    outputChannel = vscode.window.createOutputChannel('Comitto Debug');
                 }
-            }
-            
-            if (event.affectsConfiguration('comitto.gitSettings.useGitignore')) {
-                loadGitignore(); // .gitignore neu laden
-                addDebugLog('.gitignore-Konfiguration wurde aktualisiert.', 'info');
-            }
-            
-            // Debug-Einstellungen überprüfen
-            if (event.affectsConfiguration('comitto.debug')) {
-                const debugSettings = currentConfig.get('debug');
-                if (debugSettings && debugSettings.extendedLogging) {
-                    addDebugLog('Erweitertes Logging wurde aktiviert.', 'info');
-                }
-            }
-            
-            // UI immer aktualisieren bei Comitto-Änderungen
+                outputChannel.show();
+            }),
+            vscode.commands.registerCommand('comitto.diagnosticInfo', async () => {
+                const info = getDiagnosticInfo();
+                const panel = vscode.window.createWebviewPanel(
+                    'comittoDiagnostics',
+                    'Comitto Diagnose',
+                    vscode.ViewColumn.One,
+                    { enableScripts: true }
+                );
+                
+                panel.webview.html = `
+                    <!DOCTYPE html>
+                    <html lang="de">
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>Comitto Diagnose</title>
+                        <style>
+                            body { padding: 20px; font-family: var(--vscode-font-family); }
+                            pre { background-color: var(--vscode-editor-background); padding: 15px; }
+                            button {
+                                background-color: var(--vscode-button-background);
+                                color: var(--vscode-button-foreground);
+                                border: none;
+                                padding: 8px 16px;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                margin-right: 10px;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>Comitto Diagnose</h1>
+                        <pre>${JSON.stringify(info, null, 2)}</pre>
+                        <button id="copyBtn">In Zwischenablage kopieren</button>
+                        
+                        <script>
+                            const vscode = acquireVsCodeApi();
+                            document.getElementById('copyBtn').addEventListener('click', () => {
+                                vscode.postMessage({ command: 'copy', data: ${JSON.stringify(JSON.stringify(info, null, 2))} });
+                            });
+                        </script>
+                    </body>
+                    </html>
+                `;
+                
+                panel.webview.onDidReceiveMessage(message => {
+                    if (message.command === 'copy') {
+                        vscode.env.clipboard.writeText(message.data);
+                        vscode.window.showInformationMessage('Diagnostische Informationen in die Zwischenablage kopiert');
+                    }
+                });
+            })
+        );
+        
+        // Automatische Hintergrundüberwachung einrichten
+        setupAutoBackgroundMonitoring(context);
+        
+        // Eventuell kurze Verzögerung für initiale UI-Aktualisierung
+        setTimeout(() => {
             if (uiProviders) {
                 uiProviders.statusProvider.refresh();
                 uiProviders.settingsProvider.refresh();
                 uiProviders.quickActionsProvider.refresh();
             }
+        }, 1500);
 
-            // Dashboard und SimpleUI aktualisieren, falls sichtbar
-            try {
-                // Alle offenen WebViews finden und aktualisieren
-                vscode.window.webviews.forEach(webview => {
-                    if (webview.visible) {
-                        if (webview.viewType === 'comittoDashboard') {
-                            try {
-                                webview.html = commands.generateDashboardHTML(context);
-                                
-                                // Diagnostics an Dashboard senden
-                                webview.postMessage({ 
-                                    type: 'diagnosticsUpdated', 
-                                    diagnostics: getDiagnosticInfo() 
-                                });
-                            } catch (error) {
-                                console.error('Fehler beim Aktualisieren des Dashboard-Panels:', error);
-                            }
-                        } else if (webview.viewType === 'comittoSimpleUI') {
-                            try {
-                                const newEnabled = currentConfig.get('autoCommitEnabled');
-                                const newProvider = currentConfig.get('aiProvider');
-                                webview.html = commands.generateSimpleUIHTML(newEnabled, ui.getProviderDisplayName(newProvider), context);
-                            } catch (error) {
-                                console.error('Fehler beim Aktualisieren des SimpleUI-Panels:', error);
-                            }
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error('Fehler bei der Panel-Aktualisierung:', error);
-                addDebugLog(`Fehler bei der Panel-Aktualisierung: ${error.message}`, 'error');
-            }
-        }
-    }));
+        // Willkommensnachricht anzeigen (einmalig)
+        showWelcomeNotification(context);
 
-    // Automatische Hintergrundüberwachung einrichten
-    setupAutoBackgroundMonitoring(context);
-    
-    // Eventuell kurze Verzögerung für initiale UI-Aktualisierung
-    setTimeout(() => {
-        if (uiProviders) {
-            uiProviders.statusProvider.refresh();
-            uiProviders.settingsProvider.refresh();
-            uiProviders.quickActionsProvider.refresh();
-        }
-    }, 1500);
-
-    // Willkommensnachricht anzeigen (einmalig)
-    showWelcomeNotification(context);
-
-    addDebugLog('Comitto-Aktivierung abgeschlossen.', 'info');
+        debugLog('Comitto-Erweiterung erfolgreich aktiviert', 'aktivierung', 'info');
+    } catch (error) {
+        handleError(error, 'Fehler beim Aktivieren der Erweiterung', true);
+    }
 }
 
 /**
@@ -1379,5 +1785,8 @@ function deactivate() {
 
 module.exports = {
     activate,
-    deactivate
+    deactivate,
+    // Für Tests exponieren
+    debugLog,
+    handleError
 }; 

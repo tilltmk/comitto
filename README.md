@@ -184,7 +184,3 @@ If you have problems with the extension:
 
 - The extension only works in workspaces with an initialized Git repository
 - When using large diffs, the quality of the generated commit messages may vary
-
-## License
-
-This extension is released under the GPL2 License.

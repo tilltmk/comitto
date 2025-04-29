@@ -1,0 +1,210 @@
+{
+  "name": "comitto",
+  "displayName": "Comitto",
+  "description": "Automatische Generierung von Commit-Nachrichten mit KI (Ollama, OpenAI, Anthropic)",
+  "version": "0.1.0",
+  "publisher": "comitto",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Other",
+    "SCM Providers"
+  ],
+  "icon": "resources/icon.png",
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:comitto-settings",
+    "onView:comitto-status"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "comitto-sidebar",
+          "title": "Comitto",
+          "icon": "resources/sidebar-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "comitto-sidebar": [
+        {
+          "id": "comitto-status",
+          "name": "Status",
+          "when": "workspaceHasGit"
+        },
+        {
+          "id": "comitto-settings",
+          "name": "Einstellungen",
+          "when": "workspaceHasGit"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "comitto-status",
+        "contents": "Kein Git-Repository gefunden.\n[Git-Repository initialisieren](command:git.init)",
+        "when": "!workspaceHasGit"
+      }
+    ],
+    "commands": [
+      {
+        "command": "comitto.enableAutoCommit",
+        "title": "Comitto: Automatische Commits aktivieren",
+        "icon": "$(check)"
+      },
+      {
+        "command": "comitto.disableAutoCommit",
+        "title": "Comitto: Automatische Commits deaktivieren",
+        "icon": "$(circle-slash)"
+      },
+      {
+        "command": "comitto.performManualCommit",
+        "title": "Comitto: Manuellen KI-Commit ausführen",
+        "icon": "$(git-commit)"
+      },
+      {
+        "command": "comitto.refreshSettings",
+        "title": "Comitto: Einstellungen aktualisieren",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "comitto.openSettings",
+        "title": "Comitto: Einstellungen öffnen",
+        "icon": "$(gear)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "comitto.refreshSettings",
+          "when": "view == comitto-settings",
+          "group": "navigation"
+        },
+        {
+          "command": "comitto.performManualCommit",
+          "when": "view == comitto-status",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "comitto.enableAutoCommit",
+          "when": "viewItem == comitto-status-disabled",
+          "group": "inline"
+        },
+        {
+          "command": "comitto.disableAutoCommit",
+          "when": "viewItem == comitto-status-enabled",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Comitto",
+      "properties": {
+        "comitto.aiProvider": {
+          "type": "string",
+          "enum": [
+            "ollama",
+            "openai",
+            "anthropic"
+          ],
+          "default": "ollama",
+          "description": "KI-Provider für die Generierung von Commit-Nachrichten"
+        },
+        "comitto.ollama.endpoint": {
+          "type": "string",
+          "default": "http://localhost:11434/api/generate",
+          "description": "Ollama API-Endpunkt"
+        },
+        "comitto.ollama.model": {
+          "type": "string",
+          "default": "llama3",
+          "description": "Ollama Modell für die Generierung von Commit-Nachrichten"
+        },
+        "comitto.openai.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI API-Schlüssel"
+        },
+        "comitto.openai.model": {
+          "type": "string",
+          "default": "gpt-3.5-turbo",
+          "enum": [
+            "gpt-3.5-turbo",
+            "gpt-4",
+            "gpt-4-turbo"
+          ],
+          "description": "OpenAI Modell für die Generierung von Commit-Nachrichten"
+        },
+        "comitto.anthropic.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Anthropic API-Schlüssel"
+        },
+        "comitto.anthropic.model": {
+          "type": "string",
+          "default": "claude-3-haiku-20240307",
+          "enum": [
+            "claude-3-haiku-20240307",
+            "claude-3-sonnet-20240229",
+            "claude-3-opus-20240229"
+          ],
+          "description": "Anthropic Claude-Modell für die Generierung von Commit-Nachrichten"
+        },
+        "comitto.triggerRules": {
+          "type": "object",
+          "default": {
+            "fileCountThreshold": 3,
+            "specificFiles": [],
+            "minChangeCount": 10,
+            "timeThresholdMinutes": 30,
+            "filePatterns": [
+              "**/*"
+            ]
+          },
+          "description": "Regeln, die automatische Commits auslösen"
+        },
+        "comitto.autoCommitEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Aktiviert oder deaktiviert automatische Commits"
+        },
+        "comitto.gitSettings": {
+          "type": "object",
+          "default": {
+            "repositoryPath": "",
+            "autoPush": false,
+            "branch": "",
+            "commitMessageLanguage": "de",
+            "commitMessageStyle": "conventional",
+            "useGitignore": true
+          },
+          "description": "Git-Einstellungen für Commits"
+        },
+        "comitto.promptTemplate": {
+          "type": "string",
+          "default": "Generiere eine aussagekräftige Commit-Nachricht für die folgenden Änderungen: \n\n{changes}\n\nVerwende das Conventional Commits Format (feat, fix, docs, etc.) und halte die Nachricht unter 80 Zeichen.",
+          "description": "Anpassbare Vorlage für die Generierung von Commit-Nachrichten"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "echo 'No compilation needed'",
+    "lint": "echo 'No linting configured'",
+    "test": "echo 'No tests configured'"
+  },
+  "dependencies": {
+    "axios": "^1.9.0",
+    "ignore": "^5.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^16.11.7",
+    "@types/vscode": "^1.70.0"
+  }
+}

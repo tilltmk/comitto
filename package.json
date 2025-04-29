@@ -184,13 +184,9 @@
       "properties": {
         "comitto.aiProvider": {
           "type": "string",
-          "enum": [
-            "ollama",
-            "openai",
-            "anthropic"
-          ],
-          "default": "ollama",
-          "description": "KI-Provider für die Generierung von Commit-Nachrichten (nur einer aktiv)"
+          "default": "openai",
+          "enum": ["ollama", "openai", "anthropic"],
+          "description": "KI-Provider für die Generierung von Commit-Nachrichten"
         },
         "comitto.ollama.endpoint": {
           "type": "string",
@@ -209,7 +205,8 @@
         },
         "comitto.openai.model": {
           "type": "string",
-          "default": "gpt-3.5-turbo",
+          "default": "gpt-4o",
+          "description": "Das OpenAI-Modell, das für die Generierung von Commit-Nachrichten verwendet werden soll",
           "enum": [
             "gpt-3.5-turbo",
             "gpt-3.5-turbo-0125",
@@ -221,8 +218,7 @@
             "gpt-4-0125-preview",
             "gpt-4-1106-preview",
             "gpt-4-vision-preview"
-          ],
-          "description": "OpenAI Modell für die Generierung von Commit-Nachrichten"
+          ]
         },
         "comitto.anthropic.apiKey": {
           "type": "string",
@@ -263,19 +259,22 @@
         "comitto.gitSettings": {
           "type": "object",
           "default": {
-            "repositoryPath": "",
-            "autoPush": false,
-            "branch": "",
-            "commitMessageLanguage": "de",
-            "commitMessageStyle": "conventional",
-            "useGitignore": true
+            "commitMessageLanguage": "en"
           },
-          "description": "Git-Einstellungen für Commits"
+          "description": "Git-bezogene Einstellungen",
+          "properties": {
+            "commitMessageLanguage": {
+              "type": "string",
+              "default": "en",
+              "enum": ["en", "de"],
+              "description": "Die Sprache, in der Commit-Nachrichten generiert werden sollen"
+            }
+          }
         },
         "comitto.promptTemplate": {
           "type": "string",
-          "default": "Generiere eine aussagekräftige Commit-Nachricht für die folgenden Änderungen: \n\n{changes}\n\nVerwende das Conventional Commits Format (feat, fix, docs, etc.) und halte die Nachricht unter 80 Zeichen.",
-          "description": "Anpassbare Vorlage für die Generierung von Commit-Nachrichten"
+          "default": "Generate a meaningful commit message in English, using the Conventional Commits format. Keep it under 80 characters. Here is the diff of changes:\n\n{{diff}}",
+          "description": "Die Vorlage für den Prompt zur Generierung von Commit-Nachrichten"
         },
         "comitto.uiSettings": {
           "type": "object",

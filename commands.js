@@ -67,16 +67,30 @@ function registerCommands(context, providers) {
 
     // OpenAI-Modell auswählen
     context.subscriptions.push(vscode.commands.registerCommand('comitto.selectOpenAIModel', async () => {
-        const models = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo'];
+        const currentModel = vscode.workspace.getConfiguration('comitto').get('openai.model');
         
-        const selected = await vscode.window.showQuickPick(
-            models.map(name => ({ label: name })),
-            { placeHolder: 'OpenAI-Modell auswählen' }
-        );
+        const models = [
+            "gpt-3.5-turbo",
+            "gpt-3.5-turbo-0125",
+            "gpt-3.5-turbo-1106",
+            "gpt-4o",
+            "gpt-4o-mini",
+            "gpt-4",
+            "gpt-4-turbo",
+            "gpt-4-0125-preview",
+            "gpt-4-1106-preview",
+            "gpt-4-vision-preview"
+        ];
         
-        if (selected) {
-            await vscode.workspace.getConfiguration('comitto').update('openai.model', selected.label, vscode.ConfigurationTarget.Global);
-            providers.settingsProvider.refresh();
+        const selectedModel = await vscode.window.showQuickPick(models, {
+            placeHolder: currentModel || 'gpt-4o',
+            title: 'Wähle ein OpenAI-Modell'
+        });
+        
+        if (selectedModel) {
+            await vscode.workspace.getConfiguration('comitto').update('openai.model', selectedModel, vscode.ConfigurationTarget.Global);
+            vscode.window.showInformationMessage(`OpenAI-Modell auf ${selectedModel} gesetzt`);
+            refreshUiProviders();
         }
     }));
 
@@ -255,19 +269,25 @@ function registerCommands(context, providers) {
 
     // Commit-Sprache auswählen
     context.subscriptions.push(vscode.commands.registerCommand('comitto.selectCommitLanguage', async () => {
-        const languages = ['de', 'en', 'fr', 'es', 'it'];
-        const displayNames = ['Deutsch', 'Englisch', 'Französisch', 'Spanisch', 'Italienisch'];
+        const currentLanguage = vscode.workspace.getConfiguration('comitto').get('gitSettings.commitMessageLanguage') || 'en';
         
-        const selected = await vscode.window.showQuickPick(
-            displayNames.map((name, index) => ({ label: name, id: languages[index] })),
-            { placeHolder: 'Commit-Nachrichtensprache auswählen' }
-        );
+        const languages = [
+            { label: 'Englisch', value: 'en' },
+            { label: 'Deutsch', value: 'de' }
+        ];
         
-        if (selected) {
+        const selectedLanguage = await vscode.window.showQuickPick(languages, {
+            placeHolder: `Aktuelle Sprache: ${currentLanguage === 'en' ? 'Englisch' : 'Deutsch'}`,
+            title: 'Wähle die Sprache für Commit-Nachrichten'
+        });
+        
+        if (selectedLanguage) {
             const gitSettings = vscode.workspace.getConfiguration('comitto').get('gitSettings');
-            gitSettings.commitMessageLanguage = selected.id;
-            await vscode.workspace.getConfiguration('comitto').update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
-            providers.settingsProvider.refresh();
+            const updatedSettings = { ...gitSettings, commitMessageLanguage: selectedLanguage.value };
+            
+            await vscode.workspace.getConfiguration('comitto').update('gitSettings', updatedSettings, vscode.ConfigurationTarget.Global);
+            vscode.window.showInformationMessage(`Commit-Nachrichtensprache auf ${selectedLanguage.label} gesetzt`);
+            refreshUiProviders();
         }
     }));
 
@@ -412,120 +432,20 @@ function registerCommands(context, providers) {
                     break;
                     
                 case 'openai':
-                    const openaiModels = [
-                        'gpt-3.5-turbo',
-                        'gpt-3.5-turbo-0125',
-                        'gpt-3.5-turbo-1106',
-                        'gpt-4o',
-                        'gpt-4o-mini',
-                        'gpt-4',
-                        'gpt-4-turbo',
-                        'gpt-4-0125-preview',
-                        'gpt-4-1106-preview',
-                        'gpt-4-vision-preview'
-                    ];
-                    
-                    const openaiModelGroups = [
-                        { label: 'GPT-3.5 Modelle', items: openaiModels.filter(m => m.startsWith('gpt-3.5')) },
-                        { label: 'GPT-4o Modelle', items: openaiModels.filter(m => m.startsWith('gpt-4o')) },
-                        { label: 'GPT-4 Modelle', items: openaiModels.filter(m => m.startsWith('gpt-4') && !m.startsWith('gpt-4o')) }
-                    ];
-                    
-                    const openaiModelItems = [];
-                    for (const group of openaiModelGroups) {
-                        openaiModelItems.push({ label: group.label, kind: vscode.QuickPickItemKind.Separator });
-                        for (const model of group.items) {
-                            openaiModelItems.push({ label: model });
-                        }
-                    }
-                    
-                    const openaiModel = await vscode.window.showQuickPick(
-                        openaiModelItems,
-                        { 
-                            placeHolder: 'OpenAI-Modell auswählen',
-                            title: 'OpenAI-Modell konfigurieren'
-                        }
-                    );
-                    
-                    if (openaiModel && openaiModel.kind !== vscode.QuickPickItemKind.Separator) {
-                        await vscode.workspace.getConfiguration('comitto').update('openai.model', openaiModel.label, vscode.ConfigurationTarget.Global);
-                        
-                        const hasKey = !!vscode.workspace.getConfiguration('comitto').get('openai.apiKey');
-                        if (!hasKey) {
-                            const shouldConfigureKey = await vscode.window.showInformationMessage(
-                                'OpenAI API-Schlüssel ist nicht konfiguriert. Möchten Sie ihn jetzt konfigurieren?',
-                                'Ja', 'Nein'
-                            );
-                            
-                            if (shouldConfigureKey === 'Ja') {
-                                const apiKey = await vscode.window.showInputBox({
-                                    prompt: 'Geben Sie Ihren OpenAI API-Schlüssel ein',
-                                    placeHolder: 'sk-...',
-                                    password: true
-                                });
-                                
-                                if (apiKey !== undefined) {
-                                    await vscode.workspace.getConfiguration('comitto').update('openai.apiKey', apiKey, vscode.ConfigurationTarget.Global);
-                                }
-                            }
-                        }
-                    }
+                    await handleOpenAIModelSelectionCommand();
                     break;
                     
                 case 'anthropic':
-                    const anthropicModels = [
-                        'claude-3-haiku-20240307',
-                        'claude-3-sonnet-20240229',
-                        'claude-3-opus-20240229',
-                        'claude-2.1',
-                        'claude-2.0',
-                        'claude-instant-1.2'
-                    ];
-                    
-                    const anthropicModelGroups = [
-                        { label: 'Claude 3 Modelle', items: anthropicModels.filter(m => m.startsWith('claude-3')) },
-                        { label: 'Claude 2 Modelle', items: anthropicModels.filter(m => m.startsWith('claude-2')) },
-                        { label: 'Claude Instant Modelle', items: anthropicModels.filter(m => m.includes('instant')) }
-                    ];
-                    
-                    const anthropicModelItems = [];
-                    for (const group of anthropicModelGroups) {
-                        anthropicModelItems.push({ label: group.label, kind: vscode.QuickPickItemKind.Separator });
-                        for (const model of group.items) {
-                            anthropicModelItems.push({ label: model });
-                        }
-                    }
-                    
                     const anthropicModel = await vscode.window.showQuickPick(
-                        anthropicModelItems,
+                        ['claude-3-haiku-20240307', 'claude-3-sonnet-20240229', 'claude-3-opus-20240229'],
                         { 
                             placeHolder: 'Claude-Modell auswählen',
                             title: 'Claude-Modell konfigurieren'
                         }
                     );
                     
-                    if (anthropicModel && anthropicModel.kind !== vscode.QuickPickItemKind.Separator) {
-                        await vscode.workspace.getConfiguration('comitto').update('anthropic.model', anthropicModel.label, vscode.ConfigurationTarget.Global);
-                        
-                        const hasKey = !!vscode.workspace.getConfiguration('comitto').get('anthropic.apiKey');
-                        if (!hasKey) {
-                            const shouldConfigureKey = await vscode.window.showInformationMessage(
-                                'Anthropic API-Schlüssel ist nicht konfiguriert. Möchten Sie ihn jetzt konfigurieren?',
-                                'Ja', 'Nein'
-                            );
-                            
-                            if (shouldConfigureKey === 'Ja') {
-                                const apiKey = await vscode.window.showInputBox({
-                                    prompt: 'Geben Sie Ihren Anthropic API-Schlüssel ein',
-                                    placeHolder: 'sk-ant-...',
-                                    password: true
-                                });
-                                
-                                if (apiKey !== undefined) {
-                                    await vscode.workspace.getConfiguration('comitto').update('anthropic.apiKey', apiKey, vscode.ConfigurationTarget.Global);
-                                }
-                            }
-                        }
+                    if (anthropicModel) {
+                        await vscode.workspace.getConfiguration('comitto').update('anthropic.model', anthropicModel, vscode.ConfigurationTarget.Global);
                     }
                     break;
             }
@@ -1570,6 +1490,235 @@ function showTriggerConfigWebview(context, providers) {
             }
         }
     );
+}
+
+/**
+ * Konfiguriert den KI-Provider für die Commit-Nachrichtengenerierung
+ * @param {vscode.ExtensionContext} context
+ */
+async function configureAIProvider(context) {
+    const providerOptions = ['ollama', 'openai', 'anthropic'];
+    const currentProvider = vscode.workspace.getConfiguration('comitto').get('aiProvider');
+    
+    const selectedProvider = await vscode.window.showQuickPick(providerOptions, {
+        placeHolder: 'KI-Provider auswählen',
+        title: 'KI-Provider für Commit-Nachrichtengenerierung konfigurieren'
+    });
+    
+    if (!selectedProvider) return;
+    
+    await vscode.workspace.getConfiguration('comitto').update('aiProvider', selectedProvider, vscode.ConfigurationTarget.Global);
+    vscode.window.showInformationMessage(`KI-Provider auf ${selectedProvider} umgestellt`);
+    
+    // Konfiguriere den ausgewählten Provider
+    switch (selectedProvider) {
+        case 'ollama':
+            await configureOllamaSettings();
+            break;
+        case 'openai':
+            await handleOpenAIModelSelectionCommand();
+            break;
+        case 'anthropic':
+            const anthropicModel = await vscode.window.showQuickPick(
+                ['claude-3-haiku-20240307', 'claude-3-sonnet-20240229', 'claude-3-opus-20240229'],
+                { 
+                    placeHolder: 'Claude-Modell auswählen',
+                    title: 'Claude-Modell konfigurieren'
+                }
+            );
+            
+            if (anthropicModel) {
+                await vscode.workspace.getConfiguration('comitto').update('anthropic.model', anthropicModel, vscode.ConfigurationTarget.Global);
+            }
+            break;
+    }
+    
+    refreshSettings(context);
+}
+
+/**
+ * Konfiguriert die Ollama-Einstellungen
+ */
+async function configureOllamaSettings() {
+    const endpoint = await vscode.window.showInputBox({
+        placeHolder: 'http://localhost:11434/api/generate',
+        prompt: 'Ollama API-Endpunkt',
+        value: vscode.workspace.getConfiguration('comitto').get('ollama.endpoint')
+    });
+    
+    if (endpoint !== undefined) {
+        await vscode.workspace.getConfiguration('comitto').update('ollama.endpoint', endpoint, vscode.ConfigurationTarget.Global);
+    }
+    
+    const model = await vscode.window.showInputBox({
+        placeHolder: 'llama3',
+        prompt: 'Ollama Modell',
+        value: vscode.workspace.getConfiguration('comitto').get('ollama.model')
+    });
+    
+    if (model !== undefined) {
+        await vscode.workspace.getConfiguration('comitto').update('ollama.model', model, vscode.ConfigurationTarget.Global);
+    }
+}
+
+/**
+ * Konfiguriert die OpenAI-Einstellungen
+ */
+async function handleOpenAIModelSelectionCommand() {
+    try {
+        const config = vscode.workspace.getConfiguration('comitto');
+        const currentModel = config.get('openai.model');
+        
+        const models = [
+            'gpt-3.5-turbo',
+            'gpt-3.5-turbo-0125',
+            'gpt-3.5-turbo-1106',
+            'gpt-4o',
+            'gpt-4o-mini',
+            'gpt-4',
+            'gpt-4-turbo',
+            'gpt-4-0125-preview',
+            'gpt-4-1106-preview',
+            'gpt-4-vision-preview'
+        ];
+        
+        const selectedModel = await vscode.window.showQuickPick(models, {
+            placeHolder: 'Wählen Sie ein OpenAI-Modell',
+            canPickMany: false,
+            ignoreFocusOut: true
+        });
+        
+        if (selectedModel) {
+            await config.update('openai.model', selectedModel, vscode.ConfigurationTarget.Global);
+            vscode.window.showInformationMessage(`OpenAI-Modell auf ${selectedModel} geändert.`);
+        }
+    } catch (error) {
+        vscode.window.showErrorMessage(`Fehler bei der Modellauswahl: ${error.message}`);
+        console.error('Fehler bei der Modellauswahl:', error);
+    }
+}
+
+/**
+ * Konfiguriert die Anthropic-Einstellungen
+ */
+async function configureAnthropicSettings() {
+    const apiKey = await vscode.window.showInputBox({
+        password: true,
+        placeHolder: 'sk-ant-...',
+        prompt: 'Anthropic API-Schlüssel',
+        value: vscode.workspace.getConfiguration('comitto').get('anthropic.apiKey')
+    });
+    
+    if (apiKey !== undefined) {
+        await vscode.workspace.getConfiguration('comitto').update('anthropic.apiKey', apiKey, vscode.ConfigurationTarget.Global);
+    }
+    
+    const modelOptions = [
+        'claude-3-haiku-20240307',
+        'claude-3-sonnet-20240229',
+        'claude-3-opus-20240229',
+        'claude-2.1',
+        'claude-2.0',
+        'claude-instant-1.2'
+    ];
+    
+    const currentModel = vscode.workspace.getConfiguration('comitto').get('anthropic.model');
+    const selectedModel = await vscode.window.showQuickPick(modelOptions, {
+        placeHolder: currentModel,
+        title: 'Anthropic Claude-Modell auswählen'
+    });
+    
+    if (selectedModel) {
+        await vscode.workspace.getConfiguration('comitto').update('anthropic.model', selectedModel, vscode.ConfigurationTarget.Global);
+    }
+}
+
+/**
+ * Generiert eine Commit-Nachricht mit dem konfigurierten KI-Provider
+ * @param {string} changes Die Änderungen, für die eine Commit-Nachricht generiert werden soll
+ * @returns {Promise<string>} Die generierte Commit-Nachricht
+ */
+async function generateCommitMessage(changes) {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const provider = config.get('aiProvider');
+    
+    // Stelle sicher, dass die Commit-Nachrichten immer auf Englisch generiert werden
+    const gitSettings = config.get('gitSettings');
+    gitSettings.commitMessageLanguage = 'en';
+    await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
+    
+    // Hole den Prompt-Template und ersetze den Platzhalter für die Änderungen
+    let promptTemplate = config.get('promptTemplate');
+    
+    // Setze einen englischen Prompt, wenn kein benutzerdefinierter gesetzt ist
+    if (!promptTemplate || promptTemplate.includes('Generiere eine aussagekräftige Commit-Nachricht')) {
+        promptTemplate = "Generate a meaningful commit message for the following changes: \n\n{changes}\n\nUse the Conventional Commits format (feat, fix, docs, etc.) and keep the message under 80 characters. Always write the commit message in English.";
+        await config.update('promptTemplate', promptTemplate, vscode.ConfigurationTarget.Global);
+    }
+    
+    // Füge die Anweisung auf Englisch zu schreiben hinzu, falls nicht vorhanden
+    if (!promptTemplate.toLowerCase().includes('english')) {
+        promptTemplate += " Always write the commit message in English.";
+        await config.update('promptTemplate', promptTemplate, vscode.ConfigurationTarget.Global);
+    }
+    
+    const prompt = promptTemplate.replace('{changes}', changes);
+
+    try {
+        switch (provider) {
+            case 'ollama':
+                return await generateWithOllama(prompt);
+            case 'openai':
+                return await generateWithOpenAI(prompt);
+            case 'anthropic':
+                return await generateWithAnthropic(prompt);
+            default:
+                throw new Error(`Unbekannter KI-Provider: ${provider}`);
+        }
+    } catch (error) {
+        vscode.window.showErrorMessage(`Fehler bei der Generierung der Commit-Nachricht: ${error.message}`);
+        return "";
+    }
+}
+
+async function handleCommitMessageLanguageCommand() {
+    try {
+        const config = vscode.workspace.getConfiguration('comitto');
+        const gitSettings = config.get('gitSettings');
+        const currentLanguage = gitSettings.commitMessageLanguage || 'en';
+        
+        const languages = [
+            { label: 'Englisch', value: 'en' },
+            { label: 'Deutsch', value: 'de' }
+        ];
+        
+        const selectedLanguage = await vscode.window.showQuickPick(
+            languages.map(lang => ({ label: lang.label, value: lang.value, description: currentLanguage === lang.value ? '(Aktuell)' : '' })),
+            {
+                placeHolder: 'Sprache für Commit-Nachrichten wählen',
+                canPickMany: false,
+                ignoreFocusOut: true
+            }
+        );
+        
+        if (selectedLanguage) {
+            const updatedSettings = { ...gitSettings, commitMessageLanguage: selectedLanguage.value };
+            await config.update('gitSettings', updatedSettings, vscode.ConfigurationTarget.Global);
+            
+            // Aktualisiere auch den promptTemplate entsprechend
+            const promptTemplate = config.get('promptTemplate');
+            const updatedPrompt = promptTemplate.replace(
+                /Generate a meaningful commit message in (English|German)/,
+                `Generate a meaningful commit message in ${selectedLanguage.value === 'en' ? 'English' : 'German'}`
+            );
+            await config.update('promptTemplate', updatedPrompt, vscode.ConfigurationTarget.Global);
+            
+            vscode.window.showInformationMessage(`Sprache für Commit-Nachrichten auf ${selectedLanguage.label} geändert.`);
+        }
+    } catch (error) {
+        vscode.window.showErrorMessage(`Fehler bei der Sprachauswahl: ${error.message}`);
+        console.error('Fehler bei der Sprachauswahl:', error);
+    }
 }
 
 module.exports = {

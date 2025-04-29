@@ -226,6 +226,18 @@ function activate(context) {
             uiProviders.quickActionsProvider.refresh();
         }
     }, 1000);
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.openai.selectModel', async () => {
+            await commands.handleCommand('openai', context);
+        })
+    );
+    
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.selectCommitMessageLanguage', async () => {
+            await commands.handleCommitMessageLanguageCommand();
+        })
+    );
 }
 
 /**

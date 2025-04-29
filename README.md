@@ -99,7 +99,7 @@ All settings can be easily adjusted via the sidebar. Alternatively, you can also
 
 The trigger rules can be configured as follows:
 
-```json
+```jsonc
 "comitto.triggerRules": {
   "fileCountThreshold": 3,     // Number of changed files that trigger a commit
   "specificFiles": [           // Specific files that trigger a commit when changed
@@ -116,7 +116,7 @@ The trigger rules can be configured as follows:
 
 The Git settings can be configured as follows:
 
-```json
+```jsonc
 "comitto.gitSettings": {
   "repositoryPath": "",        // Optional path to the Git repository (defaults to workspace folder)
   "autoPush": false,           // Automatically push after commit

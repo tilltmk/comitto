@@ -2,7 +2,7 @@
   "name": "comitto",
   "displayName": "Comitto",
   "description": "Automatische Generierung von Commit-Nachrichten mit KI (Ollama, OpenAI, Anthropic)",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "comitto",
   "repository": {
     "type": "git",
@@ -19,7 +19,12 @@
   "activationEvents": [
     "onStartupFinished",
     "onView:comitto-settings",
-    "onView:comitto-status"
+    "onView:comitto-status",
+    "onView:comitto-quick-actions",
+    "onCommand:comitto.enableAutoCommit",
+    "onCommand:comitto.disableAutoCommit",
+    "onCommand:comitto.toggleAutoCommit",
+    "onCommand:comitto.performManualCommit"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -61,6 +66,11 @@
         "view": "comitto-quick-actions",
         "contents": "Kein Git-Repository gefunden.\n[Git-Repository initialisieren](command:git.init)",
         "when": "!workspaceHasGit"
+      },
+      {
+        "view": "comitto-settings",
+        "contents": "Kein Git-Repository gefunden.\n[Git-Repository initialisieren](command:git.init)",
+        "when": "!workspaceHasGit"
       }
     ],
     "commands": [
@@ -73,6 +83,11 @@
         "command": "comitto.disableAutoCommit",
         "title": "Comitto: Automatische Commits deaktivieren",
         "icon": "$(circle-slash)"
+      },
+      {
+        "command": "comitto.toggleAutoCommit",
+        "title": "Comitto: Automatische Commits umschalten",
+        "icon": "$(git-commit)"
       },
       {
         "command": "comitto.performManualCommit",
@@ -103,6 +118,11 @@
         "command": "comitto.configureTriggers",
         "title": "Comitto: Trigger konfigurieren", 
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "comitto.showSimpleUI",
+        "title": "Comitto: Einfache Benutzeroberfläche anzeigen",
+        "icon": "$(rocket)"
       }
     ],
     "menus": {
@@ -114,6 +134,11 @@
         },
         {
           "command": "comitto.performManualCommit",
+          "when": "view == comitto-status",
+          "group": "navigation"
+        },
+        {
+          "command": "comitto.showSimpleUI",
           "when": "view == comitto-status",
           "group": "navigation"
         },
@@ -146,6 +171,10 @@
         },
         {
           "command": "comitto.configureTriggers",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.showSimpleUI",
           "when": "workspaceHasGit"
         }
       ]
@@ -237,6 +266,15 @@
           "type": "string",
           "default": "Generiere eine aussagekräftige Commit-Nachricht für die folgenden Änderungen: \n\n{changes}\n\nVerwende das Conventional Commits Format (feat, fix, docs, etc.) und halte die Nachricht unter 80 Zeichen.",
           "description": "Anpassbare Vorlage für die Generierung von Commit-Nachrichten"
+        },
+        "comitto.uiSettings": {
+          "type": "object",
+          "default": {
+            "simpleMode": false,
+            "confirmBeforeCommit": true,
+            "showNotifications": true
+          },
+          "description": "Einstellungen für die Benutzeroberfläche"
         }
       }
     }

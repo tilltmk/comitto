@@ -75,6 +75,26 @@ function activate(context) {
     // Seitenleiste fokussieren, um sicherzustellen, dass sie angezeigt wird
     vscode.commands.executeCommand('comitto-sidebar.focus');
 
+    // Alle Befehle registrieren
+    // Befehl zum Öffnen der Einstellungen
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.openSettings', () => {
+            vscode.commands.executeCommand('workbench.action.openSettings', 'comitto');
+        })
+    );
+
+    // Befehl zum Aktualisieren der Einstellungsansicht
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.refreshSettings', () => {
+            if (uiProviders) {
+                uiProviders.statusProvider.refresh();
+                uiProviders.settingsProvider.refresh();
+                uiProviders.quickActionsProvider.refresh();
+            }
+            vscode.window.showInformationMessage('Comitto-Einstellungen wurden aktualisiert.');
+        })
+    );
+
     // Befehl zum Aktivieren/Deaktivieren der automatischen Commits
     let toggleCmd = vscode.commands.registerCommand('comitto.toggleAutoCommit', () => {
         const config = vscode.workspace.getConfiguration('comitto');
@@ -95,7 +115,10 @@ function activate(context) {
             uiProviders.quickActionsProvider.refresh();
         }
         
-        vscode.window.showInformationMessage(`Automatische Commits sind ${isEnabled ? 'aktiviert' : 'deaktiviert'}.`);
+        const uiSettings = config.get('uiSettings');
+        if (uiSettings && uiSettings.showNotifications) {
+            vscode.window.showInformationMessage(`Automatische Commits sind ${isEnabled ? 'aktiviert' : 'deaktiviert'}.`);
+        }
     });
 
     // Befehle zum Aktivieren/Deaktivieren der automatischen Commits
@@ -110,7 +133,11 @@ function activate(context) {
             uiProviders.quickActionsProvider.refresh();
         }
         
-        vscode.window.showInformationMessage('Automatische Commits sind aktiviert.');
+        const config = vscode.workspace.getConfiguration('comitto');
+        const uiSettings = config.get('uiSettings');
+        if (uiSettings && uiSettings.showNotifications) {
+            vscode.window.showInformationMessage('Automatische Commits sind aktiviert.');
+        }
     });
 
     let disableCmd = vscode.commands.registerCommand('comitto.disableAutoCommit', () => {
@@ -124,14 +151,34 @@ function activate(context) {
             uiProviders.quickActionsProvider.refresh();
         }
         
-        vscode.window.showInformationMessage('Automatische Commits sind deaktiviert.');
+        const config = vscode.workspace.getConfiguration('comitto');
+        const uiSettings = config.get('uiSettings');
+        if (uiSettings && uiSettings.showNotifications) {
+            vscode.window.showInformationMessage('Automatische Commits sind deaktiviert.');
+        }
     });
 
     // Befehl zum manuellen Ausführen eines KI-generierten Commits
     let manualCommitCmd = vscode.commands.registerCommand('comitto.performManualCommit', async () => {
         try {
-            await performAutoCommit(true);
-            vscode.window.showInformationMessage('Manueller KI-Commit wurde erfolgreich durchgeführt.');
+            const config = vscode.workspace.getConfiguration('comitto');
+            const uiSettings = config.get('uiSettings');
+            
+            // Optional Bestätigung anfordern
+            let shouldProceed = true;
+            if (uiSettings && uiSettings.confirmBeforeCommit) {
+                shouldProceed = await vscode.window.showInformationMessage(
+                    'Möchten Sie einen manuellen KI-Commit durchführen?',
+                    'Ja', 'Abbrechen'
+                ) === 'Ja';
+            }
+            
+            if (shouldProceed) {
+                await performAutoCommit(true);
+                if (uiSettings && uiSettings.showNotifications) {
+                    vscode.window.showInformationMessage('Manueller KI-Commit wurde erfolgreich durchgeführt.');
+                }
+            }
         } catch (error) {
             vscode.window.showErrorMessage(`Fehler beim manuellen Commit: ${error.message}`);
         }

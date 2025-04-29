@@ -519,6 +519,339 @@ function registerCommands(context, providers) {
             }
         }
     }));
+
+    // Einfache Benutzeroberfläche anzeigen
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.showSimpleUI', () => {
+        showSimpleUI(context, providers);
+    }));
+
+    // Sicherstellen, dass der toggleAutoCommit-Befehl korrekt funktioniert
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleAutoCommit', async () => {
+        const config = vscode.workspace.getConfiguration('comitto');
+        const isEnabled = !config.get('autoCommitEnabled');
+        
+        await config.update('autoCommitEnabled', isEnabled, vscode.ConfigurationTarget.Global);
+        
+        // Zustandsänderung kommunizieren und UI aktualisieren
+        if (isEnabled) {
+            vscode.commands.executeCommand('comitto.enableAutoCommit');
+        } else {
+            vscode.commands.executeCommand('comitto.disableAutoCommit');
+        }
+        
+        // Wenn Benachrichtigungen aktiviert sind, Meldung anzeigen
+        if (config.get('uiSettings').showNotifications) {
+            vscode.window.showInformationMessage(
+                `Automatische Commits sind ${isEnabled ? 'aktiviert' : 'deaktiviert'}.`
+            );
+        }
+    }));
+}
+
+/**
+ * Zeigt die einfache Benutzeroberfläche in einem Webview-Panel
+ * @param {vscode.ExtensionContext} context Extension-Kontext
+ * @param {Object} providers UI-Provider-Instanzen
+ */
+function showSimpleUI(context, providers) {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const autoCommitEnabled = config.get('autoCommitEnabled');
+    const aiProvider = config.get('aiProvider');
+    const providerName = getProviderDisplayName(aiProvider);
+    
+    // Panel für Webview erstellen
+    const panel = vscode.window.createWebviewPanel(
+        'comittoSimpleUI',
+        'Comitto - Einfache Bedienung',
+        vscode.ViewColumn.One,
+        {
+            enableScripts: true,
+            retainContextWhenHidden: true
+        }
+    );
+    
+    // HTML-Inhalt erstellen
+    panel.webview.html = generateSimpleUIHTML(autoCommitEnabled, providerName);
+    
+    // Nachrichtenhandling für Webview
+    panel.webview.onDidReceiveMessage(
+        async message => {
+            switch (message.command) {
+                case 'toggleAutoCommit':
+                    await vscode.commands.executeCommand('comitto.toggleAutoCommit');
+                    panel.webview.html = generateSimpleUIHTML(
+                        vscode.workspace.getConfiguration('comitto').get('autoCommitEnabled'),
+                        getProviderDisplayName(vscode.workspace.getConfiguration('comitto').get('aiProvider'))
+                    );
+                    break;
+                
+                case 'performManualCommit':
+                    await vscode.commands.executeCommand('comitto.performManualCommit');
+                    break;
+                
+                case 'openSettings':
+                    await vscode.commands.executeCommand('comitto.openSettings');
+                    break;
+                
+                case 'configureAI':
+                    await vscode.commands.executeCommand('comitto.configureAIProvider');
+                    panel.webview.html = generateSimpleUIHTML(
+                        vscode.workspace.getConfiguration('comitto').get('autoCommitEnabled'),
+                        getProviderDisplayName(vscode.workspace.getConfiguration('comitto').get('aiProvider'))
+                    );
+                    break;
+                
+                case 'advancedSettings':
+                    await vscode.commands.executeCommand('comitto.configureTriggers');
+                    break;
+            }
+        }
+    );
+}
+
+/**
+ * Generiert das HTML für die einfache Benutzeroberfläche
+ * @param {boolean} autoCommitEnabled Status der automatischen Commits
+ * @param {string} providerName Name des AI-Providers
+ * @returns {string} HTML-Inhalt
+ */
+function generateSimpleUIHTML(autoCommitEnabled, providerName) {
+    return `
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Comitto - Einfache Bedienung</title>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                margin: 0;
+                padding: 20px;
+                color: var(--vscode-foreground);
+                background-color: var(--vscode-editor-background);
+            }
+            .container {
+                max-width: 800px;
+                margin: 0 auto;
+            }
+            .header {
+                display: flex;
+                align-items: center;
+                margin-bottom: 30px;
+                padding-bottom: 15px;
+                border-bottom: 1px solid var(--vscode-panelTitle-activeBorder);
+            }
+            .logo {
+                width: 50px;
+                height: 50px;
+                margin-right: 15px;
+                background-color: var(--vscode-button-background);
+                border-radius: 10px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 24px;
+            }
+            h1 {
+                margin: 0;
+                color: var(--vscode-editor-foreground);
+                font-size: 24px;
+            }
+            .status {
+                padding: 20px;
+                margin-bottom: 30px;
+                border-radius: 10px;
+                background-color: ${autoCommitEnabled ? 'var(--vscode-editorGutter-addedBackground)' : 'var(--vscode-editorGutter-deletedBackground)'};
+                text-align: center;
+                font-size: 18px;
+                font-weight: bold;
+            }
+            .action-buttons {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+                margin-bottom: 30px;
+            }
+            button {
+                background-color: var(--vscode-button-background);
+                color: var(--vscode-button-foreground);
+                border: none;
+                padding: 15px;
+                border-radius: 7px;
+                cursor: pointer;
+                font-size: 16px;
+                font-weight: bold;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                transition: background-color 0.2s;
+                min-height: 100px;
+            }
+            button:hover {
+                background-color: var(--vscode-button-hoverBackground);
+            }
+            button .icon {
+                font-size: 32px;
+                margin-bottom: 10px;
+            }
+            .info-box {
+                background-color: var(--vscode-editor-inactiveSelectionBackground);
+                padding: 15px;
+                border-radius: 7px;
+                margin-bottom: 20px;
+            }
+            .info-box h2 {
+                margin-top: 0;
+                margin-bottom: 10px;
+                font-size: 16px;
+            }
+            .info-box p {
+                margin: 0;
+                font-size: 14px;
+            }
+            .provider-box {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                background-color: var(--vscode-editor-inactiveSelectionBackground);
+                padding: 15px;
+                border-radius: 7px;
+                margin-top: 20px;
+            }
+            .provider-info {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .settings-button {
+                background-color: var(--vscode-button-secondaryBackground);
+                color: var(--vscode-button-secondaryForeground);
+                padding: 5px 10px;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+                border: none;
+            }
+            .settings-button:hover {
+                background-color: var(--vscode-button-secondaryHoverBackground);
+            }
+            .footer {
+                margin-top: 40px;
+                text-align: center;
+                font-size: 12px;
+                color: var(--vscode-descriptionForeground);
+            }
+            .advanced-button {
+                margin-top: 20px;
+                width: 100%;
+                background-color: var(--vscode-button-secondaryBackground);
+                color: var(--vscode-button-secondaryForeground);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div class="logo">✓</div>
+                <h1>Comitto - Einfache Bedienung</h1>
+            </div>
+            
+            <div class="status">
+                Automatische Commits sind ${autoCommitEnabled ? 'AKTIVIERT' : 'DEAKTIVIERT'}
+            </div>
+            
+            <div class="action-buttons">
+                <button id="toggleBtn">
+                    <span class="icon">${autoCommitEnabled ? '✗' : '✓'}</span>
+                    ${autoCommitEnabled ? 'Auto-Commit deaktivieren' : 'Auto-Commit aktivieren'}
+                </button>
+                <button id="manualCommitBtn">
+                    <span class="icon">&#128190;</span>
+                    Manuellen Commit ausführen
+                </button>
+            </div>
+            
+            <div class="info-box">
+                <h2>Was macht Comitto?</h2>
+                <p>Comitto erstellt automatisch Commit-Nachrichten für Ihre Änderungen mit Hilfe von KI. Es überwacht Ihren Arbeitsbereich und erstellt Commits basierend auf den Änderungen.</p>
+            </div>
+            
+            <div class="provider-box">
+                <div class="provider-info">
+                    <span class="icon">&#129302;</span>
+                    <div>
+                        <h2 style="margin:0;">KI-Provider: ${providerName}</h2>
+                    </div>
+                </div>
+                <button id="configureAIBtn" class="settings-button">Provider ändern</button>
+            </div>
+            
+            <button id="advancedBtn" class="advanced-button">
+                <span class="icon">⚙️</span>
+                Erweiterte Einstellungen öffnen
+            </button>
+            
+            <div class="footer">
+                <p>Comitto v0.4.0 | <a id="settingsLink" href="#">Alle Einstellungen öffnen</a></p>
+            </div>
+        </div>
+        
+        <script>
+            (function() {
+                const vscode = acquireVsCodeApi();
+                
+                document.getElementById('toggleBtn').addEventListener('click', () => {
+                    vscode.postMessage({
+                        command: 'toggleAutoCommit'
+                    });
+                });
+                
+                document.getElementById('manualCommitBtn').addEventListener('click', () => {
+                    vscode.postMessage({
+                        command: 'performManualCommit'
+                    });
+                });
+                
+                document.getElementById('configureAIBtn').addEventListener('click', () => {
+                    vscode.postMessage({
+                        command: 'configureAI'
+                    });
+                });
+                
+                document.getElementById('advancedBtn').addEventListener('click', () => {
+                    vscode.postMessage({
+                        command: 'advancedSettings'
+                    });
+                });
+                
+                document.getElementById('settingsLink').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    vscode.postMessage({
+                        command: 'openSettings'
+                    });
+                });
+            })();
+        </script>
+    </body>
+    </html>
+    `;
+}
+
+/**
+ * Hilfsfunktion zur Formatierung des Providernamens
+ * @param {string} provider Provider-ID
+ * @returns {string} Anzeigename
+ */
+function getProviderDisplayName(provider) {
+    switch (provider) {
+        case 'ollama': return 'Ollama (lokal)';
+        case 'openai': return 'OpenAI';
+        case 'anthropic': return 'Anthropic Claude';
+        default: return provider;
+    }
 }
 
 /**

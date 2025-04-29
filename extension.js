@@ -486,7 +486,32 @@ async function performAutoCommit(isManualTrigger = false) {
             }
 
             // Änderungen abrufen
-            const diffOutput = await executeGitCommand('git diff --cached', repoPath);
+            let diffOutput = '';
+            try {
+                statusBarItem.text = "$(sync~spin) Comitto: Diff wird berechnet...";
+                diffOutput = await executeGitCommand('git diff --cached', repoPath);
+            } catch (error) {
+                // Bei Pufferüberlauf trotzdem weitermachen, aber mit eingeschränktem Diff
+                if (error.message.includes('zu groß') || 
+                    error.message.includes('maxBuffer') || 
+                    error.message.includes('ERR_CHILD_PROCESS_STDOUT_MAXBUFFER')) {
+                    
+                    console.warn('Diff zu groß, verwende alternative Strategie');
+                    diffOutput = 'Der Diff ist zu groß für die direkte Verarbeitung.\n';
+                    
+                    // Dateiliste anstelle des vollständigen Diffs verwenden
+                    try {
+                        const fileList = await executeGitCommand('git diff --cached --name-status', repoPath);
+                        diffOutput += 'Geänderte Dateien:\n' + fileList;
+                    } catch (innerError) {
+                        console.error('Auch die Dateiliste konnte nicht abgerufen werden:', innerError);
+                        diffOutput += 'Diff-Inhalt konnte nicht abgerufen werden. Zu viele oder zu große Änderungen.';
+                    }
+                } else {
+                    // Bei anderen Fehlern den Fehler weiterreichen
+                    throw error;
+                }
+            }
             
             statusBarItem.text = "$(sync~spin) Comitto: Generiere Commit-Nachricht...";
             
@@ -562,6 +587,8 @@ async function performAutoCommit(isManualTrigger = false) {
                 errorMessage = 'Dieses Verzeichnis ist kein Git-Repository. Bitte initialisieren Sie zuerst ein Git-Repository.';
             } else if (errorMessage.includes('fatal: unable to access')) {
                 errorMessage = 'Fehler beim Zugriff auf das Remote-Repository. Bitte prüfen Sie Ihre Netzwerkverbindung und Zugangsrechte.';
+            } else if (errorMessage.includes('maxBuffer') || errorMessage.includes('zu groß')) {
+                errorMessage = 'Zu viele oder zu große Änderungen für die automatische Verarbeitung. Bitte führen Sie einen manuellen Commit durch oder reduzieren Sie die Anzahl der Änderungen.';
             }
             
             if (notificationSettings.onError) {
@@ -731,12 +758,49 @@ async function generateCommitMessage(gitStatus, diffOutput) {
     
     // Diff-Informationen für komplexere Abrechnungen hinzufügen
     if (diffOutput && diffOutput.length > 0) {
-        // Eine gekürzte Version des Diffs anhängen, um den Kontext zu verbessern,
+        // Eine aggressiv gekürzte Version des Diffs anhängen, um den Kontext zu verbessern,
         // aber nicht zu viel Token zu verwenden
-        const maxDiffLength = 4000; // Maximale Anzahl der Zeichen des Diffs
-        const shortenedDiff = diffOutput.length > maxDiffLength 
-            ? diffOutput.substring(0, maxDiffLength) + `...\n[Diff wurde gekürzt, insgesamt ${diffOutput.length} Zeichen]`
-            : diffOutput;
+        const maxDiffLength = 2000; // Maximale Anzahl der Zeichen des Diffs reduziert auf 2000
+        
+        // Sehr große Diffs erkennen und Warnung ausgeben
+        if (diffOutput.length > 100000) {
+            console.warn(`Extrem großer Diff (${diffOutput.length} Zeichen) wird stark gekürzt.`);
+        }
+        
+        // Intelligente Kürzung: Nur die ersten Änderungen jeder Datei
+        let shortenedDiff = '';
+        
+        try {
+            // Aufteilen nach Dateiänderungen (beginnen mit 'diff --git')
+            const fileChanges = diffOutput.split('diff --git');
+            
+            // Die ersten Änderungen für jede Datei extrahieren (maximal 5 Dateien)
+            const maxFiles = 5;
+            const filesToInclude = fileChanges.slice(0, maxFiles);
+            
+            filesToInclude.forEach((fileChange, index) => {
+                if (index === 0 && !fileChange.trim()) return; // Erstes Element kann leer sein
+                
+                // Jede Dateiänderung auf maximal 400 Zeichen beschränken
+                const maxPerFile = 400;
+                const truncatedChange = fileChange.length > maxPerFile 
+                    ? fileChange.substring(0, maxPerFile) + '...' 
+                    : fileChange;
+                
+                shortenedDiff += (index > 0 ? 'diff --git' : '') + truncatedChange + '\n';
+            });
+            
+            // Kürzen, wenn insgesamt zu lang
+            if (shortenedDiff.length > maxDiffLength) {
+                shortenedDiff = shortenedDiff.substring(0, maxDiffLength);
+            }
+            
+            shortenedDiff += `\n[Diff wurde gekürzt, insgesamt ${diffOutput.length} Zeichen in ${fileChanges.length} Dateien]`;
+        } catch (error) {
+            console.error('Fehler beim Kürzen des Diffs:', error);
+            shortenedDiff = diffOutput.substring(0, maxDiffLength) + 
+                `...\n[Diff wurde einfach gekürzt, insgesamt ${diffOutput.length} Zeichen]`;
+        }
         
         promptTemplate += `\n\nHier ist ein Ausschnitt der konkreten Änderungen:\n\n${shortenedDiff}`;
     }

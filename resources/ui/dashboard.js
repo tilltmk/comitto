@@ -32,103 +32,81 @@
         loadDashboardData();
     }
     
-    // Event-Listener für UI-Elemente einrichten
+    // Event-Listener für Buttons
     function setupEventListeners() {
-        // Toggle Button für Auto-Commit
+        console.log('Event-Listener werden eingerichtet');
+        
         const toggleBtn = document.getElementById('toggleBtn');
         if (toggleBtn) {
             toggleBtn.addEventListener('click', () => {
+                // Status umschalten, an Extension senden
                 const isEnabled = toggleBtn.getAttribute('data-enabled') === 'true';
-                
-                // Visuelles Feedback vor dem Senden des Befehls
-                toggleBtn.classList.add('processing');
-                
-                // An die VSCode Extension API senden
-                vscode.postMessage({
+                sendMessageToVscode({
                     command: 'toggleAutoCommit'
                 });
-                
-                // Lokal bereits den Zustand umschalten (wird durch das tatsächliche Ergebnis überschrieben)
-                updateToggleButton(!isEnabled);
-                
-                // Ripple-Effekt hinzufügen
-                createRippleEffect(toggleBtn);
             });
+        } else {
+            console.log('toggleBtn nicht gefunden');
         }
         
-        // Manueller Commit Button
         const commitBtn = document.getElementById('commitBtn');
         if (commitBtn) {
             commitBtn.addEventListener('click', () => {
-                // Visuelles Feedback
-                commitBtn.classList.add('processing');
-                commitBtn.innerHTML = '<span class="icon icon-spin">⟳</span> Wird ausgeführt...';
-                
-                // An die VSCode Extension API senden
-                vscode.postMessage({
+                // Manuellen Commit starten
+                sendMessageToVscode({
                     command: 'manualCommit'
                 });
-                
-                // Ripple-Effekt hinzufügen
-                createRippleEffect(commitBtn);
-                
-                // Nach einer Weile den Button zurücksetzen
-                setTimeout(() => {
-                    commitBtn.classList.remove('processing');
-                    commitBtn.innerHTML = '<span class="icon">💾</span> Manueller Commit';
-                }, 2000);
             });
+        } else {
+            console.log('commitBtn nicht gefunden');
         }
         
-        // Aktualisieren Button
         const refreshBtn = document.getElementById('refreshBtn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
-                refreshBtn.classList.add('icon-spin');
-                
-                // An die VSCode Extension API senden
-                vscode.postMessage({
+                // Dashboard aktualisieren
+                sendMessageToVscode({
                     command: 'refresh'
                 });
-                
-                // Nach einer Weile die Animation stoppen (falls keine Antwort kommt)
-                setTimeout(() => {
-                    refreshBtn.classList.remove('icon-spin');
-                }, 2000);
             });
+        } else {
+            console.log('refreshBtn nicht gefunden');
         }
         
-        // KI konfigurieren Button
         const configureAIBtn = document.getElementById('configureAIBtn');
         if (configureAIBtn) {
             configureAIBtn.addEventListener('click', () => {
-                vscode.postMessage({
+                // KI-Provider konfigurieren
+                sendMessageToVscode({
                     command: 'configureProvider'
                 });
-                createRippleEffect(configureAIBtn);
             });
+        } else {
+            console.log('configureAIBtn nicht gefunden');
         }
         
-        // Trigger konfigurieren Button
         const configureTriggersBtn = document.getElementById('configureTriggersBtn');
         if (configureTriggersBtn) {
             configureTriggersBtn.addEventListener('click', () => {
-                vscode.postMessage({
+                // Trigger konfigurieren
+                sendMessageToVscode({
                     command: 'configureTriggers'
                 });
-                createRippleEffect(configureTriggersBtn);
             });
+        } else {
+            console.log('configureTriggersBtn nicht gefunden');
         }
         
-        // Einstellungen öffnen Button
         const openSettingsBtn = document.getElementById('openSettingsBtn');
         if (openSettingsBtn) {
             openSettingsBtn.addEventListener('click', () => {
-                vscode.postMessage({
+                // Einstellungen öffnen
+                sendMessageToVscode({
                     command: 'openSettings'
                 });
-                createRippleEffect(openSettingsBtn);
             });
+        } else {
+            console.log('openSettingsBtn nicht gefunden');
         }
     }
     
@@ -276,12 +254,22 @@
     
     // Aktualisiert Chart-Daten (falls vorhanden)
     function updateChartData() {
+        console.log('Versuche Chart zu aktualisieren');
         // Prüfen, ob Charts verwendet werden
-        if (typeof Chart === 'undefined') return;
+        if (typeof Chart === 'undefined') {
+            console.log('Chart.js ist nicht verfügbar');
+            return;
+        }
         
         // Chart-Instanzen abrufen (falls vorhanden)
         const commitChartElement = document.getElementById('commitChart');
-        if (commitChartElement) {
+        if (!commitChartElement) {
+            console.log('commitChart-Element nicht gefunden');
+            return;
+        }
+        
+        try {
+            console.log('Erstelle Commit-Chart');
             // Beispiel für ein Chart
             const ctx = commitChartElement.getContext('2d');
             new Chart(ctx, {
@@ -321,6 +309,25 @@
                     }
                 }
             });
+            console.log('Commit-Chart erstellt');
+        } catch (error) {
+            console.error('Fehler beim Erstellen des Charts:', error);
+        }
+    }
+    
+    // Sendet eine Nachricht an die VS Code Extension
+    function sendMessageToVscode(message) {
+        console.log('Sende Nachricht an VS Code:', message);
+        try {
+            // Prüfen, ob vscode-API verfügbar ist
+            if (typeof acquireVsCodeApi !== 'undefined') {
+                const vscode = acquireVsCodeApi();
+                vscode.postMessage(message);
+            } else {
+                console.error('VS Code API nicht verfügbar');
+            }
+        } catch (error) {
+            console.error('Fehler beim Senden der Nachricht:', error);
         }
     }
     

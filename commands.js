@@ -182,6 +182,17 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(vscode.commands.registerCommand('comitto.editIntervalMinutes', async () => {
         await handleEditTriggerRuleCommand('intervalMinutes', 'Intervall für Intervall-Trigger (Minuten)', 'z.B. 15', 'number');
     }));
+
+    // Neue Toggle-Befehle für Trigger-Regeln
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleOnSave', async () => {
+        await handleToggleTriggerRuleCommand('onSave', 'Speichern-Trigger');
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleOnInterval', async () => {
+        await handleToggleTriggerRuleCommand('onInterval', 'Intervall-Trigger');
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleOnBranchSwitch', async () => {
+        await handleToggleTriggerRuleCommand('onBranchSwitch', 'Branch-Wechsel-Trigger');
+    }));
     // #endregion
 
     // #region Git-Einstellungen Bearbeiten
@@ -218,6 +229,36 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     }));
     // #endregion
 
+    // #region UI-Einstellungen
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleSimpleMode', async () => {
+        await handleToggleUISettingCommand('simpleMode', 'Einfacher Modus');
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleConfirmBeforeCommit', async () => {
+        await handleToggleUISettingCommand('confirmBeforeCommit', 'Bestätigung vor Commit');
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleShowNotifications', async () => {
+        await handleToggleUISettingCommand('showNotifications', 'Benachrichtigungen anzeigen');
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.selectTheme', async () => {
+        await handleSelectThemeCommand();
+    }));
+    // #endregion
+
+    // #region Benachrichtigungseinstellungen
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleNotificationOnCommit', async () => {
+        await handleToggleNotificationSettingCommand('onCommit', 'Commit-Benachrichtigungen');
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleNotificationOnPush', async () => {
+        await handleToggleNotificationSettingCommand('onPush', 'Push-Benachrichtigungen');
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleNotificationOnError', async () => {
+        await handleToggleNotificationSettingCommand('onError', 'Fehler-Benachrichtigungen');
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleNotificationOnTriggerFired', async () => {
+        await handleToggleNotificationSettingCommand('onTriggerFired', 'Trigger-Benachrichtigungen');
+    }));
+    // #endregion
+
     // Prompt-Vorlage bearbeiten
     context.subscriptions.push(vscode.commands.registerCommand('comitto.editPromptTemplate', async () => {
         await handleEditPromptTemplateCommand();
@@ -243,48 +284,6 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(vscode.commands.registerCommand('comitto.showSimpleUI', () => {
         showSimpleUI(context, providers);
     }));
-
-    // #region UI-Einstellungen Umschalten
-    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleSimpleMode', async () => {
-        await handleToggleUISettingCommand('simpleMode', 'Einfacher Modus');
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleConfirmBeforeCommit', async () => {
-        await handleToggleUISettingCommand('confirmBeforeCommit', 'Bestätigung vor Commit');
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleShowNotifications', async () => {
-        await handleToggleUISettingCommand('showNotifications', 'Benachrichtigungen');
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('comitto.selectTheme', async () => {
-        await handleSelectThemeCommand(); // Behält eigene Logik
-    }));
-    // #endregion
-
-    // #region Trigger-Einstellungen Umschalten
-    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleTriggerOnSave', async () => {
-        await handleToggleTriggerRuleCommand('onSave', 'Trigger bei Speichern');
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleTriggerOnInterval', async () => {
-        await handleToggleTriggerRuleCommand('onInterval', 'Intervall-Trigger');
-        // Wenn aktiviert und kein Intervall gesetzt, zur Bearbeitung auffordern
-        const config = vscode.workspace.getConfiguration('comitto');
-        const rules = config.get('triggerRules');
-        if (rules.onInterval && (!rules.intervalMinutes || rules.intervalMinutes <= 0)) {
-            await handleEditTriggerRuleCommand('intervalMinutes', 'Intervall für Intervall-Trigger (Minuten)', 'z.B. 15', 'number');
-        }
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('comitto.toggleTriggerOnBranchSwitch', async () => {
-        await handleToggleTriggerRuleCommand('onBranchSwitch', 'Trigger bei Branch-Wechsel');
-    }));
-    // #endregion
-
-    // #region Staging-Befehle
-    context.subscriptions.push(vscode.commands.registerCommand('comitto.stageAll', async () => {
-        await handleStageAllCommand();
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('comitto.stageSelected', async () => {
-        await handleStageSelectedCommand();
-    }));
-    // #endregion
 
     // #endregion UI & Konfigurationsbefehle
 }
@@ -357,13 +356,29 @@ async function handleEditTriggerRuleCommand(ruleKey, promptText, placeHolder, in
  * @param {string} settingName Name der Einstellung für die Benachrichtigung.
  */
 async function handleToggleTriggerRuleCommand(ruleKey, settingName) {
-    const config = vscode.workspace.getConfiguration('comitto');
-    const rules = { ...config.get('triggerRules') };
-    const newValue = !rules[ruleKey];
-    rules[ruleKey] = newValue;
-    await config.update('triggerRules', rules, vscode.ConfigurationTarget.Global);
-    vscode.window.showInformationMessage(`${settingName} ${newValue ? 'aktiviert' : 'deaktiviert'}.`);
-    // UI Refresh wird durch onDidChangeConfiguration ausgelöst
+    try {
+        const config = vscode.workspace.getConfiguration('comitto');
+        const triggerRules = config.get('triggerRules') || {};
+        
+        // Aktuellen Wert umkehren (true -> false, false -> true)
+        const newValue = !(triggerRules[ruleKey]);
+        
+        // Aktualisierte triggerRules erstellen
+        const updatedRules = { ...triggerRules, [ruleKey]: newValue };
+        
+        // In die Konfiguration schreiben
+        await config.update('triggerRules', updatedRules, vscode.ConfigurationTarget.Global);
+        
+        // Benachrichtigung anzeigen
+        vscode.window.showInformationMessage(`${settingName} wurde ${newValue ? 'aktiviert' : 'deaktiviert'}.`);
+        
+        // Falls es der Intervall-Trigger ist und er aktiviert wurde, nach dem Intervall fragen
+        if (ruleKey === 'onInterval' && newValue && (!triggerRules.intervalMinutes || triggerRules.intervalMinutes <= 0)) {
+            await handleEditTriggerRuleCommand('intervalMinutes', 'Intervall (Minuten)', 'z.B. 5', 'number');
+        }
+    } catch (error) {
+        vscode.window.showErrorMessage(`Fehler beim Umschalten von ${settingName}: ${error.message}`);
+    }
 }
 
 /**
@@ -790,45 +805,38 @@ async function configureOllamaSettings() {
 }
 
 /**
- * Behandelt das Kommando zur Auswahl des OpenAI-Modells.
+ * Funktion zum Verwalten der OpenAI-Modellauswahl
+ * Verbesserte Implementierung mit moderner Benutzeroberfläche
+ * @returns {Promise<void>}
  */
 async function handleOpenAIModelSelectionCommand() {
     try {
+        // OpenAI-Modelle aus UI-Modul abrufen
+        const models = ui.getOpenAIModelOptions().map(option => ({
+            label: option.label,
+            description: option.value,
+            detail: option.value === 'gpt-4o' ? 'Empfohlen' : undefined
+        }));
+        
+        // Aktuelles Modell abrufen
         const config = vscode.workspace.getConfiguration('comitto');
-        const currentModel = config.get('openai.model') || 'gpt-4o'; // Standard aktualisiert
+        const currentModel = config.get('openai.model');
         
-        // Aktuelle Modelle (Stand Juli 2024)
-        const models = [
-            { label: 'GPT-4o', value: 'gpt-4o' },
-            { label: 'GPT-4 Turbo', value: 'gpt-4-turbo' },
-            { label: 'GPT-4', value: 'gpt-4' },
-            { label: 'GPT-3.5 Turbo', value: 'gpt-3.5-turbo' }
-            // Ältere oder spezifischere Modelle ggf. hinzufügen
-            // { label: 'GPT-4 Turbo (Preview)', value: 'gpt-4-turbo-preview' }, 
-            // { label: 'GPT-3.5 Turbo 16K', value: 'gpt-3.5-turbo-16k' },
-        ];
+        // Modellauswahl anzeigen
+        const selectedModel = await vscode.window.showQuickPick(models, {
+            placeHolder: 'Wählen Sie ein OpenAI-Modell',
+            title: 'OpenAI-Modell auswählen',
+            matchOnDescription: true,
+            matchOnDetail: true
+        });
         
-        const selected = await vscode.window.showQuickPick(
-            models.map(model => ({
-                label: model.label,
-                description: model.value,
-                detail: currentModel === model.value ? '(Aktuell)' : ''
-            })),
-            {
-                placeHolder: 'OpenAI-Modell wählen',
-                title: 'OpenAI Modell auswählen',
-                canPickMany: false,
-                ignoreFocusOut: true
-            }
-        );
-        
-        if (selected) {
-            await config.update('openai.model', selected.description, vscode.ConfigurationTarget.Global); // Speichere den 'value'
-            vscode.window.showInformationMessage(`OpenAI-Modell auf ${selected.label} geändert.`);
+        if (selectedModel) {
+            // Konfiguration aktualisieren
+            await config.update('openai.model', selectedModel.description, vscode.ConfigurationTarget.Global);
+            vscode.window.showInformationMessage(`OpenAI-Modell auf "${selectedModel.label}" gesetzt.`);
         }
     } catch (error) {
         vscode.window.showErrorMessage(`Fehler bei der OpenAI-Modellauswahl: ${error.message}`);
-        console.error('Fehler bei der OpenAI-Modellauswahl:', error);
     }
 }
 
@@ -862,10 +870,10 @@ async function handleConfigureTriggersCommand(context, providers) {
             { label: `Datei-Anzahl Schwellenwert: ${rules.fileCountThreshold}`, id: 'comitto.editFileCountThreshold' },
             { label: `Änderungs-Anzahl Schwellenwert: ${rules.minChangeCount}`, id: 'comitto.editMinChangeCount' },
             { label: `Zeit-Schwellwert (Minuten): ${rules.timeThresholdMinutes}`, id: 'comitto.editTimeThreshold' },
-            { label: `Trigger bei Speichern: ${rules.onSave ? 'Ja' : 'Nein'}`, id: 'comitto.toggleTriggerOnSave' },
-            { label: `Intervall-Trigger: ${rules.onInterval ? `Ja (alle ${rules.intervalMinutes} Min.)` : 'Nein'}`, id: 'comitto.toggleTriggerOnInterval' },
+            { label: `Trigger bei Speichern: ${rules.onSave ? 'Ja' : 'Nein'}`, id: 'comitto.toggleOnSave' },
+            { label: `Intervall-Trigger: ${rules.onInterval ? `Ja (alle ${rules.intervalMinutes} Min.)` : 'Nein'}`, id: 'comitto.toggleOnInterval' },
             { label: `Intervall-Dauer bearbeiten`, id: 'comitto.editIntervalMinutes', disabled: !rules.onInterval }, // Nur wenn Intervall aktiv
-            { label: `Trigger bei Branch-Wechsel: ${rules.onBranchSwitch ? 'Ja' : 'Nein'}`, id: 'comitto.toggleTriggerOnBranchSwitch' },
+            { label: `Trigger bei Branch-Wechsel: ${rules.onBranchSwitch ? 'Ja' : 'Nein'}`, id: 'comitto.toggleOnBranchSwitch' },
             { label: 'Dateimuster bearbeiten', id: 'comitto.editFilePatterns' },
             { label: 'Spezifische Dateien bearbeiten', id: 'comitto.editSpecificFiles' }
         ];
@@ -1219,72 +1227,92 @@ function getNonce() {
     return text;
 }
 
-
 /**
- * Behandelt das Kommando zur Auswahl der Commit-Nachrichtensprache.
+ * Funktion zum Verwalten der Commit-Nachrichtensprache
+ * Verbesserte Implementierung mit Anpassung des Prompt-Templates
+ * @returns {Promise<void>}
  */
 async function handleCommitMessageLanguageCommand() {
     try {
+        // Konfiguration abrufen
         const config = vscode.workspace.getConfiguration('comitto');
         const gitSettings = config.get('gitSettings') || {};
+        
+        // Aktuell eingestellte Sprache abrufen
         const currentLanguage = gitSettings.commitMessageLanguage || 'en';
         
-        const languages = [
-            { label: 'Englisch', value: 'en' },
-            { label: 'Deutsch', value: 'de' }
+        // Sprachoptionen definieren
+        const languageOptions = [
+            { label: 'Englisch', value: 'en', description: 'Commit-Nachrichten in englischer Sprache' },
+            { label: 'Deutsch', value: 'de', description: 'Commit-Nachrichten in deutscher Sprache' }
         ];
         
-        const selectedLanguage = await vscode.window.showQuickPick(
-            languages.map(lang => ({ 
-                label: lang.label, 
-                value: lang.value, 
-                description: currentLanguage === lang.value ? '(Aktuell)' : '' 
-            })),
-            {
-                placeHolder: 'Sprache für Commit-Nachrichten wählen',
-                canPickMany: false,
-                ignoreFocusOut: true
-            }
-        );
+        // Sprachauswahl anzeigen
+        const selectedLanguage = await vscode.window.showQuickPick(languageOptions, {
+            placeHolder: 'Wählen Sie die Sprache für Commit-Nachrichten',
+            title: 'Commit-Nachrichtensprache auswählen'
+        });
         
         if (selectedLanguage) {
-            // Sicherstellen, dass gitSettings existiert und aktualisieren
-            const updatedSettings = { ...gitSettings, commitMessageLanguage: selectedLanguage.value };
-            await config.update('gitSettings', updatedSettings, vscode.ConfigurationTarget.Global);
+            // Git-Einstellungen aktualisieren
+            gitSettings.commitMessageLanguage = selectedLanguage.value;
+            await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
             
-            // Aktualisiere auch den promptTemplate entsprechend
-            let promptTemplate = config.get('promptTemplate') || '';
-            const isEnglish = selectedLanguage.value === 'en';
-            const targetLang = isEnglish ? 'English' : 'German';
-            const currentLangPattern = /in (English|Englisch|German|Deutsch)/i;
-            const defaultPromptBase = `Generate a meaningful commit message in ${targetLang} for the following changes:\n\n{{diff}}\n\nUse the Conventional Commits format (feat, fix, docs, etc.) and keep the message under 100 characters.`;
+            // Prompt-Template entsprechend anpassen
+            let promptTemplate = config.get('promptTemplate');
             
-            if (currentLangPattern.test(promptTemplate)) {
-                // Ersetze vorhandene Sprachangabe
-                promptTemplate = promptTemplate.replace(currentLangPattern, `in ${targetLang}`);
+            // Je nach gewählter Sprache den Prompt-Template anpassen
+            if (selectedLanguage.value === 'de') {
+                // Wenn es bereits ein deutsches Template gibt, nicht ersetzen
+                if (!promptTemplate.includes('auf Deutsch')) {
+                    promptTemplate = promptTemplate.replace(
+                        /Generate a meaningful commit message in English/i,
+                        'Generiere eine aussagekräftige Commit-Nachricht auf Deutsch'
+                    );
+                    promptTemplate = promptTemplate.replace(
+                        /using the Conventional Commits format/i,
+                        'im Format der Conventional Commits'
+                    );
+                    promptTemplate = promptTemplate.replace(
+                        /Keep it under 80 characters/i,
+                        'Halte sie unter 80 Zeichen'
+                    );
+                    promptTemplate = promptTemplate.replace(
+                        /Here is the diff of changes/i,
+                        'Hier ist das Diff der Änderungen'
+                    );
+                }
             } else {
-                // Füge Sprachangabe hinzu oder setze Standard-Prompt
-                 // Prüfe, ob es ein benutzerdefinierter Prompt ist (heuristic)
-                if (promptTemplate.includes('{{diff}}') || promptTemplate.includes('{changes}')) {
-                     // Füge nur die Sprachpräferenz hinzu, wenn es nach einem benutzerdefinierten Prompt aussieht
-                     promptTemplate += ` (Write the commit message in ${targetLang})`;
-                } else {
-                     // Setze auf Standard-Prompt, wenn es kein erkennbarer Prompt war
-                     promptTemplate = defaultPromptBase;
+                // Wenn es bereits ein englisches Template gibt, nicht ersetzen
+                if (!promptTemplate.includes('in English')) {
+                    promptTemplate = promptTemplate.replace(
+                        /Generiere eine aussagekräftige Commit-Nachricht auf Deutsch/i,
+                        'Generate a meaningful commit message in English'
+                    );
+                    promptTemplate = promptTemplate.replace(
+                        /im Format der Conventional Commits/i,
+                        'using the Conventional Commits format'
+                    );
+                    promptTemplate = promptTemplate.replace(
+                        /Halte sie unter 80 Zeichen/i,
+                        'Keep it under 80 characters'
+                    );
+                    promptTemplate = promptTemplate.replace(
+                        /Hier ist das Diff der Änderungen/i,
+                        'Here is the diff of changes'
+                    );
                 }
             }
             
-            // Ersetze {changes} durch {{diff}} falls noch vorhanden
-             promptTemplate = promptTemplate.replace('{changes}', '{{diff}}');
-
+            // Aktualisiertes Template speichern
             await config.update('promptTemplate', promptTemplate, vscode.ConfigurationTarget.Global);
             
-            vscode.window.showInformationMessage(`Sprache für Commit-Nachrichten auf ${selectedLanguage.label} geändert.`);
-            // UI Refresh wird durch onDidChangeConfiguration ausgelöst
+            vscode.window.showInformationMessage(
+                `Commit-Nachrichtensprache auf "${selectedLanguage.label}" gesetzt.`
+            );
         }
     } catch (error) {
-        vscode.window.showErrorMessage(`Fehler bei der Sprachauswahl: ${error.message}`);
-        console.error('Fehler bei der Sprachauswahl:', error);
+        vscode.window.showErrorMessage(`Fehler bei der Spracheinstellung: ${error.message}`);
     }
 }
 
@@ -1482,6 +1510,34 @@ async function handleSelectThemeCommand() {
     }
 }
 
+/**
+ * Umschaltet eine Einstellung in den notifications-Einstellungen
+ * @param {string} settingKey Der Schlüssel der Einstellung
+ * @param {string} settingName Anzeigename der Einstellung für Benachrichtigungen
+ */
+async function handleToggleNotificationSettingCommand(settingKey, settingName) {
+    try {
+        const config = vscode.workspace.getConfiguration('comitto');
+        const notifications = config.get('notifications') || {};
+        
+        // Aktuellen Wert umkehren (true -> false, false -> true)
+        const newValue = !(notifications[settingKey]);
+        
+        // Aktualisierte notifications erstellen
+        const updatedNotifications = { ...notifications, [settingKey]: newValue };
+        
+        // In die Konfiguration schreiben
+        await config.update('notifications', updatedNotifications, vscode.ConfigurationTarget.Global);
+        
+        // Benachrichtigung anzeigen, wenn sie nicht gerade deaktiviert wurde
+        if (settingKey !== 'onError' || newValue) {
+            vscode.window.showInformationMessage(`${settingName} wurden ${newValue ? 'aktiviert' : 'deaktiviert'}.`);
+        }
+    } catch (error) {
+        vscode.window.showErrorMessage(`Fehler beim Umschalten von ${settingName}: ${error.message}`);
+    }
+}
+
 // #endregion Spezifische Handler
 
 module.exports = {
@@ -1489,16 +1545,18 @@ module.exports = {
     handleSelectThemeCommand,
     handleStageSelectedCommand,
     handleStageAllCommand,
-    handlePerformManualCommitCommand,
-    handleShowSimpleUICommand,
+    handleOpenAIModelSelectionCommand,
+    handleCommitMessageLanguageCommand,
+    handleConfigureTriggersCommand,
+    showSimpleUI,
+    generateSimpleUIHTML,
+    generateDashboardHTML,
     handleSelectStageModeCommand,
     handleEditStagingPatternsCommand,
-    handleToggleUseGitignoreCommand,
-    handleToggleSimpleModeCommand,
-    handleToggleConfirmBeforeCommitCommand,
-    handleToggleShowNotificationsCommand,
+    handleToggleGitSettingCommand,
+    handleToggleUISettingCommand,
+    handleToggleNotificationSettingCommand,
     handleConfigureAIProviderCommand,
-    handleSelectOpenAIModelCommand,
     handleEditOpenAIKeyCommand,
     handleSelectAnthropicModelCommand,
     handleEditAnthropicKeyCommand,

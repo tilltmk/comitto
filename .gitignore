@@ -1,1 +1,16 @@
-/comitto-0.1.0.vsix
+# VSIX-Pakete
+*.vsix
+
+# Node-Module
+node_modules/
+
+# Zwischenablage
+.vscode-test/
+.vsix
+
+# Umgebungsvariablen
+.env
+
+# Betriebssystem-spezifische Dateien
+.DS_Store
+Thumbs.db

@@ -187,4 +187,20 @@ If you have problems with the extension:
 
 ## License
 
-This extension is released under the MIT License. 
+This extension is released under the MIT License.
+
+## Neueste Updates (v0.7.0)
+
+Die neueste Version von Comitto enthält folgende Verbesserungen:
+
+### Fehlerbehebungen
+- Behebung kritischer Fehler bei der Befehlsregistrierung
+- Korrekte Implementierung der Benutzeroberflächen-Steuerelemente
+- Verbesserte Handhabung von Konfigurationsänderungen
+
+### Technische Verbesserungen
+- Robustere Fehlerbehandlung in allen Befehlsfunktionen
+- Optimierte Validierung und Speicherung von Einstellungen
+- Verbesserte Benutzerrückmeldungen bei Status-Änderungen
+
+Eine vollständige Liste der Änderungen finden Sie im [Änderungsprotokoll](CHANGELOG.md). 

@@ -2,7 +2,7 @@
   "name": "comitto",
   "displayName": "Comitto",
   "description": "Automatische Generierung von Commit-Nachrichten mit KI (Ollama, OpenAI, Anthropic)",
-  "version": "0.5.0",
+  "version": "0.7.0",
   "publisher": "comitto",
   "repository": {
     "type": "git",

@@ -6,7 +6,7 @@ const fs = require('fs');
 const ignore = require('ignore');
 const ui = require('./ui');
 const commands = require('./commands');
-const { executeGitCommand, getStatusDescription, getStatusText } = require('./utils'); // Utils importieren
+const { executeGitCommand, getStatusText } = require('./utils'); // Nur executeGitCommand und getStatusText importieren
 
 /**
  * @type {vscode.StatusBarItem}
@@ -619,7 +619,7 @@ async function stageChanges(mode) {
         const selectedFiles = await vscode.window.showQuickPick(
             changedFilesList.map(file => ({
                 label: file.filePath,
-                description: getStatusDescription(file.status),
+                description: ui.getStatusDescription(file.status),
                 picked: true // Standardmäßig alle auswählen
             })),
             {
@@ -664,40 +664,6 @@ async function stageChanges(mode) {
 }
 
 /**
- * Liefert eine leserliche Beschreibung für den Git-Status-Code
- * @param {string} statusCode Der Git-Status-Code
- * @returns {string} Lesbarer Status
- */
-function getStatusDescription(statusCode) {
-    const firstChar = statusCode.charAt(0);
-    const secondChar = statusCode.charAt(1);
-    
-    let description = '';
-    
-    // Index-Status (erster Buchstabe)
-    if (firstChar === 'M') description = 'Modifiziert im Index';
-    else if (firstChar === 'A') description = 'Zum Index hinzugefügt';
-    else if (firstChar === 'D') description = 'Aus Index gelöscht';
-    else if (firstChar === 'R') description = 'Im Index umbenannt';
-    else if (firstChar === 'C') description = 'Im Index kopiert';
-    else if (firstChar === 'U') description = 'Ungemerged im Index';
-    
-    // Working Directory Status (zweiter Buchstabe)
-    if (secondChar === 'M') {
-        if (description) description += ', modifiziert im Arbeitsverzeichnis';
-        else description = 'Modifiziert im Arbeitsverzeichnis';
-    } else if (secondChar === 'D') {
-        if (description) description += ', gelöscht im Arbeitsverzeichnis';
-        else description = 'Gelöscht im Arbeitsverzeichnis';
-    }
-    
-    // Untracked files
-    if (statusCode === '??') description = 'Nicht verfolgte Datei';
-    
-    return description || statusCode;
-}
-
-/**
  * Zeigt eine Benachrichtigung an, wenn entsprechend konfiguriert
  * @param {string} message Die anzuzeigende Nachricht
  * @param {string} type Der Typ der Nachricht (info, warning, error)
@@ -724,27 +690,6 @@ function showNotification(message, type = 'info') {
     
     // Immer in die Konsole loggen
     console.log(`Comitto [${type}]: ${message}`);
-}
-
-/**
- * Führt einen Git-Befehl aus
- * @param {string} command Der auszuführende Git-Befehl
- * @param {string} cwd Arbeitsverzeichnis für den Befehl
- * @returns {Promise<string>} Ausgabe des Befehls
- */
-function executeGitCommand(command, cwd) {
-    return new Promise((resolve, reject) => {
-        exec(command, { cwd }, (error, stdout, stderr) => {
-            if (error) {
-                // Detailliertere Fehlermeldung
-                const errorMessage = stderr || error.message || 'Unbekannter Git-Fehler';
-                console.error(`Git-Befehl fehlgeschlagen: ${command}`, errorMessage);
-                reject(new Error(errorMessage));
-                return;
-            }
-            resolve(stdout);
-        });
-    });
 }
 
 /**

@@ -1,6 +1,43 @@
 # Änderungsprotokoll
 
-Alle wesentlichen Änderungen an der Comitto-Erweiterung werden in dieser Datei dokumentiert.
+## [0.7.0] - 2023-06-18
+
+### Behoben
+- Kritischer Fehler bei der Befehlsregistrierung für "comitto.enableAutoCommit" behoben
+- Korrekte Implementierung der Toggle-Befehle für Trigger-Regeln
+- Fehlende Implementierung der Benachrichtigungseinstellungen hinzugefügt
+
+### Verbessert
+- Robustere Fehlerbehandlung in allen Befehlsfunktionen
+- Bessere Validierung von Konfigurationsänderungen
+- Optimierte Benutzerrückmeldungen bei Status-Änderungen
+
+## [0.6.0] - 2023-06-15
+
+### Hinzugefügt
+- Verbesserte Fehlerbehandlung bei API-Verbindungsproblemen
+- Mehrsprachige Unterstützung erweitert
+- Neue gruppierte Seitenleistenansicht für bessere Übersichtlichkeit
+- Detailliertere Tooltip-Informationen für alle Einstellungen
+
+### Verbessert
+- Optimierte Benutzererfahrung bei der Modellauswahl mit visuellen Indikatoren
+- Verbessertes Feedback bei Spracheinstellungen mit automatischer Prompt-Anpassung
+- Hierarchische Strukturierung der Einstellungen in der Seitenleiste
+- Statusansicht mit klar gruppierten Elementen für bessere Navigation
+- Intuitivere Schnellaktionen mit logischer Kategorisierung
+
+### Geändert
+- Aktualisierte Abhängigkeiten auf neueste Versionen
+- Interne Architektur für bessere Wartbarkeit umstrukturiert
+- Optimierte UI-Icons für verbesserte visuelle Unterscheidung
+- Verbesserte Tooltip-Beschreibungen für alle Einstellungen
+
+### Behoben
+- Problem mit der Speicherung der Spracheinstellungen
+- Fehler bei der Modellanzeige unter bestimmten Bedingungen
+- Inkonsistenzen in der Benutzeroberfläche bei verschiedenen Themes
+- Verbesserte Fehlerbehandlung bei der OpenAI-Modellauswahl
 
 ## [0.5.0] - 2024-07-15
 

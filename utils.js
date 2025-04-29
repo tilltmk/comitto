@@ -1,4 +1,130 @@
 const { exec } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+/**
+ * Fehlertypen für die Anwendung
+ * @enum {string}
+ */
+const ErrorTypes = {
+    GIT: 'git',
+    CONFIG: 'config',
+    FILE_SYSTEM: 'filesystem',
+    NETWORK: 'network',
+    AI_SERVICE: 'ai_service',
+    INTERNAL: 'internal',
+    UNKNOWN: 'unknown'
+};
+
+/**
+ * Fehlerklasse für bessere Diagnose
+ */
+class ComittoError extends Error {
+    /**
+     * Erzeugt einen neuen Comitto-Fehler
+     * @param {string} message - Fehlermeldung
+     * @param {string} type - Fehlertyp aus ErrorTypes
+     * @param {Error|null} originalError - Originaler Fehler, falls vorhanden
+     * @param {Object} context - Zusätzliche Kontextinformationen
+     */
+    constructor(message, type = ErrorTypes.UNKNOWN, originalError = null, context = {}) {
+        super(message);
+        this.name = 'ComittoError';
+        this.type = type;
+        this.originalError = originalError;
+        this.context = context;
+        this.timestamp = new Date();
+        
+        // Stack-Trace beibehalten
+        if (originalError && originalError.stack) {
+            this.stack = `${this.stack}\nVerursacht durch: ${originalError.stack}`;
+        }
+    }
+    
+    /**
+     * Gibt Fehlerinformationen als Objekt zurück
+     * @returns {Object} Fehlerinformationen
+     */
+    toJSON() {
+        return {
+            name: this.name,
+            message: this.message,
+            type: this.type,
+            timestamp: this.timestamp.toISOString(),
+            context: this.context,
+            originalError: this.originalError ? {
+                name: this.originalError.name,
+                message: this.originalError.message,
+                stack: this.originalError.stack
+            } : null,
+            stack: this.stack
+        };
+    }
+}
+
+/**
+ * Fehlerprotokolle speichern
+ * @type {Array<Object>}
+ */
+const errorLogs = [];
+const MAX_ERROR_LOGS = 100;
+
+/**
+ * Speichert einen Fehler im Protokoll
+ * @param {ComittoError|Error} error - Der zu protokollierende Fehler
+ */
+function logError(error) {
+    const errorEntry = error instanceof ComittoError ? error.toJSON() : {
+        name: error.name,
+        message: error.message,
+        type: ErrorTypes.UNKNOWN,
+        timestamp: new Date().toISOString(),
+        stack: error.stack
+    };
+    
+    // Am Anfang einfügen für chronologische Sortierung (neueste zuerst)
+    errorLogs.unshift(errorEntry);
+    
+    // Maximale Größe einhalten
+    if (errorLogs.length > MAX_ERROR_LOGS) {
+        errorLogs.pop();
+    }
+    
+    // In Konsole schreiben
+    console.error(`[Comitto Fehler] ${error.message}`);
+    
+    // Optional: In Datei schreiben
+    try {
+        const logDir = path.join(os.homedir(), '.comitto', 'logs');
+        if (!fs.existsSync(logDir)) {
+            fs.mkdirSync(logDir, { recursive: true });
+        }
+        
+        const logFile = path.join(logDir, `error_${new Date().toISOString().split('T')[0]}.log`);
+        const logMessage = `[${new Date().toISOString()}] ${JSON.stringify(errorEntry)}\n`;
+        
+        fs.appendFileSync(logFile, logMessage);
+    } catch (e) {
+        console.error('Fehler beim Schreiben des Fehlerprotokolls:', e);
+    }
+}
+
+/**
+ * Fehlerprotokolle abrufen
+ * @param {number} limit - Maximale Anzahl der zurückzugebenden Protokolle
+ * @returns {Array<Object>} Fehlerprotokolle
+ */
+function getErrorLogs(limit = MAX_ERROR_LOGS) {
+    return errorLogs.slice(0, limit);
+}
+
+/**
+ * Fehlerprotokolle löschen
+ */
+function clearErrorLogs() {
+    errorLogs.length = 0;
+}
 
 /**
  * Führt einen Git-Befehl aus
@@ -18,12 +144,26 @@ function executeGitCommand(command, cwd) {
                 if (errorMessage.includes('maxBuffer length exceeded') || 
                     error.code === 'ERR_CHILD_PROCESS_STDOUT_MAXBUFFER') {
                     console.error(`Git-Befehl mit Pufferüberlauf: ${command}`);
-                    reject(new Error('Die Git-Ausgabe ist zu groß. Bitte reduzieren Sie die Anzahl der Änderungen oder verwenden Sie einen manuellen Commit.'));
+                    const bufferError = new ComittoError(
+                        'Die Git-Ausgabe ist zu groß. Bitte reduzieren Sie die Anzahl der Änderungen oder verwenden Sie einen manuellen Commit.',
+                        ErrorTypes.GIT,
+                        error,
+                        { command, cwd }
+                    );
+                    logError(bufferError);
+                    reject(bufferError);
                     return;
                 }
                 
                 console.error(`Git-Befehl fehlgeschlagen: ${command}`, errorMessage);
-                reject(new Error(errorMessage));
+                const gitError = new ComittoError(
+                    errorMessage,
+                    ErrorTypes.GIT,
+                    error,
+                    { command, cwd, stderr }
+                );
+                logError(gitError);
+                reject(gitError);
                 return;
             }
             resolve(stdout);
@@ -49,7 +189,79 @@ function getStatusText(statusCode) {
     }
 }
 
+/**
+ * Führt einen asynchronen Prozess mit Wiederholungsversuchen aus
+ * @param {Function} asyncFn - Die auszuführende asynchrone Funktion
+ * @param {Object} options - Optionen für die Wiederholungsversuche
+ * @param {number} options.maxRetries - Maximale Anzahl der Wiederholungsversuche
+ * @param {number} options.retryDelay - Verzögerung zwischen Versuchen in ms
+ * @param {Function} options.shouldRetry - Funktion, die bestimmt, ob erneut versucht werden soll
+ * @returns {Promise<any>} Das Ergebnis der asynchronen Funktion
+ */
+async function withRetry(asyncFn, options = {}) {
+    const { 
+        maxRetries = 3, 
+        retryDelay = 1000, 
+        shouldRetry = (error) => true 
+    } = options;
+    
+    let lastError;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            return await asyncFn(attempt);
+        } catch (error) {
+            lastError = error;
+            
+            // Prüfen, ob ein erneuter Versuch unternommen werden soll
+            if (attempt < maxRetries && shouldRetry(error)) {
+                // Exponentielles Backoff
+                const delay = retryDelay * Math.pow(2, attempt);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                continue;
+            }
+            
+            // Alle Versuche erschöpft oder kein Wiederholungsversuch gewünscht
+            if (!(error instanceof ComittoError)) {
+                // Fehler in ComittoError umwandeln, falls nötig
+                error = new ComittoError(
+                    error.message || 'Unbekannter Fehler',
+                    ErrorTypes.UNKNOWN,
+                    error,
+                    { attempts: attempt + 1, maxRetries }
+                );
+                logError(error);
+            }
+            throw error;
+        }
+    }
+}
+
+/**
+ * Sammelt diagnostische Informationen über die Umgebung
+ * @returns {Object} Diagnostische Informationen
+ */
+function getDiagnosticInfo() {
+    return {
+        platform: process.platform,
+        nodeVersion: process.version,
+        arch: process.arch,
+        cpus: os.cpus().length,
+        totalmem: os.totalmem(),
+        freemem: os.freemem(),
+        uptime: os.uptime(),
+        errorLogs: getErrorLogs(10) // Letzte 10 Fehler
+    };
+}
+
 module.exports = {
     executeGitCommand,
-    getStatusText
+    getStatusText,
+    ComittoError,
+    ErrorTypes,
+    logError,
+    getErrorLogs,
+    clearErrorLogs,
+    withRetry,
+    getDiagnosticInfo
 }; 

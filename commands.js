@@ -600,18 +600,30 @@ async function handleEditPromptTemplateCommand() {
 async function handleShowDashboardCommand(context) {
     try {
         // Bestehendes Panel prüfen und wiederverwenden
-        let panel = context.globalState.get('comittoDashboardPanel');
+        let panel = null;
         
-        if (panel) {
-            try {
-                // Panel bereits vorhanden, fokussieren
-                panel.reveal(vscode.ViewColumn.One);
-            } catch (error) {
-                console.error('Fehler beim Zugriff auf das bestehende Panel:', error);
-                // Wenn das Panel nicht mehr gültig ist, es aus dem State entfernen
-                context.globalState.update('comittoDashboardPanel', undefined);
-                panel = null;
+        try {
+            panel = context.globalState.get('comittoDashboardPanel');
+            
+            // Prüfen, ob das Panel noch gültig ist
+            if (panel) {
+                try {
+                    // Test-Zugriff, um zu prüfen, ob das Panel noch existiert
+                    const isVisible = panel.visible;
+                    // Panel fokussieren
+                    panel.reveal(vscode.ViewColumn.One);
+                    console.log('Bestehendes Dashboard-Panel gefunden und fokussiert');
+                } catch (error) {
+                    console.error('Gespeichertes Panel nicht mehr gültig:', error);
+                    // Wenn das Panel nicht mehr gültig ist, es aus dem State entfernen
+                    context.globalState.update('comittoDashboardPanel', undefined);
+                    panel = null;
+                }
             }
+        } catch (error) {
+            console.error('Fehler beim Zugriff auf gespeichertes Panel:', error);
+            context.globalState.update('comittoDashboardPanel', undefined);
+            panel = null;
         }
         
         if (!panel) {

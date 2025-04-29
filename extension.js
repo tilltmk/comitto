@@ -132,16 +132,33 @@ async function activate(context) {
             }
 
             // Dashboard aktualisieren, falls offen
-            let dashboardPanel = context.globalState.get('comittoDashboardPanel');
-            if (dashboardPanel && dashboardPanel.visible) {
-                 dashboardPanel.webview.html = commands.generateDashboardHTML(context); // HTML neu generieren
+            try {
+                let dashboardPanel = context.globalState.get('comittoDashboardPanel');
+                if (dashboardPanel && dashboardPanel.visible) {
+                    // Versuchen, das Panel zu aktualisieren
+                    try {
+                        dashboardPanel.webview.html = commands.generateDashboardHTML(context);
+                    } catch (panelError) {
+                        console.error('Fehler beim Aktualisieren des Dashboard-Panels:', panelError);
+                        // Panel im globalState zurücksetzen, falls nicht mehr gültig
+                        context.globalState.update('comittoDashboardPanel', undefined);
+                    }
+                }
+                let simpleUIPanel = context.globalState.get('comittoSimpleUIPanel');
+                if (simpleUIPanel && simpleUIPanel.visible) {
+                    try {
+                        const newEnabled = currentConfig.get('autoCommitEnabled');
+                        const newProvider = currentConfig.get('aiProvider');
+                        simpleUIPanel.webview.html = commands.generateSimpleUIHTML(newEnabled, ui.getProviderDisplayName(newProvider), context);
+                    } catch (panelError) {
+                        console.error('Fehler beim Aktualisieren des SimpleUI-Panels:', panelError);
+                        // Panel im globalState zurücksetzen, falls nicht mehr gültig
+                        context.globalState.update('comittoSimpleUIPanel', undefined);
+                    }
+                }
+            } catch (error) {
+                console.error('Fehler bei der Panel-Aktualisierung:', error);
             }
-             let simpleUIPanel = context.globalState.get('comittoSimpleUIPanel');
-             if (simpleUIPanel && simpleUIPanel.visible) {
-                 const newEnabled = currentConfig.get('autoCommitEnabled');
-                 const newProvider = currentConfig.get('aiProvider');
-                 simpleUIPanel.webview.html = commands.generateSimpleUIHTML(newEnabled, ui.getProviderDisplayName(newProvider), context);
-             }
         }
     }));
     

@@ -28,6 +28,19 @@ class StatusViewProvider {
         const enabled = config.get('autoCommitEnabled');
         const items = [];
 
+        // Einfache Benutzeroberfläche öffnen
+        const simpleUIItem = new vscode.TreeItem(
+            'Einfache Benutzeroberfläche öffnen',
+            vscode.TreeItemCollapsibleState.None
+        );
+        simpleUIItem.iconPath = new vscode.ThemeIcon('rocket');
+        simpleUIItem.tooltip = 'Öffnet eine übersichtliche Oberfläche für einfache Einstellungen';
+        simpleUIItem.command = {
+            command: 'comitto.showSimpleUI',
+            title: 'Einfache Benutzeroberfläche öffnen'
+        };
+        items.push(simpleUIItem);
+
         // Status-Element mit verbesserter Visualisierung
         const statusItem = new vscode.TreeItem(
             `Status: ${enabled ? 'Aktiviert' : 'Deaktiviert'}`,
@@ -346,6 +359,15 @@ class QuickActionsViewProvider {
         }
 
         const items = [];
+
+        // Einfache Benutzeroberfläche anzeigen
+        const simpleUIItem = new vscode.TreeItem('Einfache Benutzeroberfläche');
+        simpleUIItem.iconPath = new vscode.ThemeIcon('rocket');
+        simpleUIItem.command = {
+            command: 'comitto.showSimpleUI',
+            title: 'Einfache Benutzeroberfläche anzeigen'
+        };
+        items.push(simpleUIItem);
 
         // Manuellen Commit ausführen
         const commitItem = new vscode.TreeItem('Manuellen Commit ausführen');

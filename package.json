@@ -3,7 +3,7 @@
   "displayName": "Comitto",
   "description": "Automatisierte Git-Commits mit KI-generierten Commit-Nachrichten",
   "version": "0.9.6",
-  "publisher": "CodePiloten",
+  "publisher": "tilltmk",
   "repository": {
     "type": "git",
     "url": "https://github.com/tilltmk/comitto"

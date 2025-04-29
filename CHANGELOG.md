@@ -1,5 +1,33 @@
 # Änderungsprotokoll
 
+## [0.9.6] - 2025-05-15
+
+### Behoben
+- Kritischer Fehler behoben: `maxBuffer length exceeded` bei Git-Diff von großen Änderungen
+- Verbesserte Puffergröße für Git-Befehle von 10 MB auf 50 MB erhöht
+- Intelligente Diff-Verarbeitung implementiert, um auch sehr große Änderungen zu unterstützen
+- Spezifische Fehlerbehandlung für Pufferüberlauf-Fehler hinzugefügt
+- Alternative Strategie für große Diffs: Fallback auf Dateilistendarstellung
+- Benutzerfreundlichere Fehlermeldungen bei Pufferüberlauf
+
+### Verbessert
+- Robustere Verarbeitung von Git-Befehlen mit großen Ausgaben
+- Bessere Fehlerbehandlung und aussagekräftigere Benutzermeldungen
+- Optimierte Diff-Kürzung mit Fokus auf die wichtigsten Änderungen
+
+## [0.9.5] - 2025-04-29
+
+### Behoben
+- Kritischen Fehler bei der Aktivierung behoben: fehlende utils.js-Datei hinzugefügt
+- Konflikte bei Funktionsdefinitionen zwischen extension.js und ui.js beseitigt
+- getStatusDescription-Funktionalität korrekt zwischen allen Modulen aufgeteilt
+- Module-Exports in ui.js um fehlende Funktionen erweitert
+
+### Verbessert
+- Robustere Fehlerbehandlung beim Import von Abhängigkeiten
+- Bessere Strukturierung der Hilfsfunktionen
+- Konsistente Nutzung importierter Funktionen
+
 ## [0.8.0] - 2025-04-29
 
 ### Behoben

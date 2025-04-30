@@ -638,9 +638,17 @@ async function handleShowDashboardCommand(context) {
         // Neues Panel erstellen oder bestehendes anzeigen
         let panel = context.globalState.get('comittoDashboardPanelInstance');
         
-        if (panel) {
+        if (panel && typeof panel.reveal === 'function') {
+            // Nur reveal aufrufen, wenn es eine Funktion ist
             panel.reveal(vscode.ViewColumn.One);
         } else {
+            // Wenn panel nicht existiert oder keine reveal-Methode hat, ein neues erstellen
+            if (panel) {
+                // Altes, ungültiges Panel aus dem State entfernen
+                context.globalState.update('comittoDashboardPanelInstance', undefined);
+                console.log('Ungültiges Dashboard-Panel gefunden und zurückgesetzt');
+            }
+            
             panel = vscode.window.createWebviewPanel(
                 'comittoDashboard',
                 'Comitto Dashboard',
@@ -676,7 +684,7 @@ async function handleShowDashboardCommand(context) {
                                 try {
                                     // Stelle sicher, dass das Panel noch existiert
                                     const currentPanel = context.globalState.get('comittoDashboardPanelInstance');
-                                    if (currentPanel) {
+                                    if (currentPanel && typeof currentPanel.webview === 'object') {
                                         currentPanel.webview.html = generateDashboardHTML(context, currentPanel);
                                     } else {
                                         console.warn("Versuch, HTML für ein nicht mehr existierendes Dashboard zu aktualisieren.");
@@ -693,7 +701,7 @@ async function handleShowDashboardCommand(context) {
                                     await config.update('autoCommitEnabled', enabled, vscode.ConfigurationTarget.Global);
                                     // Dashboard nach Aktualisierung neu laden
                                     const currentPanel = context.globalState.get('comittoDashboardPanelInstance');
-                                    if (currentPanel) {
+                                    if (currentPanel && typeof currentPanel.webview === 'object') {
                                         currentPanel.webview.html = generateDashboardHTML(context, currentPanel);
                                     }
                                 } catch (error) {
@@ -716,10 +724,12 @@ async function handleShowDashboardCommand(context) {
                         }
                     } catch (error) {
                         console.error('Fehler bei der Verarbeitung des Dashboard-Befehls:', error);
-                        panel?.webview?.postMessage({ 
-                            type: 'error', 
-                            content: `Fehler bei der Befehlsverarbeitung: ${error.message}` 
-                        });
+                        if (panel && panel.webview && typeof panel.webview.postMessage === 'function') {
+                            panel.webview.postMessage({ 
+                                type: 'error', 
+                                content: `Fehler bei der Befehlsverarbeitung: ${error.message}` 
+                            });
+                        }
                     }
                 },
                 undefined,

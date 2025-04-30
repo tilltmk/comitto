@@ -1518,15 +1518,25 @@ async function generateWithOllama(prompt) {
     // Backward-Kompatibilität: Prüfen, ob die fehlerhafte oliama-model Konfiguration verwendet wird
     // und falls ja, diese auf die korrekte ollama.model übertragen
     let model = config.get('ollama.model');
-    const ollamaModelOld = config.get('ollama-model');
     
-    if (!model && ollamaModelOld) {
+    // Prüfen auf beide bekannten Fehlvarianten (ollama-model und oliama.model)
+    const ollamaModelOld = config.get('ollama-model');
+    const oliamaModelDot = config.get('oliama.model');
+    
+    if (!model && (ollamaModelOld || oliamaModelDot)) {
         // Alte, fehlerhafte Konfiguration gefunden, korrigieren
-        model = ollamaModelOld;
+        model = ollamaModelOld || oliamaModelDot;
+        
         // Wert auf die korrekte Konfiguration übertragen
-        await config.update('ollama.model', ollamaModelOld, vscode.ConfigurationTarget.Global);
-        // Fehlerhafte Konfiguration zurücksetzen
-        await config.update('ollama-model', undefined, vscode.ConfigurationTarget.Global);
+        await config.update('ollama.model', model, vscode.ConfigurationTarget.Global);
+        
+        // Fehlerhafte Konfigurationen zurücksetzen
+        if (ollamaModelOld) {
+            await config.update('ollama-model', undefined, vscode.ConfigurationTarget.Global);
+        }
+        if (oliamaModelDot) {
+            await config.update('oliama.model', undefined, vscode.ConfigurationTarget.Global);
+        }
         
         vscode.window.showInformationMessage('Korrektur der Ollama-Modell-Konfiguration durchgeführt.');
     }

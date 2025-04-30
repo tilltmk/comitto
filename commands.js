@@ -2143,5 +2143,24 @@ async function handleConfigureTriggersCommand(context, providers) {
 module.exports = {
     registerCommands,
     generateCommitMessage,
-    handleError
+    handleError,
+    handleEditOpenAIKeyCommand,
+    handleSelectAnthropicModelCommand,
+    handleEditAnthropicKeyCommand,
+    handleEditPromptTemplateCommand,
+    handleCommitMessageLanguageCommand,
+    handleSelectStageModeCommand,
+    handleEditStagingPatternsCommand,
+    handleStageAllCommand,
+    handleStageSelectedCommand,
+    handleSelectThemeCommand,
+    handleToggleNotificationSettingCommand,
+    generateDashboardHTML,
+    showSimpleUI,
+    handleShowDashboardCommand,
+    handleOpenAIModelSelectionCommand,
+    handleConfigureTriggersCommand,
+    preparePromptTemplate,
+    processDiffForPrompt,
+    processCommitMessage
 }; 

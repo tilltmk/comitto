@@ -1,6 +1,6 @@
 const vscode = require('vscode');
 const ui = require('./ui'); // Importiere UI-Modul für Hilfsfunktionen
-const { executeGitCommand } = require('./utils'); // Annahme: executeGitCommand ist in utils.js
+const { executeGitCommand, getStatusText } = require('./utils'); // Hinzufügen von getStatusText zum Import
 const axios = require('axios');
 
 // Globale Variable für die Statusleiste, wird in registerCommands gesetzt

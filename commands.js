@@ -506,32 +506,33 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
         })
     );
     
-    // Und auch einen Befehl für Anthropic, da dieser ebenfalls in der UI referenziert wird
+    // Anthropic-Modell auswählen
     context.subscriptions.push(
-        vscode.commands.registerCommand('comitto.editAnthropicKey', async () => {
+        vscode.commands.registerCommand('comitto.selectAnthropicModel', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const anthropicConfig = config.get('anthropic') || {};
-                const currentKey = anthropicConfig.apiKey || '';
+                const models = [
+                    { label: 'Claude 3 Opus', value: 'claude-3-opus-20240229' },
+                    { label: 'Claude 3 Sonnet', value: 'claude-3-sonnet-20240229' },
+                    { label: 'Claude 3 Haiku', value: 'claude-3-haiku-20240307' },
+                    { label: 'Claude 2', value: 'claude-2' },
+                    { label: 'Claude 2.1', value: 'claude-2.1' },
+                    { label: 'Claude Instant', value: 'claude-instant-1' }
+                ];
                 
-                // Maske für den Schlüssel erstellen, falls einer existiert
-                const maskedKey = currentKey ? '********' + currentKey.slice(-4) : '';
-                
-                const input = await vscode.window.showInputBox({
-                    prompt: 'Anthropic API-Schlüssel eingeben',
-                    placeHolder: 'sk-...',
-                    value: maskedKey,
-                    password: true // Eingabe als Passwort maskieren
+                const selection = await vscode.window.showQuickPick(models, {
+                    placeHolder: 'Wähle ein Anthropic-Modell',
+                    title: 'Anthropic-Modell auswählen'
                 });
                 
-                if (input !== undefined) {
-                    // Wenn der Benutzer nicht die maskierte Version gelassen hat
-                    if (input !== maskedKey) {
-                        // Schlüssel aktualisieren
-                        anthropicConfig.apiKey = input;
-                        await config.update('anthropic', anthropicConfig, vscode.ConfigurationTarget.Global);
-                        showNotification('Anthropic API-Schlüssel wurde aktualisiert.', 'info');
-                    }
+                if (selection) {
+                    const config = vscode.workspace.getConfiguration('comitto');
+                    const anthropicConfig = config.get('anthropic') || {};
+                    
+                    // Aktualisiere das Modell in den Einstellungen
+                    anthropicConfig.model = selection.value;
+                    await config.update('anthropic', anthropicConfig, vscode.ConfigurationTarget.Global);
+                    
+                    showNotification(`Anthropic-Modell wurde auf ${selection.label} (${selection.value}) gesetzt.`, 'info');
                     
                     // UI aktualisieren
                     if (providers) {
@@ -539,7 +540,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                     }
                 }
             } catch (error) {
-                handleError(error, "Fehler beim Bearbeiten des Anthropic API-Schlüssels", true);
+                handleError(error, "Fehler bei der Auswahl des Anthropic-Modells", true);
             }
         })
     );

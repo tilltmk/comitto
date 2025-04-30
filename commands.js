@@ -211,6 +211,32 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(vscode.commands.registerCommand('comitto.editBranch', async () => {
         await handleEditGitSettingCommand('branch', 'Branch für Commits', 'Leer lassen für aktuellen Branch');
     }));
+    
+    // Befehle zum Stagen von Änderungen
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.stageAll', async () => {
+        try {
+            await handleStageAllCommand();
+            if (providers) {
+                providers.statusProvider.refresh();
+                providers.quickActionsProvider.refresh();
+            }
+        } catch (error) {
+            showNotification(`Fehler beim Stagen aller Änderungen: ${error.message}`, 'error');
+        }
+    }));
+    
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.stageSelected', async () => {
+        try {
+            await handleStageSelectedCommand();
+            if (providers) {
+                providers.statusProvider.refresh();
+                providers.quickActionsProvider.refresh();
+            }
+        } catch (error) {
+            showNotification(`Fehler beim Stagen ausgewählter Änderungen: ${error.message}`, 'error');
+        }
+    }));
+    
     context.subscriptions.push(vscode.commands.registerCommand('comitto.selectCommitLanguage', async () => {
         await handleCommitMessageLanguageCommand(); // Behält eigene Logik wegen Prompt-Anpassung
     }));

@@ -1694,7 +1694,9 @@ function setupAutoBackgroundMonitoring(context) {
                     .forEach(line => {
                         const filePath = line.substring(3).trim();
                         if (filePath && !isFileIgnored(filePath)) {
-                            changedFiles.add(path.join(repoPath, filePath));
+                            // Relativen Pfad erstellen, sicherstellen dass dieser valide ist
+                            const absolutePath = path.resolve(repoPath, filePath);
+                            changedFiles.add(absolutePath);
                         }
                     });
                 

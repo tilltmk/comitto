@@ -1809,10 +1809,11 @@ function deactivate() {
     }
 }
 
+// Notwendige Exporte für externe Module
 module.exports = {
     activate,
     deactivate,
-    // Für Tests exponieren
-    debugLog,
-    handleError
+    generateWithOllama,
+    generateWithOpenAI,
+    generateWithAnthropic
 }; 

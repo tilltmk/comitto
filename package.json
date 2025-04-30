@@ -2,7 +2,7 @@
   "name": "comitto",
   "displayName": "Comitto",
   "description": "Automatisierte Git-Commits mit KI-generierten Commit-Nachrichten",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "publisher": "tilltmk",
   "repository": {
     "type": "git",
@@ -51,7 +51,7 @@
         {
           "id": "comitto-quick-actions",
           "name": "Schnellaktionen",
-          "when": "workspaceHasGit"
+          "when": "workspaceHasGit" 
         },
         {
           "id": "comitto-settings",

@@ -1513,18 +1513,20 @@ async function generateCommitMessage(gitStatus, diffOutput) {
  */
 async function generateWithOllama(prompt) {
     const config = vscode.workspace.getConfiguration('comitto');
-    const endpoint = config.get('ollama.endpoint') || 'http://localhost:11434/api/generate';
+    const endpoint = config.get('ollama').endpoint || 'http://localhost:11434/api/generate';
     
-    // Backward-Kompatibilität: Prüfen, ob die fehlerhafte oliama-model Konfiguration verwendet wird
-    // und falls ja, diese auf die korrekte ollama.model übertragen
-    let model = config.get('ollama.model');
+    // Backward-Kompatibilität: Prüfen, ob die fehlerhafte ollama-model Konfiguration verwendet wird
+    // und falls ja, diese auf die korrekte ollama Konfiguration übertragen
+    let ollamaConfig = config.get('ollama') || {};
+    let model = ollamaConfig.model;
     const ollamaModelOld = config.get('ollama-model');
     
     if (!model && ollamaModelOld) {
         // Alte, fehlerhafte Konfiguration gefunden, korrigieren
         model = ollamaModelOld;
         // Wert auf die korrekte Konfiguration übertragen
-        await config.update('ollama.model', ollamaModelOld, vscode.ConfigurationTarget.Global);
+        ollamaConfig.model = ollamaModelOld;
+        await config.update('ollama', ollamaConfig, vscode.ConfigurationTarget.Global);
         // Fehlerhafte Konfiguration zurücksetzen
         await config.update('ollama-model', undefined, vscode.ConfigurationTarget.Global);
         

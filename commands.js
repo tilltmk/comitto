@@ -1823,6 +1823,19 @@ async function handleOpenAIModelSelectionCommand() {
 }
 
 /**
+ * Konfiguriert die Ollama-spezifischen Einstellungen
+ * @returns {Promise<boolean>} Erfolgsstatus
+ */
+async function configureOllamaSettings() {
+    try {
+        // ... existing code ...
+    } catch (error) {
+        vscode.window.showErrorMessage(`Fehler bei der Ollama-Konfiguration: ${error.message}`);
+        return false;
+    }
+}
+
+/**
  * Vereinfachte Benutzeroberfläche für schnelle Aktionen anzeigen
  * @param {vscode.ExtensionContext} context 
  * @param {Object} providers UI-Provider-Instanzen

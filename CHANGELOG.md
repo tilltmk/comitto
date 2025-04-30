@@ -1,5 +1,47 @@
 # Änderungsprotokoll
 
+Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert.
+
+## [2.1.0] - 2024-06-01
+
+### Hinzugefügt
+- Verbesserte Statusleiste mit visuellem Fortschrittsbalken
+- Verbesserte Fehlerbehandlung für alle KI-Provider
+- Visuelles Feedback während der Commit-Generierung
+- Bessere Modellauswahl für OpenAI mit Icons und Kategorien
+
+### Geändert
+- Die Funktion `updateStatusBarProgress` wurde zur besseren Übersichtlichkeit in utils.js verschoben
+- Verbesserte Fehleranzeige im Fehlerfall
+- Fehlerprotokolle enthalten jetzt detailliertere Informationen
+
+### Behoben
+- Problem mit nicht definierten Funktionen aus extension.js
+- Fehler "getStatusText is not defined" in commands.js behoben
+- Fehler "generateWithOllama is not defined" behoben durch verbesserte Import-Struktur
+- Verbesserte Performance bei der KI-Generierung
+
+## [2.0.0] - 2024-05-15
+
+### Hinzugefügt
+- Unterstützung für Ollama als lokalen KI-Provider
+- Dashboard zur Überwachung und Konfiguration
+- Einfache Benutzeroberfläche für schnelle Commits
+- Detaillierte Fehlerbehandlung und Protokollierung
+
+### Geändert
+- Vollständige Überarbeitung der Benutzeroberfläche
+- Verbesserte Konfigurationsmöglichkeiten
+- Optimierte Generierung von Commit-Nachrichten
+
+## [1.0.0] - 2024-03-01
+
+### Hinzugefügt
+- Erste öffentliche Version
+- Unterstützung für OpenAI und Anthropic Claude
+- Automatische Commits basierend auf Dateiänderungen
+- VSCode-Integration mit Statusleiste und Befehlen
+
 ## [0.9.6] - 2025-05-15
 
 ### Behoben

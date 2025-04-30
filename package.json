@@ -248,6 +248,70 @@
         {
           "command": "comitto.editPromptTemplate",
           "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.configureTriggers",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.showSimpleUI",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.stageAll",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.stageSelected",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.toggleSimpleMode",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.selectTheme",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.toggleOnSave",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.toggleOnInterval",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.toggleOnBranchSwitch",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.editFilePatterns",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.editMinChangeCount",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.editTimeThreshold",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.editFileCountThreshold",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.refreshSettings",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.openSettings",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.performManualCommit",
+          "when": "workspaceHasGit"
         }
       ]
     },

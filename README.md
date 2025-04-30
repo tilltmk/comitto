@@ -6,8 +6,10 @@
 
 Comitto is a VS Code extension that automatically generates commit messages using various AI models (Ollama, OpenAI, Anthropic) and performs commits without user intervention.
 
-[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](https://marketplace.visualstudio.com/items?itemName=comitto.comitto)
+[![Version](https://img.shields.io/badge/version-0.9.8-blue.svg)](https://marketplace.visualstudio.com/items?itemName=comitto.comitto)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+> **Note:** Version 0.9.8 is fully functional and ready for production use.
 
 ## Features
 
@@ -18,6 +20,38 @@ Comitto is a VS Code extension that automatically generates commit messages usin
 - **Customizable Prompts**: Customize the template for generating commit messages
 - **User-friendly Interface**: All settings can be easily adjusted via the sidebar
 - **Status Display**: Shows the current status of the extension in the VS Code status bar
+
+## Screenshots
+
+<p align="center">
+  <img src="screenshots/Screenshot 2025-04-30 064126.png" alt="Comitto Interface" width="700"/>
+  <br>
+  <em>Main Interface</em>
+</p>
+
+<p align="center">
+  <img src="screenshots/Screenshot 2025-04-30 064139.png" alt="Settings Panel" width="700"/>
+  <br>
+  <em>Configuration Panel</em>
+</p>
+
+<p align="center">
+  <img src="screenshots/Screenshot 2025-04-30 064149.png" alt="Commit Process" width="700"/>
+  <br>
+  <em>Commit Process</em>
+</p>
+
+<p align="center">
+  <img src="screenshots/Screenshot 2025-04-30 064327.png" alt="AI Provider Settings" width="700"/>
+  <br>
+  <em>AI Provider Settings</em>
+</p>
+
+<p align="center">
+  <img src="screenshots/Screenshot 2025-04-30 064424.png" alt="Status Display" width="700"/>
+  <br>
+  <em>Status Display</em>
+</p>
 
 ## Prerequisites
 

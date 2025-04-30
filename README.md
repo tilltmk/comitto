@@ -1,7 +1,15 @@
 # Comitto
 
+<p align="center">
+   <img src="comitto.png" alt="Comitto Logo" width="200"/>
+ </p>
+
 Automated Git Commits with AI-generated Commit Messages
 
+ ---
+[![Version](https://img.shields.io/badge/version-0.9.8-blue.svg)](https://marketplace.visualstudio.com/items?itemName=tilltmk.comitto)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+ 
 ## Features
 
 - **Automatic Commits**: Monitors file changes and performs commits automatically

@@ -1,17 +1,17 @@
 // Comitto Dashboard UI
-// Modernes JavaScript für ein interaktives Dashboard mit Animationen und Glassmorphism-Effekten
+// Modern JavaScript for an interactive dashboard with animations and glassmorphism effects
 
 (function() {
-    // Warten, bis das DOM geladen ist
+    // Wait until the DOM is loaded
     document.addEventListener('DOMContentLoaded', () => {
-        console.log('Dashboard DOM geladen');
+        console.log('Dashboard DOM loaded');
         initializeDashboard();
     });
 
-    // Hauptinitialisierungsfunktion
+    // Main initialization function
     function initializeDashboard() {
-        console.log('Dashboard wird initialisiert');
-        // Elemente abrufen
+        console.log('Dashboard initializing');
+        // Get elements
         const toggleBtn = document.getElementById('toggleBtn');
         const commitBtn = document.getElementById('commitBtn');
         const refreshBtn = document.getElementById('refreshBtn');
@@ -19,115 +19,115 @@
         const configureTriggersBtn = document.getElementById('configureTriggersBtn');
         const openSettingsBtn = document.getElementById('openSettingsBtn');
         
-        // Animierte Elemente hinzufügen (Hintergrund-Blasen für Glassmorphism-Effekt)
+        // Add animated elements (background bubbles for glassmorphism effect)
         createBackgroundBubbles();
         
-        // Event-Listener für Buttons
+        // Event listeners for buttons
         setupEventListeners();
         
-        // Initiale Animationen
+        // Initial animations
         runEntranceAnimations();
         
-        // Informationen für das Dashboard laden und anzeigen
+        // Load and display information for the dashboard
         loadDashboardData();
     }
     
-    // Event-Listener für Buttons
+    // Event listeners for buttons
     function setupEventListeners() {
-        console.log('Event-Listener werden eingerichtet');
+        console.log('Setting up event listeners');
         
         const toggleBtn = document.getElementById('toggleBtn');
         if (toggleBtn) {
             toggleBtn.addEventListener('click', () => {
-                // Status umschalten, an Extension senden
+                // Toggle status, send to extension
                 const isEnabled = toggleBtn.getAttribute('data-enabled') === 'true';
                 sendMessageToVscode({
                     command: 'toggleAutoCommit'
                 });
             });
         } else {
-            console.log('toggleBtn nicht gefunden');
+            console.log('toggleBtn not found');
         }
         
         const commitBtn = document.getElementById('commitBtn');
         if (commitBtn) {
             commitBtn.addEventListener('click', () => {
-                // Manuellen Commit starten
+                // Start manual commit
                 sendMessageToVscode({
                     command: 'manualCommit'
                 });
             });
         } else {
-            console.log('commitBtn nicht gefunden');
+            console.log('commitBtn not found');
         }
         
         const refreshBtn = document.getElementById('refreshBtn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
-                // Dashboard aktualisieren
+                // Refresh dashboard
                 sendMessageToVscode({
                     command: 'refresh'
                 });
             });
         } else {
-            console.log('refreshBtn nicht gefunden');
+            console.log('refreshBtn not found');
         }
         
         const configureAIBtn = document.getElementById('configureAIBtn');
         if (configureAIBtn) {
             configureAIBtn.addEventListener('click', () => {
-                // KI-Provider konfigurieren
+                // Configure AI provider
                 sendMessageToVscode({
                     command: 'configureProvider'
                 });
             });
         } else {
-            console.log('configureAIBtn nicht gefunden');
+            console.log('configureAIBtn not found');
         }
         
         const configureTriggersBtn = document.getElementById('configureTriggersBtn');
         if (configureTriggersBtn) {
             configureTriggersBtn.addEventListener('click', () => {
-                // Trigger konfigurieren
+                // Configure triggers
                 sendMessageToVscode({
                     command: 'configureTriggers'
                 });
             });
         } else {
-            console.log('configureTriggersBtn nicht gefunden');
+            console.log('configureTriggersBtn not found');
         }
         
         const openSettingsBtn = document.getElementById('openSettingsBtn');
         if (openSettingsBtn) {
             openSettingsBtn.addEventListener('click', () => {
-                // Einstellungen öffnen
+                // Open settings
                 sendMessageToVscode({
                     command: 'openSettings'
                 });
             });
         } else {
-            console.log('openSettingsBtn nicht gefunden');
+            console.log('openSettingsBtn not found');
         }
     }
     
-    // Aktualisiert den Status des Toggle-Buttons
+    // Updates the status of the toggle button
     function updateToggleButton(isEnabled) {
         const toggleBtn = document.getElementById('toggleBtn');
         if (toggleBtn) {
             toggleBtn.setAttribute('data-enabled', isEnabled);
-            toggleBtn.innerHTML = `<span class="icon">${isEnabled ? '🚫' : '✅'}</span> ${isEnabled ? 'Deaktivieren' : 'Aktivieren'}`;
+            toggleBtn.innerHTML = `<span class="icon">${isEnabled ? '🚫' : '✅'}</span> ${isEnabled ? 'Disable' : 'Enable'}`;
             toggleBtn.classList.remove('processing');
             
-            // Status-Anzeige aktualisieren
+            // Update status display
             const statusElement = document.querySelector('.status');
             if (statusElement) {
                 statusElement.className = `status ${isEnabled ? 'status-enabled' : 'status-disabled'}`;
-                statusElement.innerHTML = `<strong>Status:</strong> Comitto ist derzeit ${isEnabled ? 'aktiviert' : 'deaktiviert'}`;
+                statusElement.innerHTML = `<strong>Status:</strong> Comitto is currently ${isEnabled ? 'enabled' : 'disabled'}`;
             }
         }
     }
     
-    // Fügt dem Button einen Ripple-Effekt hinzu
+    // Adds a ripple effect to the button
     function createRippleEffect(button) {
         const ripple = document.createElement('span');
         ripple.classList.add('ripple');
@@ -141,47 +141,47 @@
         
         button.appendChild(ripple);
         
-        // Ripple nach Animation entfernen
+        // Remove ripple after animation
         setTimeout(() => {
             ripple.remove();
         }, 600);
     }
     
-    // Erzeugt animierte Hintergrundblasen für den Glassmorphism-Effekt
+    // Creates animated background bubbles for the glassmorphism effect
     function createBackgroundBubbles() {
         const container = document.querySelector('.container');
         if (!container) return;
         
-        // Bubble-Container erstellen
+        // Create bubble container
         const bubbleContainer = document.createElement('div');
         bubbleContainer.classList.add('bubble-container');
         container.appendChild(bubbleContainer);
         
-        // Anzahl der Blasen basierend auf Containergröße
+        // Number of bubbles based on container size
         const containerWidth = container.clientWidth;
         const containerHeight = container.clientHeight;
         const bubbleCount = Math.floor((containerWidth * containerHeight) / 30000);
         
-        // Blasen erstellen
+        // Create bubbles
         for (let i = 0; i < bubbleCount; i++) {
             const bubble = document.createElement('div');
             bubble.classList.add('bubble');
             
-            // Zufällige Position
+            // Random position
             const x = Math.floor(Math.random() * 100);
             const y = Math.floor(Math.random() * 100);
             
-            // Zufällige Größe (10-60px)
+            // Random size (10-60px)
             const size = Math.floor(Math.random() * 50) + 10;
             
-            // Zufällige Animationsverzögerung und -dauer
+            // Random animation delay and duration
             const delay = Math.random() * 15;
             const duration = 20 + Math.random() * 20;
             
-            // Zufällige Farbe (mit sehr geringer Deckkraft)
+            // Random color (with very low opacity)
             const hue = Math.floor(Math.random() * 360);
             
-            // Stile anwenden
+            // Apply styles
             bubble.style.left = `${x}%`;
             bubble.style.top = `${y}%`;
             bubble.style.width = `${size}px`;
@@ -194,12 +194,12 @@
         }
     }
     
-    // Führt die Eingangsanimationen für die Dashboard-Elemente aus
+    // Runs entrance animations for the dashboard elements
     function runEntranceAnimations() {
-        // Alle Karten auswählen
+        // Select all cards
         const cards = document.querySelectorAll('.card');
         
-        // Animation mit Verzögerung für jede Karte
+        // Animation with delay for each card
         cards.forEach((card, index) => {
             card.style.opacity = '0';
             card.style.transform = 'translateY(20px)';
@@ -211,7 +211,7 @@
             }, 100 + (index * 150));
         });
         
-        // Header-Animation
+        // Header animation
         const header = document.querySelector('.header');
         if (header) {
             header.style.opacity = '0';
@@ -224,7 +224,7 @@
             }, 100);
         }
         
-        // Action-Buttons Animation
+        // Action buttons animation
         const actionButtons = document.querySelector('.action-buttons');
         if (actionButtons) {
             actionButtons.style.opacity = '0';
@@ -238,170 +238,182 @@
         }
     }
     
-    // Lädt aktuelle Daten für das Dashboard
+    // Loads current data for the dashboard
     function loadDashboardData() {
-        // In einer echten Implementierung würden hier Daten von der Extension abgerufen
-        // Für die Demo zeigen wir Beispieldaten an
+        // In a real implementation, data would be fetched from the extension
+        // For the demo, we display sample data
         
-        // Statusindikator aktualisieren
+        // Update status indicator
         updateChartData();
         
-        // Commit-History aktualisieren (falls vorhanden)
+        // Update commit history (if available)
         if (typeof updateCommitHistory === 'function') {
             updateCommitHistory();
         }
     }
     
-    // Aktualisiert Chart-Daten (falls vorhanden)
+    // Updates the chart data with some sample data
     function updateChartData() {
-        console.log('Versuche Chart zu aktualisieren');
-        // Prüfen, ob Charts verwendet werden
-        if (typeof Chart === 'undefined') {
-            console.log('Chart.js ist nicht verfügbar');
-            return;
+        const commitCount = document.getElementById('commitCount');
+        const fileCount = document.getElementById('fileCount');
+        const changeCount = document.getElementById('changeCount');
+        const chart = document.getElementById('chart');
+        
+        if (commitCount && fileCount && changeCount) {
+            // Sample data - in a real implementation, this would come from the extension
+            setTimeout(() => {
+                commitCount.textContent = Math.floor(Math.random() * 50) + 5;
+                fileCount.textContent = Math.floor(Math.random() * 100) + 20;
+                changeCount.textContent = Math.floor(Math.random() * 1000) + 100;
+            }, 800);
         }
         
-        // Chart-Instanzen abrufen (falls vorhanden)
-        const commitChartElement = document.getElementById('commitChart');
-        if (!commitChartElement) {
-            console.log('commitChart-Element nicht gefunden');
-            return;
-        }
-        
-        try {
-            console.log('Erstelle Commit-Chart');
-            // Beispiel für ein Chart
-            const ctx = commitChartElement.getContext('2d');
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
-                    datasets: [{
-                        label: 'Commits pro Tag',
-                        data: [5, 8, 12, 7, 10, 3, 6],
-                        borderColor: '#6366f1',
-                        backgroundColor: 'rgba(99, 102, 241, 0.2)',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.1)'
-                            }
-                        },
-                        x: {
-                            grid: {
-                                display: false
-                            }
-                        }
-                    }
-                }
-            });
-            console.log('Commit-Chart erstellt');
-        } catch (error) {
-            console.error('Fehler beim Erstellen des Charts:', error);
+        if (chart) {
+            // Create a simple SVG chart as placeholder
+            setTimeout(() => {
+                chart.innerHTML = createSimpleSVGChart();
+            }, 1000);
         }
     }
     
-    // Sendet eine Nachricht an die VS Code Extension
+    // Creates a simple SVG chart for demonstration
+    function createSimpleSVGChart() {
+        const values = [];
+        for (let i = 0; i < 7; i++) {
+            values.push(Math.floor(Math.random() * 80) + 10);
+        }
+        
+        const max = Math.max(...values);
+        const width = 100 / values.length;
+        
+        const bars = values.map((value, index) => {
+            const height = (value / max) * 100;
+            const x = index * width;
+            return `
+                <g class="bar">
+                    <rect 
+                        x="${x}%" 
+                        y="${100 - height}%" 
+                        width="${width * 0.8}%" 
+                        height="${height}%" 
+                        rx="2"
+                        fill="var(--primary-color)"
+                        opacity="0.8"
+                    />
+                </g>
+            `;
+        }).join('');
+        
+        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const labels = days.map((day, index) => {
+            const x = (index * width) + (width / 2);
+            return `
+                <text 
+                    x="${x}%" 
+                    y="100%" 
+                    text-anchor="middle" 
+                    fill="var(--text-secondary)"
+                    font-size="10"
+                >
+                    ${day}
+                </text>
+            `;
+        }).join('');
+        
+        return `
+            <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+                ${bars}
+                <g class="labels">
+                    ${labels}
+                </g>
+            </svg>
+        `;
+    }
+    
+    // Sends a message to VS Code
     function sendMessageToVscode(message) {
-        console.log('Sende Nachricht an VS Code:', message);
-        try {
-            // Prüfen, ob vscode-API verfügbar ist
-            if (typeof acquireVsCodeApi !== 'undefined') {
-                const vscode = acquireVsCodeApi();
-                vscode.postMessage(message);
-            } else {
-                console.error('VS Code API nicht verfügbar');
-            }
-        } catch (error) {
-            console.error('Fehler beim Senden der Nachricht:', error);
+        if (typeof vscode !== 'undefined') {
+            vscode.postMessage(message);
+        } else {
+            console.error('VS Code API not available');
+            // For testing outside of VS Code
+            showNotification('This would send a message to VS Code: ' + JSON.stringify(message), 'info');
         }
     }
     
-    // Nachrichtenempfang von der VSCode Extension API
+    // Process messages from VS Code
     window.addEventListener('message', event => {
         const message = event.data;
-        
         switch (message.command) {
-            case 'refreshUI':
-                // UI neu laden oder aktualisieren
-                location.reload();
+            case 'update':
+                // Update dashboard with new data
+                if (message.enabled !== undefined) {
+                    updateToggleButton(message.enabled);
+                }
+                if (message.stats) {
+                    updateStats(message.stats);
+                }
                 break;
-                
-            case 'updateStatus':
-                // Status aktualisieren
-                updateToggleButton(message.isEnabled);
-                break;
-                
             case 'showNotification':
-                // Benachrichtigung anzeigen
                 showNotification(message.text, message.type);
+                break;
+            case 'error':
+                showNotification(message.text || 'An error occurred', 'error');
                 break;
         }
     });
     
-    // Zeigt eine Benachrichtigung im Dashboard an
+    // Shows a notification in the dashboard
     function showNotification(text, type = 'info') {
-        // Prüfen, ob bereits ein Notification-Container existiert
-        let notificationContainer = document.querySelector('.notification-container');
-        
-        if (!notificationContainer) {
-            // Container erstellen
-            notificationContainer = document.createElement('div');
-            notificationContainer.classList.add('notification-container');
-            document.body.appendChild(notificationContainer);
+        // Check if notification container exists, if not create it
+        let container = document.querySelector('.notification-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.className = 'notification-container';
+            document.body.appendChild(container);
         }
         
-        // Neue Benachrichtigung erstellen
+        // Create notification element
         const notification = document.createElement('div');
-        notification.classList.add('notification', `notification-${type}`);
+        notification.className = `notification notification-${type}`;
+        
+        // Icons for different notification types
+        const icons = {
+            'info': 'ℹ️',
+            'success': '✅',
+            'error': '❌',
+            'warning': '⚠️'
+        };
+        
         notification.innerHTML = `
-            <div class="notification-icon">
-                ${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}
-            </div>
+            <div class="notification-icon">${icons[type] || icons.info}</div>
             <div class="notification-content">${text}</div>
             <button class="notification-close">×</button>
         `;
         
-        // Zum Container hinzufügen
-        notificationContainer.appendChild(notification);
+        // Add to container
+        container.appendChild(notification);
         
-        // Eingangsanimation
+        // Show with animation
         setTimeout(() => {
             notification.classList.add('show');
         }, 10);
         
-        // Schließen-Button-Handler
-        const closeButton = notification.querySelector('.notification-close');
-        if (closeButton) {
-            closeButton.addEventListener('click', () => {
+        // Close button handler
+        const closeBtn = notification.querySelector('.notification-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
                 notification.classList.remove('show');
-                
-                // Nach der Ausgangsanimation entfernen
                 setTimeout(() => {
                     notification.remove();
                 }, 300);
             });
         }
         
-        // Automatisch nach 5 Sekunden schließen
+        // Auto-remove after 5 seconds
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.classList.remove('show');
-                
                 setTimeout(() => {
                     if (notification.parentNode) {
                         notification.remove();

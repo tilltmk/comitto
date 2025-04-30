@@ -1254,7 +1254,7 @@ function generateDashboardHTML(context) {
     
     return `
     <!DOCTYPE html>
-    <html lang="de">
+    <html lang="en">
     <head>
         <meta charset="UTF-8">
         <!-- Content Security Policy -->
@@ -1280,7 +1280,7 @@ function generateDashboardHTML(context) {
                     <img src="${logoWebviewUri}" alt="Comitto Logo" class="h-12 w-12 floating-element"/>
                     <h1 class="dashboard-title typing">Comitto Dashboard</h1>
                 </div>
-                <button id="refreshBtn" class="btn btn-icon" title="Aktualisieren">
+                <button id="refreshBtn" class="btn btn-icon" title="Refresh">
                     <span class="icon">🔄</span>
                 </button>
             </div>
@@ -1288,90 +1288,90 @@ function generateDashboardHTML(context) {
             <div class="flex justify-between items-center mb-6 fade-in" style="animation-delay: 0.2s">
                 <div class="status ${enabled ? 'status-enabled' : 'status-disabled'} flex items-center">
                     <span class="status-indicator ${enabled ? 'status-active' : 'status-inactive'}"></span>
-                    <span><strong>Status:</strong> Comitto ist derzeit ${enabled ? 'aktiviert' : 'deaktiviert'}</span>
+                    <span><strong>Status:</strong> Comitto is currently ${enabled ? 'enabled' : 'disabled'}</span>
                 </div>
                 
                 <div class="flex gap-2">
-                    <button id="commitBtn" class="btn hover-lift" title="Jetzt einen Commit mit KI generieren">
-                        <span class="icon">💾</span> Manueller Commit
+                    <button id="commitBtn" class="btn hover-lift" title="Generate a commit now with AI">
+                        <span class="icon">💾</span> Manual Commit
                     </button>
-                    <button id="toggleBtn" class="btn ${enabled ? 'btn-danger' : 'btn-secondary'} hover-lift" data-enabled="${enabled}" title="Automatische Commits an-/ausschalten">
-                        <span class="icon">${enabled ? '🚫' : '✅'}</span> ${enabled ? 'Deaktivieren' : 'Aktivieren'}
+                    <button id="toggleBtn" class="btn ${enabled ? 'btn-danger' : 'btn-secondary'} hover-lift" data-enabled="${enabled}" title="Toggle automatic commits">
+                        <span class="icon">${enabled ? '🚫' : '✅'}</span> ${enabled ? 'Disable' : 'Enable'}
                     </button>
                 </div>
             </div>
             
             <div class="dashboard fade-in" style="animation-delay: 0.4s">
-                <!-- KI-Konfiguration -->
+                <!-- AI Configuration -->
                 <div class="card interactive">
                     <div class="card-header">
                         <h2 class="card-title">
-                            <span class="icon">${providerIcon.id ? `$(${providerIcon.id})` : '🧠'}</span> KI-Konfiguration
+                            <span class="icon">${providerIcon.id ? `$(${providerIcon.id})` : '🧠'}</span> AI Configuration
                         </h2>
                         <span class="badge badge-primary">
                             ${providerName}
                         </span>
                     </div>
                     <div class="card-content">
-                        <p class="mb-2"><strong>Modell:</strong> ${providerModel || 'Nicht gesetzt'}</p>
+                        <p class="mb-2"><strong>Model:</strong> ${providerModel || 'Not set'}</p>
                         <div class="flex justify-center mt-4">
                             <button id="configureAIBtn" class="btn btn-secondary hover-lift">
-                                <span class="icon">⚙️</span> KI konfigurieren
+                                <span class="icon">⚙️</span> Configure AI
                             </button>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Trigger-Regeln -->
+                <!-- Trigger Rules -->
                 <div class="card interactive">
                     <div class="card-header">
                         <h2 class="card-title">
-                            <span class="icon">⚙️</span> Trigger-Regeln
+                            <span class="icon">⚙️</span> Trigger Rules
                         </h2>
                         <span class="badge ${rules.onSave || rules.onInterval ? 'badge-success' : 'badge-danger'}">
-                            ${rules.onSave || rules.onInterval ? 'Aktiv' : 'Inaktiv'}
+                            ${rules.onSave || rules.onInterval ? 'Active' : 'Inactive'}
                         </span>
                     </div>
                     <div class="card-content">
                         <div class="grid grid-cols-2 gap-2 mb-3">
                             <div>
-                                <p><strong>Datei-Anzahl:</strong></p>
+                                <p><strong>File Count:</strong></p>
                                 <span class="badge">${rules.fileCountThreshold}</span>
                             </div>
                             <div>
-                                <p><strong>Änderungs-Anzahl:</strong></p>
+                                <p><strong>Change Count:</strong></p>
                                 <span class="badge">${rules.minChangeCount}</span>
                             </div>
                             <div>
-                                <p><strong>Zeit-Schwellwert:</strong></p>
+                                <p><strong>Time Threshold:</strong></p>
                                 <span class="badge">${rules.timeThresholdMinutes} Min.</span>
                             </div>
                             <div>
-                                <p><strong>Aktive Trigger:</strong></p>
+                                <p><strong>Active Triggers:</strong></p>
                                 <div class="flex flex-wrap gap-1">
-                                    ${rules.onSave ? '<span class="badge badge-success">Speichern</span>' : ''}
-                                    ${rules.onInterval ? `<span class="badge badge-success">Intervall (${rules.intervalMinutes} Min.)</span>` : ''}
-                                    ${rules.onBranchSwitch ? '<span class="badge badge-success">Branch-Wechsel</span>' : ''}
-                                    ${!rules.onSave && !rules.onInterval && !rules.onBranchSwitch ? '<span class="badge badge-danger">Keine</span>' : ''}
+                                    ${rules.onSave ? '<span class="badge badge-success">On Save</span>' : ''}
+                                    ${rules.onInterval ? `<span class="badge badge-success">Interval (${rules.intervalMinutes} Min.)</span>` : ''}
+                                    ${rules.onBranchSwitch ? '<span class="badge badge-success">Branch Switch</span>' : ''}
+                                    ${!rules.onSave && !rules.onInterval && !rules.onBranchSwitch ? '<span class="badge badge-danger">None</span>' : ''}
                                 </div>
                             </div>
                         </div>
                         <div class="flex justify-center">
                             <button id="configureTriggersBtn" class="btn btn-secondary hover-lift">
-                                <span class="icon">⚙️</span> Trigger konfigurieren
+                                <span class="icon">⚙️</span> Configure Triggers
                             </button>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Git-Einstellungen -->
+                <!-- Git Settings -->
                 <div class="card interactive">
                     <div class="card-header">
                         <h2 class="card-title">
-                            <span class="icon">📝</span> Git-Einstellungen
+                            <span class="icon">📝</span> Git Settings
                         </h2>
                         <span class="badge badge-primary">
-                            ${gitSettings.commitMessageLanguage === 'de' ? 'Deutsch' : 'Englisch'}
+                            ${gitSettings.commitMessageLanguage === 'de' ? 'German' : 'English'}
                         </span>
                     </div>
                     <div class="card-content">
@@ -1379,58 +1379,80 @@ function generateDashboardHTML(context) {
                             <div>
                                 <p><strong>Auto-Push:</strong></p>
                                 <span class="badge ${gitSettings.autoPush ? 'badge-success' : 'badge-danger'}">
-                                    ${gitSettings.autoPush ? 'Ja' : 'Nein'}
+                                    ${gitSettings.autoPush ? 'Yes' : 'No'}
                                 </span>
                             </div>
                             <div>
                                 <p><strong>Branch:</strong></p>
                                 <span class="badge tooltip">
-                                    ${gitSettings.branch || 'Aktueller Branch'}
-                                    <span class="tooltip-text">Aktiv für ${gitSettings.branch || 'aktuellen Branch'}</span>
+                                    ${gitSettings.branch || 'Current Branch'}
+                                    <span class="tooltip-text">Active for ${gitSettings.branch || 'current branch'}</span>
                                 </span>
                             </div>
                             <div>
-                                <p><strong>Commit-Stil:</strong></p>
+                                <p><strong>Commit Style:</strong></p>
                                 <span class="badge">${gitSettings.commitMessageStyle}</span>
                             </div>
                             <div>
-                                <p><strong>Staging-Modus:</strong></p>
+                                <p><strong>Staging Mode:</strong></p>
                                 <span class="badge">${ui.getStageModeLabel(gitSettings.stageMode)}</span>
                             </div>
                         </div>
                         <div class="flex justify-center">
                             <button id="openSettingsBtn" class="btn btn-secondary hover-lift">
-                                <span class="icon">🔧</span> Alle Einstellungen
+                                <span class="icon">⚙️</span> Configure Git Settings
                             </button>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Aktivitätsübersicht -->
+                <!-- Statistics (Placeholder) -->
                 <div class="card">
                     <div class="card-header">
                         <h2 class="card-title">
-                            <span class="icon">📊</span> Aktivitätsübersicht
+                            <span class="icon">📊</span> Statistics
                         </h2>
+                        <span class="badge badge-primary" id="statsTimeframe">Last 7 Days</span>
                     </div>
                     <div class="card-content">
-                        <div class="h-40">
-                            <canvas id="commitChart"></canvas>
+                        <div id="statsContainer" class="text-center">
+                            <div class="flex justify-around mb-4">
+                                <div>
+                                    <h3 class="text-xl font-bold" id="commitCount">-</h3>
+                                    <p class="text-sm text-gray-400">Commits</p>
+                                </div>
+                                <div>
+                                    <h3 class="text-xl font-bold" id="fileCount">-</h3>
+                                    <p class="text-sm text-gray-400">Files Changed</p>
+                                </div>
+                                <div>
+                                    <h3 class="text-xl font-bold" id="changeCount">-</h3>
+                                    <p class="text-sm text-gray-400">Lines Changed</p>
+                                </div>
+                            </div>
+                            <div id="chart" class="h-40">
+                                <!-- Chart will be inserted here -->
+                                <div class="flex items-center justify-center h-full">
+                                    <p class="text-gray-400 loading-dots">Loading statistics</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
             
-            <div class="flex justify-center mt-4 fade-in" style="animation-delay: 0.8s">
-                <div class="badge">Comitto v${version}</div>
+            <div class="mt-6 text-center text-sm text-gray-500 fade-in" style="animation-delay: 0.6s">
+                <p>Comitto v${version} • <span class="hover-underline tooltip">Made with ❤️<span class="tooltip-text">Thank you for using Comitto!</span></span></p>
             </div>
         </div>
         
-        <!-- Chart.js (optional) -->
-        <script nonce="${nonce}" src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
-        
-        <!-- Dashboard JavaScript -->
+        <!-- Custom script with nonce -->
         <script nonce="${nonce}" src="${dashboardJsWebviewUri}"></script>
+        
+        <script nonce="${nonce}">
+            // Initialize VS Code API
+            const vscode = acquireVsCodeApi();
+        </script>
     </body>
     </html>
     `;

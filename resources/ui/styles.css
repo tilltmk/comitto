@@ -1,17 +1,19 @@
 :root {
-  --primary-color: #6366f1;
-  --primary-hover: #818cf8;
+  --primary-color: #1a1a1a;
+  --primary-hover: #2c2c2c;
   --secondary-color: #10b981;
-  --accent-color: #f472b6;
+  --accent-color: #4a4a4a;
   --text-primary: #f9fafb;
   --text-secondary: #e5e7eb;
-  --background-light: rgba(255, 255, 255, 0.1);
-  --background-dark: rgba(17, 24, 39, 0.8);
-  --border-color: rgba(255, 255, 255, 0.125);
-  --shadow-color: rgba(0, 0, 0, 0.2);
-  --shadow-color-strong: rgba(0, 0, 0, 0.35);
+  --background-light: rgba(40, 40, 40, 0.2);
+  --background-dark: rgba(15, 15, 15, 0.95);
+  --border-color: rgba(70, 70, 70, 0.3);
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --shadow-color-strong: rgba(0, 0, 0, 0.45);
   --font-primary: 'Inter', 'Segoe UI', sans-serif;
   --transition-speed: 0.3s;
+  --dashboard-gradient-start: #0f0f0f;
+  --dashboard-gradient-end: #1e1e1e;
 }
 
 /* Basis-Styles */
@@ -53,8 +55,8 @@ body {
   height: 200%;
   background: radial-gradient(
     circle,
-    rgba(99, 102, 241, 0.1) 0%,
-    rgba(99, 102, 241, 0) 70%
+    rgba(50, 50, 50, 0.1) 0%,
+    rgba(15, 15, 15, 0) 70%
   );
   transform: rotate(-30deg);
   z-index: -1;
@@ -136,6 +138,7 @@ body {
   transition: all var(--transition-speed);
   position: relative;
   overflow: hidden;
+  background: linear-gradient(145deg, rgba(30, 30, 30, 0.7), rgba(20, 20, 20, 0.9));
 }
 
 .card:hover {
@@ -274,6 +277,10 @@ input:focus, select:focus {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1.5rem;
+  background: linear-gradient(135deg, var(--dashboard-gradient-start), var(--dashboard-gradient-end));
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 8px 25px var(--shadow-color-strong);
 }
 
 .dashboard-header {
@@ -282,6 +289,8 @@ input:focus, select:focus {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 1rem;
 }
 
 .dashboard-title {
@@ -291,6 +300,8 @@ input:focus, select:focus {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  color: var(--text-primary);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 /* Animationen */
@@ -402,14 +413,18 @@ input:focus, select:focus {
 
 /* Dark Mode Anpassung für VSCode */
 .vscode-dark {
-  --background-light: rgba(255, 255, 255, 0.07);
-  --background-dark: rgba(17, 24, 39, 0.95);
+  --background-light: rgba(40, 40, 40, 0.2);
+  --background-dark: rgba(15, 15, 15, 0.95);
+  --dashboard-gradient-start: #0f0f0f;
+  --dashboard-gradient-end: #1e1e1e;
 }
 
 .vscode-light {
   --text-primary: #1f2937;
   --text-secondary: #4b5563;
-  --background-light: rgba(255, 255, 255, 0.7);
-  --background-dark: rgba(255, 255, 255, 0.9);
+  --background-light: rgba(245, 245, 245, 0.7);
+  --background-dark: rgba(230, 230, 230, 0.9);
   --border-color: rgba(17, 24, 39, 0.1);
+  --dashboard-gradient-start: #e0e0e0;
+  --dashboard-gradient-end: #f5f5f5;
 } 

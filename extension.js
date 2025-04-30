@@ -11,6 +11,11 @@ const os = require('os');
 const { WebviewPanel } = require('vscode');
 
 /**
+ * @type {vscode.OutputChannel}
+ */
+let outputChannel;
+
+/**
  * @type {vscode.StatusBarItem}
  */
 let statusBarItem;
@@ -76,19 +81,8 @@ function addDebugLog(message, type = 'info') {
                          console.log;
     consoleMethod(`[Comitto Debug] ${message}`);
     
-    // Webview aktualisieren, falls das Dashboard offen ist
-    try {
-        vscode.window.webviews.forEach(webview => {
-            if (webview.viewType === 'comittoDashboard' && webview.visible) {
-                webview.postMessage({ 
-                    type: 'debugLog', 
-                    content: `[${type.toUpperCase()}] ${message}` 
-                });
-            }
-        });
-    } catch (error) {
-        console.error('Fehler beim Senden des Debug-Logs an das Dashboard:', error);
-    }
+    // Auf Webview-Updates verzichten, da dies Fehler verursacht
+    // Stattdessen werden wir die Debug-Logs beim Öffnen des Dashboards aktualisieren
 }
 
 /**

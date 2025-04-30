@@ -2,7 +2,7 @@
   "name": "comitto",
   "displayName": "Comitto",
   "description": "Automatisierte Git-Commits mit KI-generierten Commit-Nachrichten",
-  "version": "0.9.8",
+  "version": "1.3.0",
   "publisher": "tilltmk",
   "repository": {
     "type": "git",
@@ -63,79 +63,79 @@
     "viewsWelcome": [
       {
         "view": "comitto-status",
-        "contents": "Kein Git-Repository gefunden.\n[Git-Repository initialisieren](command:git.init)",
+        "contents": "No Git repository found.\n[Initialize Git repository](command:git.init)",
         "when": "!workspaceHasGit"
       },
       {
         "view": "comitto-quick-actions",
-        "contents": "Kein Git-Repository gefunden.\n[Git-Repository initialisieren](command:git.init)",
+        "contents": "No Git repository found.\n[Initialize Git repository](command:git.init)",
         "when": "!workspaceHasGit"
       },
       {
         "view": "comitto-settings",
-        "contents": "Kein Git-Repository gefunden.\n[Git-Repository initialisieren](command:git.init)",
+        "contents": "No Git repository found.\n[Initialize Git repository](command:git.init)",
         "when": "!workspaceHasGit"
       }
     ],
     "commands": [
       {
         "command": "comitto.enableAutoCommit",
-        "title": "Comitto: Automatische Commits aktivieren",
+        "title": "Comitto: Enable Automatic Commits",
         "icon": "$(check)"
       },
       {
         "command": "comitto.disableAutoCommit",
-        "title": "Comitto: Automatische Commits deaktivieren",
+        "title": "Comitto: Disable Automatic Commits",
         "icon": "$(circle-slash)"
       },
       {
         "command": "comitto.toggleAutoCommit",
-        "title": "Comitto: Automatische Commits umschalten",
+        "title": "Comitto: Toggle Automatic Commits",
         "icon": "$(git-commit)"
       },
       {
         "command": "comitto.performManualCommit",
-        "title": "Comitto: Manuellen KI-Commit ausführen",
+        "title": "Comitto: Perform Manual AI Commit",
         "icon": "$(git-commit)"
       },
       {
         "command": "comitto.refreshSettings",
-        "title": "Comitto: Einstellungen aktualisieren",
+        "title": "Comitto: Refresh Settings",
         "icon": "$(refresh)"
       },
       {
         "command": "comitto.openSettings",
-        "title": "Comitto: Einstellungen öffnen",
+        "title": "Comitto: Open Settings",
         "icon": "$(gear)"
       },
       {
         "command": "comitto.showDashboard",
-        "title": "Comitto: Dashboard anzeigen",
+        "title": "Comitto: Show Dashboard",
         "icon": "$(dashboard)"
       },
       {
         "command": "comitto.configureAIProvider",
-        "title": "Comitto: KI-Provider konfigurieren",
+        "title": "Comitto: Configure AI Provider",
         "icon": "$(symbol-misc)"
       },
       {
         "command": "comitto.configureTriggers",
-        "title": "Comitto: Trigger konfigurieren",
+        "title": "Comitto: Configure Triggers",
         "icon": "$(settings-gear)"
       },
       {
         "command": "comitto.showSimpleUI",
-        "title": "Comitto: Einfache Benutzeroberfläche anzeigen",
+        "title": "Comitto: Show Simple User Interface",
         "icon": "$(rocket)"
       },
       {
         "command": "comitto.stageAll",
-        "title": "Comitto: Alle Änderungen stagen",
+        "title": "Comitto: Stage All Changes",
         "icon": "$(add)"
       },
       {
         "command": "comitto.stageSelected",
-        "title": "Comitto: Ausgewählte Dateien stagen",
+        "title": "Comitto: Stage Selected Files",
         "icon": "$(checklist)"
       }
     ],
@@ -208,7 +208,7 @@
         "comitto.autoCommitEnabled": {
           "type": "boolean",
           "default": false,
-          "description": "Automatische Commits aktivieren"
+          "description": "Enable automatic commits"
         },
         "comitto.triggerRules": {
           "type": "object",
@@ -225,7 +225,7 @@
             ],
             "specificFiles": []
           },
-          "description": "Regeln für den Auslöser von automatischen Commits"
+          "description": "Rules for triggering automatic commits"
         },
         "comitto.gitSettings": {
           "type": "object",
@@ -242,7 +242,7 @@
             "commitMessageLanguage": "en",
             "maxCommitAttempts": 3
           },
-          "description": "Git-Einstellungen für Comitto"
+          "description": "Git settings for Comitto"
         },
         "comitto.aiProvider": {
           "type": "string",
@@ -252,7 +252,7 @@
             "ollama"
           ],
           "default": "openai",
-          "description": "KI-Provider für Commit-Nachrichtengenerierung"
+          "description": "AI provider for commit message generation"
         },
         "comitto.openai": {
           "type": "object",
@@ -260,7 +260,7 @@
             "apiKey": "",
             "model": "gpt-3.5-turbo"
           },
-          "description": "OpenAI API-Einstellungen"
+          "description": "OpenAI API settings"
         },
         "comitto.ollama": {
           "type": "object",
@@ -268,7 +268,7 @@
             "endpoint": "http://localhost:11434/api/generate",
             "model": "llama3"
           },
-          "description": "Ollama API-Einstellungen"
+          "description": "Ollama API settings"
         },
         "comitto.anthropic": {
           "type": "object",
@@ -276,12 +276,12 @@
             "apiKey": "",
             "model": "claude-3-haiku-20240307"
           },
-          "description": "Anthropic API-Einstellungen"
+          "description": "Anthropic API settings"
         },
         "comitto.promptTemplate": {
           "type": "string",
-          "default": "Generiere eine aussagekräftige Commit-Nachricht auf Deutsch im Format der Conventional Commits oder mit einem passenden Emoji am Anfang.\nHalte sie unter 80 Zeichen. Hier sind die Änderungen:\n\n{changes}",
-          "description": "Vorlage für den KI-Prompt zur Generierung der Commit-Nachricht"
+          "default": "Generate a meaningful commit message in English following the Conventional Commits format or with a suitable emoji at the beginning.\nKeep it under 80 characters. Here are the changes:\n\n{changes}",
+          "description": "Template for the AI prompt used to generate commit messages"
         },
         "comitto.uiSettings": {
           "type": "object",
@@ -291,7 +291,7 @@
             "showNotifications": true,
             "theme": "auto"
           },
-          "description": "UI-Einstellungen für Comitto"
+          "description": "UI settings for Comitto"
         },
         "comitto.notifications": {
           "type": "object",
@@ -301,7 +301,7 @@
             "onError": true,
             "onTriggerFired": false
           },
-          "description": "Benachrichtigungseinstellungen"
+          "description": "Notification settings"
         },
         "comitto.debug": {
           "type": "object",
@@ -310,7 +310,7 @@
             "extendedLogging": false,
             "commitDiagnostics": false
           },
-          "description": "Debug-Einstellungen für Comitto"
+          "description": "Debug settings for Comitto"
         }
       }
     }

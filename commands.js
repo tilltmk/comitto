@@ -35,7 +35,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 // Statusleiste aktualisieren
                 updateStatusBarProgress(statusBarItem, 'Aktiv', 100, 'Automatische Commits aktiviert');
                 showNotification('Automatische Commits aktiviert', 'info');
-                
+                 
                 // UI-Provider aktualisieren
                 if (providers) {
                     providers.statusProvider.refresh();

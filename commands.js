@@ -634,124 +634,75 @@ async function handleEditPromptTemplateCommand() {
  */
 async function handleShowDashboardCommand(context) {
     try {
-        // Neues Panel erstellen
-        const panel = vscode.window.createWebviewPanel(
-            'comittoDashboard',
-            'Comitto Dashboard',
-            vscode.ViewColumn.One,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [
-                    vscode.Uri.joinPath(context.extensionUri, 'resources')
-                ]
-            }
-        );
+        // Neues Panel erstellen oder bestehendes anzeigen
+        let panel = context.globalState.get('comittoDashboardPanelInstance');
         
-        // Nachrichten vom Webview verarbeiten
-        panel.webview.onDidReceiveMessage(
-            async (message) => {
-                try {
-                    switch (message.command) {
-                        case 'refresh':
-                            try {
-                                panel.webview.html = generateDashboardHTML(context);
-                            } catch (error) {
-                                console.error('Fehler beim Aktualisieren des Dashboards:', error);
-                                vscode.window.showErrorMessage(`Fehler beim Aktualisieren des Dashboards: ${error.message}`);
-                            }
-                            break;
-                        case 'toggleAutoCommit':
-                            try {
-                                const config = vscode.workspace.getConfiguration('comitto');
-                                const enabled = !config.get('autoCommitEnabled');
-                                await config.update('autoCommitEnabled', enabled, vscode.ConfigurationTarget.Global);
-                                panel.webview.html = generateDashboardHTML(context);
-                            } catch (error) {
-                                console.error('Fehler beim Umschalten des Auto-Commit-Status:', error);
-                                vscode.window.showErrorMessage(`Fehler beim Umschalten des Auto-Commit-Status: ${error.message}`);
-                            }
-                            break;
-                        case 'manualCommit':
-                            vscode.commands.executeCommand('comitto.performManualCommit');
-                            break;
-                        case 'openSettings':
-                            vscode.commands.executeCommand('comitto.openSettings');
-                            break;
-                        case 'configureProvider':
-                            vscode.commands.executeCommand('comitto.configureAIProvider');
-                            break;
-                        case 'configureTriggers':
-                            vscode.commands.executeCommand('comitto.configureTriggers');
-                            break;
-                        // Debug-Befehle
-                        case 'debugForceCommit':
-                            // Log zum Panel senden
-                            panel.webview.postMessage({ 
-                                type: 'debugLog', 
-                                content: 'Force Commit wird ausgeführt...' 
-                            });
-                            
-                            try {
-                                // Commit ohne Validierung erzwingen
-                                await vscode.commands.executeCommand('comitto.performManualCommit');
-                                panel.webview.postMessage({ 
-                                    type: 'debugLog', 
-                                    content: 'Force Commit erfolgreich durchgeführt.' 
-                                });
-                            } catch (error) {
-                                console.error('Debug Force Commit fehlgeschlagen:', error);
-                                panel.webview.postMessage({ 
-                                    type: 'debugLog', 
-                                    content: `Fehler: ${error.message}` 
-                                });
-                            }
-                            break;
-                        case 'debugViewChangedFiles':
-                            // Liste der aktuell beobachteten Dateien an das Panel senden
-                            panel.webview.postMessage({ 
-                                type: 'changedFiles', 
-                                files: Array.from(changedFiles) 
-                            });
-                            break;
-                    }
-                } catch (error) {
-                    console.error('Fehler bei der Verarbeitung des Dashboard-Befehls:', error);
-                    panel.webview.postMessage({ 
-                        type: 'debugLog', 
-                        content: `Fehler bei der Befehlsverarbeitung: ${error.message}` 
-                    });
+        if (panel) {
+            panel.reveal(vscode.ViewColumn.One);
+        } else {
+            panel = vscode.window.createWebviewPanel(
+                'comittoDashboard',
+                'Comitto Dashboard',
+                vscode.ViewColumn.One,
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true, // Panel im Hintergrund halten
+                    localResourceRoots: [
+                        vscode.Uri.joinPath(context.extensionUri, 'resources')
+                    ]
                 }
-            },
-            undefined,
-            context.subscriptions
-        );
-
-        // HTML für das Webview generieren und setzen
-        console.log('Setze Dashboard-HTML');
-        try {
-            panel.webview.html = generateDashboardHTML(context);
-        } catch (error) {
-            console.error('Fehler beim Generieren des Dashboard-HTML:', error);
-            vscode.window.showErrorMessage(`Fehler beim Öffnen des Dashboards: ${error.message}`);
+            );
             
-            // Fallback-HTML setzen
-            panel.webview.html = `
-                <html>
-                <head>
-                    <style>
-                        body { font-family: Arial, sans-serif; padding: 20px; }
-                        .error { color: red; }
-                    </style>
-                </head>
-                <body>
-                    <h1>Fehler beim Laden des Dashboards</h1>
-                    <p class="error">${error.message}</p>
-                    <p>Bitte schließen Sie das Dashboard und versuchen Sie es erneut zu öffnen.</p>
-                </body>
-                </html>
-            `;
+            // Panel speichern
+            context.globalState.update('comittoDashboardPanelInstance', panel);
+            
+            // Beim Schließen das Panel aus dem State entfernen
+            panel.onDidDispose(
+                () => {
+                    context.globalState.update('comittoDashboardPanelInstance', undefined);
+                    panel = undefined;
+                },
+                null,
+                context.subscriptions
+            );
+            
+            // Nachrichtenhandler hinzufügen (vereinfacht)
+            panel.webview.onDidReceiveMessage(
+                message => {
+                    console.log("Nachricht vom Dashboard erhalten:", message);
+                    if (message.command === 'test') {
+                        vscode.window.showInformationMessage('Testnachricht vom Dashboard!');
+                    }
+                },
+                undefined,
+                context.subscriptions
+            );
         }
+
+        // Minimales HTML setzen zum Testen
+        panel.webview.html = `
+            <!DOCTYPE html>
+            <html lang="de">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Comitto Dashboard Test</title>
+            </head>
+            <body>
+                <h1>Comitto Dashboard Test</h1>
+                <p>Wenn Sie dies sehen, funktioniert das Panel.</p>
+                <button id="testButton">Testnachricht senden</button>
+                
+                <script>
+                    const vscode = acquireVsCodeApi();
+                    document.getElementById('testButton').addEventListener('click', () => {
+                        vscode.postMessage({ command: 'test' });
+                    });
+                </script>
+            </body>
+            </html>
+        `;
+        
     } catch (error) {
         console.error('Fehler beim Öffnen des Dashboards:', error);
         vscode.window.showErrorMessage(`Fehler beim Öffnen des Comitto-Dashboards: ${error.message}`);

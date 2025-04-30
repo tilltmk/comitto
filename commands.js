@@ -3,6 +3,9 @@ const ui = require('./ui'); // Importiere UI-Modul für Hilfsfunktionen
 const { executeGitCommand } = require('./utils'); // Annahme: executeGitCommand ist in utils.js
 const axios = require('axios');
 
+// Globale Variable für die Statusleiste, wird in registerCommands gesetzt
+global.statusBarItem = null;
+
 /**
  * Registriert die Befehle für die UI-Interaktionen
  * @param {vscode.ExtensionContext} context 
@@ -14,6 +17,11 @@ const axios = require('axios');
  * @param {Function} showNotification Funktion zum Anzeigen von Benachrichtigungen
  */
 function registerCommands(context, providers, statusBarItem, setupFileWatcher, disableFileWatcher, performAutoCommit, showNotification) {
+    // Globale Statusleiste setzen
+    global.statusBarItem = statusBarItem;
+    // Globale showNotification-Funktion setzen
+    global.showNotification = showNotification;
+    
     // #region Kernbefehle (vorher in extension.js)
 
     // Befehl zum Öffnen der Einstellungen
@@ -1829,7 +1837,7 @@ async function configureOllamaSettings() {
             // Fehlerhafte Konfiguration zurücksetzen
             await config.update('ollama-model', undefined, vscode.ConfigurationTarget.Global);
             
-            showNotification('Korrektur der Ollama-Modell-Konfiguration durchgeführt.', 'info');
+            vscode.window.showInformationMessage('Korrektur der Ollama-Modell-Konfiguration durchgeführt.');
         }
         
         // Ollama-Einstellungen abrufen
@@ -1851,8 +1859,8 @@ async function configureOllamaSettings() {
         
         if (selected.id === 'model') {
             // Statusleiste aktualisieren
-            if (statusBarItem) {
-                statusBarItem.text = "$(sync~spin) Comitto: Lade verfügbare Modelle...";
+            if (global.statusBarItem) {
+                global.statusBarItem.text = "$(sync~spin) Comitto: Lade verfügbare Modelle...";
             }
             
             // Verfügbare Modelle von Ollama abrufen
@@ -1861,15 +1869,15 @@ async function configureOllamaSettings() {
                 const response = await axios.get(`${currentEndpoint}/api/tags`);
                 if (response.data && response.data.models) {
                     availableModels = response.data.models.map(model => model.name);
-                    showNotification(`${availableModels.length} Ollama-Modelle gefunden.`, 'info');
+                    vscode.window.showInformationMessage(`${availableModels.length} Ollama-Modelle gefunden.`);
                 }
             } catch (error) {
                 console.error('Fehler beim Abrufen der Ollama-Modelle:', error);
-                showNotification(`Keine Ollama-Modelle gefunden: ${error.message}. Verwende Standard-Liste.`, 'warning');
+                vscode.window.showWarningMessage(`Keine Ollama-Modelle gefunden: ${error.message}. Verwende Standard-Liste.`);
             } finally {
                 // Statusleiste zurücksetzen
-                if (statusBarItem) {
-                    statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+                if (global.statusBarItem) {
+                    global.statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
                 }
             }
             
@@ -1914,13 +1922,13 @@ async function configureOllamaSettings() {
                         const ollamaConfig = config.get('ollama') || {};
                         ollamaConfig.model = customModel;
                         await config.update('ollama', ollamaConfig, vscode.ConfigurationTarget.Global);
-                        showNotification(`Ollama-Modell auf "${customModel}" gesetzt.`, 'info');
+                        vscode.window.showInformationMessage(`Ollama-Modell auf "${customModel}" gesetzt.`);
                     }
                 } else {
                     const ollamaConfig = config.get('ollama') || {};
                     ollamaConfig.model = result.label;
                     await config.update('ollama', ollamaConfig, vscode.ConfigurationTarget.Global);
-                    showNotification(`Ollama-Modell auf "${result.label}" gesetzt.`, 'info');
+                    vscode.window.showInformationMessage(`Ollama-Modell auf "${result.label}" gesetzt.`);
                 }
             }
         } else if (selected.id === 'endpoint') {
@@ -1933,20 +1941,20 @@ async function configureOllamaSettings() {
             if (endpoint) {
                 // Einfache Validierung
                 if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
-                    showNotification('Der Endpoint sollte mit http:// oder https:// beginnen.', 'warning');
+                    vscode.window.showWarningMessage('Der Endpoint sollte mit http:// oder https:// beginnen.');
                     return false;
                 }
                 
                 const ollamaConfig = config.get('ollama') || {};
                 ollamaConfig.endpoint = endpoint;
                 await config.update('ollama', ollamaConfig, vscode.ConfigurationTarget.Global);
-                showNotification(`Ollama-Endpoint auf "${endpoint}" gesetzt.`, 'info');
+                vscode.window.showInformationMessage(`Ollama-Endpoint auf "${endpoint}" gesetzt.`);
             }
         }
         
         return true;
     } catch (error) {
-        showNotification(`Fehler bei der Ollama-Konfiguration: ${error.message}`, 'error');
+        vscode.window.showErrorMessage(`Fehler bei der Ollama-Konfiguration: ${error.message}`);
         return false;
     }
 }
@@ -2255,25 +2263,9 @@ async function handleConfigureTriggersCommand(context, providers) {
     }
 }
 
+// Notwendige Exporte für externe Module
 module.exports = {
     registerCommands,
-    handleSelectThemeCommand,
-    handleStageSelectedCommand,
-    handleStageAllCommand,
-    handleOpenAIModelSelectionCommand, // Sicherstellen, dass diese Funktion exportiert wird
-    handleCommitMessageLanguageCommand,
-    handleConfigureTriggersCommand,
-    showSimpleUI,
-    generateSimpleUIHTML,
-    generateDashboardHTML,
-    handleSelectStageModeCommand,
-    handleEditStagingPatternsCommand,
-    handleToggleGitSettingCommand,
-    handleToggleUISettingCommand,
-    handleToggleNotificationSettingCommand,
-    handleConfigureAIProviderCommand,
-    handleEditOpenAIKeyCommand,
-    handleSelectAnthropicModelCommand,
-    handleEditAnthropicKeyCommand,
-    handleEditPromptTemplateCommand
+    generateCommitMessage,
+    handleError
 }; 

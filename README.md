@@ -24,33 +24,21 @@ Comitto is a VS Code extension that automatically generates commit messages usin
 ## Screenshots
 
 <p align="center">
-  <img src="screenshots/Screenshot1.png" alt="Comitto Interface" width="700"/>
+  <img src="screenshots/1.png" alt="Comitto Main Interface" width="800"/>
   <br>
-  <em>Main Interface</em>
+  <em>Comitto Main Interface with Status View</em>
 </p>
 
 <p align="center">
-  <img src="screenshots/Screenshot2.png" alt="Settings Panel" width="700"/>
+  <img src="screenshots/2.png" alt="Comitto Settings Panel" width="800"/>
   <br>
-  <em>Configuration Panel</em>
+  <em>Advanced Configuration Options</em>
 </p>
 
 <p align="center">
-  <img src="screenshots/Screenshot3.png" alt="Commit Process" width="700"/>
+  <img src="screenshots/3.png" alt="Commit Process" width="800"/>
   <br>
-  <em>Commit Process</em>
-</p>
-
-<p align="center">
-  <img src="screenshots/Screenshot4.png" alt="AI Provider Settings" width="700"/>
-  <br>
-  <em>AI Provider Settings</em>
-</p>
-
-<p align="center">
-  <img src="screenshots/Screenshot5.png" alt="Status Display" width="700"/>
-  <br>
-  <em>Status Display</em>
+  <em>AI-Generated Commit Process</em>
 </p>
 
 ## Prerequisites

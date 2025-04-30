@@ -1,0 +1,154 @@
+/* Comitto Dashboard CSS */
+
+body {
+    font-family: var(--vscode-font-family);
+    background-color: var(--vscode-editor-background);
+    color: var(--vscode-foreground);
+    padding: 20px;
+    margin: 0;
+}
+
+h1 {
+    font-size: 1.8em;
+    margin-bottom: 20px;
+    color: var(--vscode-foreground);
+    border-bottom: 1px solid var(--vscode-panel-border);
+    padding-bottom: 10px;
+}
+
+.dashboard-container {
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+}
+
+.section {
+    margin-bottom: 30px;
+    background-color: var(--vscode-sideBar-background);
+    border-radius: 6px;
+    padding: 15px;
+    box-shadow: 0 2px 6px var(--vscode-widget-shadow);
+}
+
+.section-title {
+    font-size: 1.3em;
+    font-weight: bold;
+    margin-bottom: 15px;
+    color: var(--vscode-sideBarTitle-foreground);
+    border-bottom: 1px solid var(--vscode-panel-border);
+    padding-bottom: 8px;
+}
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.setting-card {
+    background-color: var(--vscode-editor-inactiveSelectionBackground);
+    border-radius: 4px;
+    padding: 12px;
+    transition: background-color 0.2s;
+}
+
+.setting-card:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.setting-name {
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: var(--vscode-editor-foreground);
+}
+
+.setting-value {
+    opacity: 0.8;
+    color: var(--vscode-descriptionForeground);
+}
+
+.actions-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+button {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-right: 5px;
+    margin-bottom: 5px;
+    font-size: 13px;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+.status-indicator {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: bold;
+    margin: 10px 0;
+}
+
+.status-enabled {
+    background-color: var(--vscode-testing-iconPassed);
+    color: white;
+}
+
+.status-disabled {
+    background-color: var(--vscode-testing-iconFailed);
+    color: white;
+}
+
+.error-message {
+    background-color: var(--vscode-inputValidation-errorBackground);
+    color: var(--vscode-inputValidation-errorForeground);
+    border: 1px solid var(--vscode-inputValidation-errorBorder);
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin: 10px 0;
+    text-align: left;
+}
+
+.info-message {
+    background-color: var(--vscode-inputValidation-infoBackground);
+    color: var(--vscode-inputValidation-infoForeground);
+    border: 1px solid var(--vscode-inputValidation-infoBorder);
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin: 10px 0;
+    text-align: left;
+}
+
+.trigger-menu {
+    min-width: 220px;
+}
+
+.trigger-menu-item {
+    transition: background-color 0.2s;
+}
+
+@media (max-width: 600px) {
+    .settings-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .actions-container {
+        flex-direction: column;
+    }
+    
+    button {
+        width: 100%;
+        margin-right: 0;
+    }
+} 

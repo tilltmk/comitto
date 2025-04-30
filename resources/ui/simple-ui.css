@@ -1,0 +1,105 @@
+/* Comitto Simple UI CSS */
+
+body {
+    font-family: var(--vscode-font-family);
+    background-color: var(--vscode-editor-background);
+    color: var(--vscode-foreground);
+    padding: 20px;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.simple-ui-container {
+    max-width: 600px;
+    text-align: center;
+}
+
+h1 {
+    font-size: 1.8em;
+    margin-bottom: 5px;
+    color: var(--vscode-foreground);
+}
+
+p {
+    color: var(--vscode-descriptionForeground);
+    margin-bottom: 20px;
+}
+
+.status-indicator {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    margin: 20px 0;
+    transition: background-color 0.3s;
+}
+
+.status-enabled {
+    background-color: var(--vscode-testing-iconPassed);
+    color: white;
+}
+
+.status-disabled {
+    background-color: var(--vscode-testing-iconFailed);
+    color: white;
+}
+
+.button-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+}
+
+button {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+.provider-info {
+    margin: 15px 0;
+    font-style: italic;
+    color: var(--vscode-descriptionForeground);
+}
+
+.logo {
+    max-width: 120px;
+    margin-bottom: 20px;
+}
+
+.error-message {
+    background-color: var(--vscode-inputValidation-errorBackground);
+    color: var(--vscode-inputValidation-errorForeground);
+    border: 1px solid var(--vscode-inputValidation-errorBorder);
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin: 10px 0;
+    text-align: center;
+    width: 100%;
+    max-width: 600px;
+}
+
+@media (max-width: 600px) {
+    .button-row {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    button {
+        width: 100%;
+        margin: 5px 0;
+    }
+} 

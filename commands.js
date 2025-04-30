@@ -1621,12 +1621,493 @@ function processCommitMessage(rawMessage) {
     return message;
 }
 
+/**
+ * Behandelt das Kommando zur Auswahl des OpenAI-Modells.
+ */
+async function handleOpenAIModelSelectionCommand() {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const currentModel = config.get('openai.model');
+    const models = [
+        'gpt-4-turbo-preview',
+        'gpt-4',
+        'gpt-4-0613',
+        'gpt-4-1106-preview',
+        'gpt-3.5-turbo',
+        'gpt-3.5-turbo-0613',
+        'gpt-3.5-turbo-1106'
+    ];
+    
+    const selected = await vscode.window.showQuickPick(
+        models.map(name => ({
+            label: name,
+            description: name === currentModel ? '(Aktuell)' : ''
+        })),
+        { 
+            placeHolder: 'OpenAI-Modell auswählen',
+            ignoreFocusOut: true
+        }
+    );
+    
+    if (selected) {
+        await config.update('openai.model', selected.label, vscode.ConfigurationTarget.Global);
+        vscode.window.showInformationMessage(`OpenAI-Modell auf ${selected.label} gesetzt.`);
+    }
+}
+
+/**
+ * Funktion zum Konfigurieren des KI-Providers (kombiniert Auswahl und spezifische Einstellungen)
+ * @param {Object} providers UI-Provider-Instanzen
+ */
+async function handleConfigureAIProviderCommand(providers) {
+    try {
+        // Konfiguration abrufen
+        const config = vscode.workspace.getConfiguration('comitto');
+        const currentProvider = config.get('aiProvider');
+        
+        // Provider-Optionen definieren
+        const providerOptions = [
+            { label: 'Ollama (lokal)', id: 'ollama', description: currentProvider === 'ollama' ? '(Aktuell)' : '' },
+            { label: 'OpenAI', id: 'openai', description: currentProvider === 'openai' ? '(Aktuell)' : '' },
+            { label: 'Anthropic Claude', id: 'anthropic', description: currentProvider === 'anthropic' ? '(Aktuell)' : '' }
+        ];
+        
+        // Provider auswählen
+        const selectedProvider = await vscode.window.showQuickPick(providerOptions, {
+            placeHolder: 'KI-Provider auswählen',
+            title: 'Comitto - KI-Provider konfigurieren'
+        });
+        
+        if (selectedProvider) {
+            // Provider ändern, falls nötig
+            if (selectedProvider.id !== currentProvider) {
+                await config.update('aiProvider', selectedProvider.id, vscode.ConfigurationTarget.Global);
+                vscode.window.showInformationMessage(`KI-Provider auf "${selectedProvider.label}" gesetzt.`);
+            }
+            
+            // Spezifische Provider-Einstellungen konfigurieren
+            switch (selectedProvider.id) {
+                case 'ollama':
+                    await configureOllamaSettings();
+                    break;
+                case 'openai':
+                    await handleOpenAIModelSelectionCommand();
+                    await handleEditOpenAIKeyCommand();
+                    break;
+                case 'anthropic':
+                    await handleSelectAnthropicModelCommand();
+                    await handleEditAnthropicKeyCommand();
+                    break;
+            }
+            
+            // UI aktualisieren, falls Provider bereitgestellt wurden
+            if (providers) {
+                providers.statusProvider.refresh();
+                providers.settingsProvider.refresh();
+                providers.quickActionsProvider.refresh();
+            }
+        }
+    } catch (error) {
+        vscode.window.showErrorMessage(`Fehler bei der KI-Provider-Konfiguration: ${error.message}`);
+    }
+}
+
+/**
+ * Konfiguriert die Ollama-spezifischen Einstellungen
+ * @returns {Promise<boolean>} Erfolgsstatus
+ */
+async function configureOllamaSettings() {
+    try {
+        const config = vscode.workspace.getConfiguration('comitto');
+        
+        // Ollama-Einstellungen abrufen
+        const currentModel = config.get('ollama.model') || 'llama2';
+        const currentEndpoint = config.get('ollama.endpoint') || 'http://localhost:11434';
+        
+        // Auswahloption für Konfiguration
+        const options = [
+            { label: 'Ollama-Modell ändern', id: 'model', description: `Aktuell: ${currentModel}` },
+            { label: 'Ollama-Endpoint ändern', id: 'endpoint', description: `Aktuell: ${currentEndpoint}` }
+        ];
+        
+        const selected = await vscode.window.showQuickPick(options, {
+            placeHolder: 'Ollama-Einstellung konfigurieren',
+            title: 'Comitto - Ollama-Einstellungen'
+        });
+        
+        if (!selected) return false;
+        
+        if (selected.id === 'model') {
+            // Bekannte Ollama-Modelle vorschlagen
+            const modelOptions = [
+                'llama2', 'llama2:13b', 'llama2:70b',
+                'mistral', 'mistral:7b-instruct-v0.2',
+                'orca-mini', 'vicuna', 'codellama', 'phi'
+            ];
+            
+            const result = await vscode.window.showQuickPick(
+                [
+                    ...modelOptions.map(m => ({ label: m, description: m === currentModel ? '(Aktuell)' : '' })),
+                    { label: 'Benutzerdefiniert...', description: 'Eigenen Modellnamen eingeben' }
+                ],
+                {
+                    placeHolder: 'Ollama-Modell auswählen',
+                    title: 'Comitto - Ollama-Modell'
+                }
+            );
+            
+            if (result) {
+                if (result.label === 'Benutzerdefiniert...') {
+                    const customModel = await vscode.window.showInputBox({
+                        prompt: 'Geben Sie den Namen des Ollama-Modells ein',
+                        value: currentModel,
+                        placeHolder: 'z.B. wizard-vicuna'
+                    });
+                    
+                    if (customModel) {
+                        await config.update('ollama.model', customModel, vscode.ConfigurationTarget.Global);
+                        vscode.window.showInformationMessage(`Ollama-Modell auf "${customModel}" gesetzt.`);
+                    }
+                } else {
+                    await config.update('ollama.model', result.label, vscode.ConfigurationTarget.Global);
+                    vscode.window.showInformationMessage(`Ollama-Modell auf "${result.label}" gesetzt.`);
+                }
+            }
+        } else if (selected.id === 'endpoint') {
+            const endpoint = await vscode.window.showInputBox({
+                prompt: 'Geben Sie den Ollama-Endpoint ein',
+                value: currentEndpoint,
+                placeHolder: 'z.B. http://localhost:11434'
+            });
+            
+            if (endpoint) {
+                // Einfache Validierung
+                if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+                    vscode.window.showWarningMessage('Der Endpoint sollte mit http:// oder https:// beginnen.');
+                    return false;
+                }
+                
+                await config.update('ollama.endpoint', endpoint, vscode.ConfigurationTarget.Global);
+                vscode.window.showInformationMessage(`Ollama-Endpoint auf "${endpoint}" gesetzt.`);
+            }
+        }
+        
+        return true;
+    } catch (error) {
+        vscode.window.showErrorMessage(`Fehler bei der Ollama-Konfiguration: ${error.message}`);
+        return false;
+    }
+}
+
+/**
+ * Vereinfachte Benutzeroberfläche für schnelle Aktionen anzeigen
+ * @param {vscode.ExtensionContext} context 
+ * @param {Object} providers UI-Provider-Instanzen
+ */
+async function showSimpleUI(context, providers) {
+    try {
+        // Panel erstellen oder vorhandenes Panel verwenden
+        let panel = context.globalState.get('comittoSimpleUIPanel');
+        
+        if (panel) {
+            panel.reveal(vscode.ViewColumn.One);
+        } else {
+            panel = vscode.window.createWebviewPanel(
+                'comittoSimpleUI',
+                'Comitto',
+                vscode.ViewColumn.One,
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true
+                }
+            );
+            
+            // Panel speichern
+            context.globalState.update('comittoSimpleUIPanel', panel);
+            
+            // Beim Schließen das Panel aus dem State entfernen
+            panel.onDidDispose(
+                () => {
+                    context.globalState.update('comittoSimpleUIPanel', undefined);
+                },
+                null,
+                context.subscriptions
+            );
+            
+            // Nachrichtenhandler hinzufügen
+            panel.webview.onDidReceiveMessage(
+                async (message) => {
+                    switch (message.command) {
+                        case 'commit':
+                            vscode.commands.executeCommand('comitto.performManualCommit');
+                            break;
+                        case 'toggle':
+                            const config = vscode.workspace.getConfiguration('comitto');
+                            const enabled = !config.get('autoCommitEnabled');
+                            await config.update('autoCommitEnabled', enabled, vscode.ConfigurationTarget.Global);
+                            // UI aktualisieren
+                            panel.webview.html = generateSimpleUIHTML(context);
+                            break;
+                        case 'stage':
+                            vscode.commands.executeCommand('comitto.stageAll');
+                            break;
+                        case 'settings':
+                            vscode.commands.executeCommand('comitto.openSettings');
+                            break;
+                        case 'dashboard':
+                            vscode.commands.executeCommand('comitto.showDashboard');
+                            break;
+                    }
+                },
+                undefined,
+                context.subscriptions
+            );
+        }
+        
+        // HTML setzen
+        panel.webview.html = generateSimpleUIHTML(context);
+        
+    } catch (error) {
+        vscode.window.showErrorMessage(`Fehler beim Anzeigen der einfachen Benutzeroberfläche: ${error.message}`);
+    }
+}
+
+/**
+ * Generiert das HTML für die vereinfachte Benutzeroberfläche
+ * @param {vscode.ExtensionContext} context 
+ * @returns {string} HTML-Inhalt
+ */
+function generateSimpleUIHTML(context) {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const enabled = config.get('autoCommitEnabled');
+    const provider = config.get('aiProvider');
+    const providerName = ui.getProviderDisplayName(provider);
+    
+    return `
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Comitto</title>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                padding: 15px;
+                color: var(--vscode-foreground);
+                background-color: var(--vscode-editor-background);
+            }
+            .container {
+                max-width: 400px;
+                margin: 0 auto;
+                padding: 15px;
+                border-radius: 8px;
+                background-color: var(--vscode-editor-background);
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }
+            h1 {
+                text-align: center;
+                margin-bottom: 20px;
+                color: var(--vscode-editor-foreground);
+            }
+            .status {
+                display: flex;
+                align-items: center;
+                margin-bottom: 15px;
+                padding: 10px;
+                border-radius: 5px;
+                background: ${enabled ? 'rgba(0, 150, 0, 0.1)' : 'rgba(150, 0, 0, 0.1)'};
+            }
+            .status-indicator {
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                margin-right: 10px;
+                background-color: ${enabled ? '#00c853' : '#ff3d00'};
+                box-shadow: 0 0 8px ${enabled ? 'rgba(0, 200, 83, 0.8)' : 'rgba(255, 61, 0, 0.8)'};
+            }
+            .button-group {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                margin-bottom: 15px;
+            }
+            button {
+                padding: 10px;
+                border: none;
+                border-radius: 5px;
+                background-color: var(--vscode-button-background);
+                color: var(--vscode-button-foreground);
+                cursor: pointer;
+                font-weight: 600;
+                transition: background-color 0.2s;
+            }
+            button:hover {
+                background-color: var(--vscode-button-hoverBackground);
+            }
+            .main-button {
+                grid-column: span 2;
+                padding: 12px;
+                background-color: #0078D4;
+                color: white;
+                font-size: 1.1em;
+            }
+            .toggle-button {
+                background-color: ${enabled ? '#e53935' : '#43a047'};
+            }
+            .footer {
+                margin-top: 20px;
+                text-align: center;
+                font-size: 0.9em;
+                color: var(--vscode-descriptionForeground);
+            }
+            .info {
+                margin-top: 15px;
+                padding: 10px;
+                border-radius: 5px;
+                background-color: var(--vscode-editor-inactiveSelectionBackground);
+                font-size: 0.9em;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Comitto</h1>
+            
+            <div class="status">
+                <div class="status-indicator"></div>
+                <div>Status: ${enabled ? 'Aktiviert' : 'Deaktiviert'}</div>
+            </div>
+            
+            <button class="main-button" id="commitBtn">Manuelles Commit 💾</button>
+            
+            <div class="button-group">
+                <button class="toggle-button" id="toggleBtn">
+                    ${enabled ? 'Deaktivieren 🚫' : 'Aktivieren ✅'}
+                </button>
+                <button id="stageBtn">Alle Änderungen stagen 📋</button>
+            </div>
+            
+            <div class="button-group">
+                <button id="settingsBtn">Einstellungen ⚙️</button>
+                <button id="dashboardBtn">Dashboard 📊</button>
+            </div>
+            
+            <div class="info">
+                <p><strong>KI-Provider:</strong> ${providerName}</p>
+            </div>
+            
+            <div class="footer">
+                <p>Comitto - Automatisierte KI-Commits</p>
+            </div>
+        </div>
+        
+        <script>
+            (function() {
+                const vscode = acquireVsCodeApi();
+                
+                document.getElementById('commitBtn').addEventListener('click', () => {
+                    vscode.postMessage({ command: 'commit' });
+                });
+                
+                document.getElementById('toggleBtn').addEventListener('click', () => {
+                    vscode.postMessage({ command: 'toggle' });
+                });
+                
+                document.getElementById('stageBtn').addEventListener('click', () => {
+                    vscode.postMessage({ command: 'stage' });
+                });
+                
+                document.getElementById('settingsBtn').addEventListener('click', () => {
+                    vscode.postMessage({ command: 'settings' });
+                });
+                
+                document.getElementById('dashboardBtn').addEventListener('click', () => {
+                    vscode.postMessage({ command: 'dashboard' });
+                });
+            })();
+        </script>
+    </body>
+    </html>
+    `;
+}
+
+/**
+ * Konfiguriert Trigger-Regeln über eine Benutzeroberfläche oder direkt.
+ * @param {vscode.ExtensionContext} context 
+ * @param {Object} providers UI-Provider-Instanzen
+ * @returns {Promise<void>}
+ */
+async function handleConfigureTriggersCommand(context, providers) {
+    try {
+        const config = vscode.workspace.getConfiguration('comitto');
+        const rules = config.get('triggerRules');
+        
+        // Optionen für die Konfiguration von Triggern
+        const options = [
+            { label: 'Bei Speichern auslösen', id: 'onSave', picked: rules.onSave, detail: 'Commits werden beim Speichern ausgelöst' },
+            { label: 'Periodisch auslösen', id: 'onInterval', picked: rules.onInterval, detail: 'Commits werden in regelmäßigen Abständen ausgelöst' },
+            { label: 'Bei Branch-Wechsel auslösen', id: 'onBranchSwitch', picked: rules.onBranchSwitch, detail: 'Commits werden beim Wechsel des Branches ausgelöst' },
+            { label: 'Schwellenwerte konfigurieren...', id: 'thresholds', detail: 'Datei-Anzahl, Änderungen und Zeit konfigurieren' },
+            { label: 'Dateimuster konfigurieren...', id: 'patterns', detail: 'Bestimmte Dateitypen überwachen' }
+        ];
+        
+        const result = await vscode.window.showQuickPick(options, {
+            placeHolder: 'Trigger-Regeln konfigurieren',
+            title: 'Comitto - Trigger-Konfiguration',
+            canPickMany: true
+        });
+        
+        if (!result) return;
+        
+        // Verarbeitung der Auswahl
+        const updatedRules = { ...rules };
+        
+        // Boolesche Trigger-Optionen direkt setzen
+        for (const item of result) {
+            if (['onSave', 'onInterval', 'onBranchSwitch'].includes(item.id)) {
+                updatedRules[item.id] = true;
+            }
+        }
+        
+        // Nicht ausgewählte boolesche Optionen ausschalten
+        for (const key of ['onSave', 'onInterval', 'onBranchSwitch']) {
+            if (!result.some(item => item.id === key)) {
+                updatedRules[key] = false;
+            }
+        }
+        
+        // Aktualisierte Regeln speichern
+        await config.update('triggerRules', updatedRules, vscode.ConfigurationTarget.Global);
+        
+        // Zusätzliche Konfigurationen für ausgewählte Optionen
+        for (const item of result) {
+            if (item.id === 'thresholds') {
+                await configureThresholds(updatedRules);
+            } else if (item.id === 'patterns') {
+                await configureFilePatterns(updatedRules);
+            } else if (item.id === 'onInterval' && updatedRules.onInterval) {
+                // Intervall-Dauer konfigurieren, wenn Intervall-Trigger aktiviert ist
+                await handleEditTriggerRuleCommand('intervalMinutes', 'Intervall (Minuten)', 'z.B. 5', 'number');
+            }
+        }
+        
+        // UI aktualisieren
+        if (providers) {
+            providers.statusProvider.refresh();
+            providers.settingsProvider.refresh();
+        }
+        
+    } catch (error) {
+        vscode.window.showErrorMessage(`Fehler bei der Trigger-Konfiguration: ${error.message}`);
+    }
+}
+
 module.exports = {
     registerCommands,
     handleSelectThemeCommand,
     handleStageSelectedCommand,
     handleStageAllCommand,
-    handleOpenAIModelSelectionCommand,
+    handleOpenAIModelSelectionCommand, // Sicherstellen, dass diese Funktion exportiert wird
     handleCommitMessageLanguageCommand,
     handleConfigureTriggersCommand,
     showSimpleUI,

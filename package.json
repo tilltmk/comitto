@@ -282,6 +282,11 @@
             }
           }
         },
+        "comitto.oliama-model": {
+          "type": "string",
+          "default": "llama3",
+          "description": "Abwärtskompatibilität für Ollama-Modell-Einstellung"
+        },
         "comitto.anthropic": {
           "type": "object",
           "default": {

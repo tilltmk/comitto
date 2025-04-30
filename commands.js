@@ -1781,11 +1781,15 @@ async function configureOllamaSettings() {
                     });
                     
                     if (customModel) {
-                        await config.update('ollama.model', customModel, vscode.ConfigurationTarget.Global);
+                        const ollamaConfig = config.get('ollama') || {};
+                        ollamaConfig.model = customModel;
+                        await config.update('ollama', ollamaConfig, vscode.ConfigurationTarget.Global);
                         vscode.window.showInformationMessage(`Ollama-Modell auf "${customModel}" gesetzt.`);
                     }
                 } else {
-                    await config.update('ollama.model', result.label, vscode.ConfigurationTarget.Global);
+                    const ollamaConfig = config.get('ollama') || {};
+                    ollamaConfig.model = result.label;
+                    await config.update('ollama', ollamaConfig, vscode.ConfigurationTarget.Global);
                     vscode.window.showInformationMessage(`Ollama-Modell auf "${result.label}" gesetzt.`);
                 }
             }
@@ -1803,7 +1807,9 @@ async function configureOllamaSettings() {
                     return false;
                 }
                 
-                await config.update('ollama.endpoint', endpoint, vscode.ConfigurationTarget.Global);
+                const ollamaConfig = config.get('ollama') || {};
+                ollamaConfig.endpoint = endpoint;
+                await config.update('ollama', ollamaConfig, vscode.ConfigurationTarget.Global);
                 vscode.window.showInformationMessage(`Ollama-Endpoint auf "${endpoint}" gesetzt.`);
             }
         }

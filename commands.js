@@ -1,7 +1,6 @@
 const vscode = require('vscode');
 const ui = require('./ui'); // Importiere UI-Modul für Hilfsfunktionen
 const { executeGitCommand, getStatusText, updateStatusBarProgress } = require('./utils');
-const { generateWithOllama, generateWithOpenAI, generateWithAnthropic } = require('./extension');
 const axios = require('axios');
 
 // Closure statt globaler Variable für die Statusleiste
@@ -35,7 +34,8 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 // Statusleiste aktualisieren
                 updateStatusBarProgress(statusBarItem, 'Aktiv', 100, 'Automatische Commits aktiviert');
                 showNotification('Automatische Commits aktiviert', 'info');
-                 
+                // Logge den Status der automatischen Commits in der Konsole
+                console.log('Automatische Commits wurden aktiviert');
                 // UI-Provider aktualisieren
                 if (providers) {
                     providers.statusProvider.refresh();
@@ -465,9 +465,12 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
  * Generiert eine Commit-Nachricht basierend auf Git-Status und Diff
  * @param {string} gitStatus Git-Status-Ausgabe
  * @param {string} diffOutput Git-Diff-Ausgabe
+ * @param {Function} generateWithOllama Funktion zur Generierung einer Commit-Nachricht mit Ollama
+ * @param {Function} generateWithOpenAI Funktion zur Generierung einer Commit-Nachricht mit OpenAI
+ * @param {Function} generateWithAnthropic Funktion zur Generierung einer Commit-Nachricht mit Anthropic
  * @returns {Promise<string>} Generierte Commit-Nachricht
  */
-async function generateCommitMessage(gitStatus, diffOutput) {
+async function generateCommitMessage(gitStatus, diffOutput, generateWithOllama, generateWithOpenAI, generateWithAnthropic) {
     try {
         const config = vscode.workspace.getConfiguration('comitto');
         const aiProvider = config.get('aiProvider');
@@ -484,7 +487,7 @@ async function generateCommitMessage(gitStatus, diffOutput) {
             .join('\n');
         
         // Prompt-Vorlage mit Änderungen füllen
-        let promptTemplate = config.get('promptTemplate');
+        let promptTemplate = config.get('promptTemplate') || 'Generiere eine Commit-Nachricht basierend auf folgenden Änderungen:';
         promptTemplate = promptTemplate.replace('{changes}', changes);
         
         // Sprache für die Commit-Nachricht einfügen
@@ -502,10 +505,19 @@ async function generateCommitMessage(gitStatus, diffOutput) {
         // Verschiedene KI-Provider unterstützen
         switch (aiProvider) {
             case 'ollama':
+                if (typeof generateWithOllama !== 'function') {
+                    throw new Error('generateWithOllama ist nicht definiert');
+                }
                 return await generateWithOllama(promptTemplate);
             case 'openai':
+                if (typeof generateWithOpenAI !== 'function') {
+                    throw new Error('generateWithOpenAI ist nicht definiert');
+                }
                 return await generateWithOpenAI(promptTemplate);
             case 'anthropic':
+                if (typeof generateWithAnthropic !== 'function') {
+                    throw new Error('generateWithAnthropic ist nicht definiert');
+                }
                 return await generateWithAnthropic(promptTemplate);
             default:
                 throw new Error(`Unbekannter KI-Provider: ${aiProvider}`);

@@ -1640,8 +1640,8 @@ async function handleOpenAIModelSelectionCommand() {
     const currentModel = config.get('openai.model');
     
     // Statusbar aktualisieren
-    if (statusBarItem) {
-        statusBarItem.text = "$(sync~spin) Comitto: Lade verfügbare Modelle...";
+    if (global.statusBarItem) {
+        global.statusBarItem.text = "$(sync~spin) Comitto: Lade verfügbare Modelle...";
     }
     
     // Modelle von der OpenAI API abfragen
@@ -1661,8 +1661,8 @@ async function handleOpenAIModelSelectionCommand() {
         });
         
         // Statusleiste zurücksetzen
-        if (statusBarItem) {
-            statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+        if (global.statusBarItem) {
+            global.statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
         }
         
         if (!response.data || !response.data.data) {
@@ -1713,16 +1713,16 @@ async function handleOpenAIModelSelectionCommand() {
         
         if (selected) {
             await config.update('openai.model', selected.label, vscode.ConfigurationTarget.Global);
-            showNotification(`OpenAI-Modell auf ${selected.label} gesetzt.`, 'info');
+            vscode.window.showInformationMessage(`OpenAI-Modell auf ${selected.label} gesetzt.`);
         }
     } catch (error) {
         // Statusleiste zurücksetzen
-        if (statusBarItem) {
-            statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+        if (global.statusBarItem) {
+            global.statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
         }
         
         console.error('Fehler beim Laden der OpenAI-Modelle:', error);
-        showNotification(`Fehler beim Laden der Modelle: ${error.message}. Verwende Standard-Liste.`, 'warning');
+        vscode.window.showWarningMessage(`Fehler beim Laden der Modelle: ${error.message}. Verwende Standard-Liste.`);
         
         // Fallback auf statische Liste
         const models = [
@@ -1745,7 +1745,7 @@ async function handleOpenAIModelSelectionCommand() {
         
         if (selected) {
             await config.update('openai.model', selected.label, vscode.ConfigurationTarget.Global);
-            showNotification(`OpenAI-Modell auf ${selected.label} gesetzt.`, 'info');
+            vscode.window.showInformationMessage(`OpenAI-Modell auf ${selected.label} gesetzt.`);
         }
     }
 }

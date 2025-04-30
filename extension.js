@@ -960,21 +960,71 @@ function checkCommitTrigger() {
  */
 async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
     // Maximale Anzahl an Wiederholungsversuchen
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 2;
+    
+    // Status-Tracking für detaillierte UI
+    let commitProgress = {
+        phase: 'start',
+        progress: 0,
+        details: 'Initialisiere'
+    };
+    
+    // Schritte des Commit-Prozesses für Fortschrittsanzeige
+    const commitSteps = {
+        'start': { progress: 0, message: 'Initialisiere' },
+        'check_repo': { progress: 5, message: 'Prüfe Repository' },
+        'stage': { progress: 15, message: 'Stage Änderungen' },
+        'status': { progress: 25, message: 'Erfasse Status' },
+        'diff': { progress: 35, message: 'Analysiere Änderungen' },
+        'branch': { progress: 45, message: 'Prüfe Branch' },
+        'commit_prepare': { progress: 55, message: 'Bereite Commit vor' },
+        'ai_message': { progress: 65, message: 'Generiere Nachricht' },
+        'commit': { progress: 85, message: 'Führe Commit aus' },
+        'push': { progress: 95, message: 'Pushe Änderungen' },
+        'complete': { progress: 100, message: 'Abgeschlossen' }
+    };
+    
+    // Funktion zum Aktualisieren des Fortschritts
+    function updateProgress(phase, details = '') {
+        commitProgress.phase = phase;
+        commitProgress.progress = commitSteps[phase].progress;
+        commitProgress.details = details || commitSteps[phase].message;
+        
+        updateStatusBarProgress(
+            commitSteps[phase].message, 
+            commitProgress.progress, 
+            details || ''
+        );
+        
+        // Log für Debugging
+        console.log(`Commit-Fortschritt: ${phase} (${commitProgress.progress}%) - ${commitProgress.details}`);
+    }
+    
+    updateProgress('start');
+    
+    // Globalen Status setzen
+    if (isCommitInProgress) {
+        showNotification('Ein Commit-Vorgang läuft bereits.', 'warning');
+        return;
+    }
+    
+    isCommitInProgress = true;
+    
+    // Konfiguration laden
+    const config = vscode.workspace.getConfiguration('comitto');
+    const gitSettings = config.get('gitSettings');
+    const uiSettings = config.get('uiSettings');
     
     try {
-        isCommitInProgress = true;
-        statusBarItem.text = "$(sync~spin) Comitto: Commit wird vorbereitet...";
-
-        // Git-Repository-Pfad bestimmen
+        // Workspace-Ordner ermitteln
         const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders) {
-            throw new Error('Kein Workspace gefunden.');
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            throw new Error('Kein Workspace-Ordner geöffnet.');
         }
-
-        const config = vscode.workspace.getConfiguration('comitto');
-        const gitSettings = config.get('gitSettings');
-        const repoPath = gitSettings.repositoryPath || workspaceFolders[0].uri.fsPath;
+        
+        const repoPath = workspaceFolders[0].uri.fsPath;
+        
+        updateProgress('check_repo');
         
         try {
             // Prüfen, ob Git initialisiert ist
@@ -983,6 +1033,8 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             } catch (error) {
                 throw new Error('Kein Git-Repository gefunden. Bitte initialisieren Sie zuerst ein Git-Repository.');
             }
+            
+            updateProgress('stage', 'Füge Änderungen hinzu');
             
             // Dateien zum Staging hinzufügen
             try {
@@ -994,6 +1046,8 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                 // Fallback: Alle Änderungen stagen
                 await executeGitCommand('git add .', repoPath);
             }
+            
+            updateProgress('status', 'Erfasse Dateistatus');
             
             // git status ausführen, um Änderungen zu erhalten
             let gitStatus = '';
@@ -1008,71 +1062,38 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             if (!gitStatus.trim() && !isManualTrigger) {
                 isCommitInProgress = false;
                 statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+                statusBarItem.tooltip = "Comitto Git-Automatisierung";
                 changedFiles.clear();
                 return;
             } else if (!gitStatus.trim() && isManualTrigger) {
                 throw new Error('Keine Änderungen zum Committen gefunden.');
             }
 
+            updateProgress('diff', 'Analysiere Änderungen');
+            
             // Änderungen abrufen für KI-Commit-Nachricht
             let diffOutput = '';
             try {
-                statusBarItem.text = "$(sync~spin) Comitto: Diff wird berechnet...";
-                diffOutput = await executeGitCommand('git diff --cached', repoPath);
+                diffOutput = await executeGitCommand('git diff --staged --stat', repoPath);
+                
+                // Für eine detailliertere Analyse, falls das diff leer ist oder zu kurz
+                if (!diffOutput.trim() || diffOutput.length < 50) {
+                    diffOutput += '\n\nDetails der Änderungen:\n';
+                    diffOutput += await executeGitCommand('git diff --staged', repoPath);
+                }
             } catch (diffError) {
-                // Bei Pufferüberlauf oder anderen Diff-Fehlern trotzdem weitermachen
-                console.warn('Fehler beim Abrufen des Diffs, versuche alternative Methode:', diffError);
-                
-                try {
-                    // Nur Liste der geänderten Dateien abrufen
-                    const fileList = await executeGitCommand('git diff --cached --name-status', repoPath);
-                    diffOutput = 'Diff konnte nicht vollständig abgerufen werden.\nGeänderte Dateien:\n' + fileList;
-                } catch (fileListError) {
-                    console.error('Auch die Dateiliste konnte nicht abgerufen werden:', fileListError);
-                    diffOutput = 'Diff-Inhalt konnte nicht abgerufen werden. Commit wird trotzdem versucht.';
-                }
+                console.warn('Fehler beim Abrufen der Diff-Informationen:', diffError);
+                diffOutput = "Fehler beim Abrufen der Diff-Informationen. Commit wird trotzdem versucht.";
             }
             
-            // Commit-Nachricht generieren
-            statusBarItem.text = "$(sync~spin) Comitto: Generiere Commit-Nachricht...";
-            let commitMessage = '';
-            
-            try {
-                commitMessage = await commands.generateCommitMessage(gitStatus, diffOutput);
-            } catch (messageError) {
-                console.error('Fehler bei der Commit-Nachricht-Generierung:', messageError);
-                
-                // Fallback-Nachricht mit Datum
-                const now = new Date();
-                const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                
-                const gitSettings = config.get('gitSettings');
-                const language = gitSettings.commitMessageLanguage || 'en';
-                const style = gitSettings.commitMessageStyle || 'conventional';
-                
-                if (language === 'de') {
-                    commitMessage = style === 'conventional' ? 
-                        `chore: Automatischer Commit vom ${dateStr} ${timeStr}` : 
-                        `💾 Automatischer Commit vom ${dateStr} ${timeStr}`;
-                } else {
-                    commitMessage = style === 'conventional' ? 
-                        `chore: automatic commit ${dateStr} ${timeStr}` : 
-                        `💾 Automatic commit ${dateStr} ${timeStr}`;
-                }
-            }
-            
-            if (!commitMessage || commitMessage.trim().length === 0) {
-                commitMessage = "chore: auto commit";
-            }
+            updateProgress('branch', 'Überprüfe Branch-Einstellungen');
             
             // Branch-Handling
             try {
                 if (gitSettings.branch) {
-                    statusBarItem.text = "$(sync~spin) Comitto: Prüfe Branch...";
-                    
                     // Aktuelle Branch bestimmen
                     const currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
+                    updateProgress('branch', `Aktueller Branch: ${currentBranch}`);
                     
                     // Nur wechseln, wenn nicht bereits auf dem Ziel-Branch
                     if (currentBranch !== gitSettings.branch) {
@@ -1083,6 +1104,7 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                         if (branchExists) {
                             // Zu existierendem Branch wechseln
                             try {
+                                updateProgress('branch', `Wechsle zu Branch ${gitSettings.branch}`);
                                 await executeGitCommand(`git checkout ${gitSettings.branch}`, repoPath);
                                 showNotification(`Zu Branch '${gitSettings.branch}' gewechselt.`, 'info');
                             } catch (checkoutError) {
@@ -1092,6 +1114,7 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                         } else {
                             // Neuen Branch erstellen und wechseln
                             try {
+                                updateProgress('branch', `Erstelle neuen Branch ${gitSettings.branch}`);
                                 await executeGitCommand(`git checkout -b ${gitSettings.branch}`, repoPath);
                                 showNotification(`Branch '${gitSettings.branch}' erstellt und ausgecheckt.`, 'info');
                             } catch (createBranchError) {
@@ -1105,26 +1128,75 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                 showNotification(`Fehler bei der Branch-Verwaltung: ${branchError.message}. Fortfahren mit aktuellem Branch.`, 'warning');
             }
             
-            // Git Commit durchführen
-            statusBarItem.text = "$(sync~spin) Comitto: Führe Commit aus...";
+            updateProgress('commit_prepare', 'Bereite Commit vor');
             
+            // Git Commit durchführen
             try {
-                // Escapte Anführungszeichen für Shell
-                const escapedMessage = commitMessage.replace(/"/g, '\\"').replace(/`/g, "'");
-                await executeGitCommand(`git commit -m "${escapedMessage}"`, repoPath);
+                updateProgress('ai_message', 'Erzeuge KI-Commit-Nachricht');
                 
-                // Benachrichtigungen anzeigen basierend auf den Einstellungen
-                const notificationSettings = config.get('notifications');
+                // KI-generierte Commit-Nachricht abrufen
+                const commitMessage = await generateCommitMessage(gitStatus, diffOutput);
                 
-                if (!isManualTrigger && notificationSettings.onCommit) {
-                    showNotification(`Automatischer Commit durchgeführt: ${commitMessage}`, 'info');
-                } else if (isManualTrigger) {
-                    showNotification(`Manueller Commit durchgeführt: ${commitMessage}`, 'info');
+                // Logging für Debugging
+                console.log('Generierte Commit-Nachricht:', commitMessage);
+                
+                // Optional Bestätigung anfordern
+                let userAcceptedMessage = !uiSettings.confirmBeforeCommit;
+                let finalCommitMessage = commitMessage;
+                
+                if (uiSettings.confirmBeforeCommit) {
+                    updateProgress('commit_prepare', 'Warte auf Bestätigung');
+                    
+                    const options = ['Commit durchführen', 'Nachricht bearbeiten', 'Abbrechen'];
+                    const selection = await vscode.window.showInformationMessage(
+                        `Commit mit folgender Nachricht durchführen?\n\n${commitMessage}`,
+                        { modal: true },
+                        ...options
+                    );
+                    
+                    if (selection === 'Commit durchführen') {
+                        userAcceptedMessage = true;
+                    } else if (selection === 'Nachricht bearbeiten') {
+                        const editedMessage = await vscode.window.showInputBox({
+                            prompt: 'Commit-Nachricht bearbeiten',
+                            value: commitMessage,
+                            placeHolder: 'z.B. feat: neue Funktion implementiert'
+                        });
+                        
+                        if (editedMessage) {
+                            userAcceptedMessage = true;
+                            finalCommitMessage = editedMessage;
+                        } else {
+                            throw new Error('Commit abgebrochen: Keine Nachricht eingegeben.');
+                        }
+                    } else {
+                        throw new Error('Commit vom Benutzer abgebrochen.');
+                    }
                 }
                 
-                // Reset der Änderungsverfolgung
-                lastCommitTime = new Date();
-                changedFiles.clear();
+                if (userAcceptedMessage) {
+                    updateProgress('commit', 'Führe Commit aus');
+                    
+                    // Commit ausführen
+                    await executeGitCommand(`git commit -m "${finalCommitMessage.replace(/"/g, '\\"')}"`, repoPath);
+                    
+                    updateProgress('complete', 'Commit erfolgreich');
+                    
+                    // Detailliertere Erfolgs-Nachricht
+                    const successMessage = isManualTrigger 
+                        ? `Manueller Commit erfolgreich: "${finalCommitMessage}"` 
+                        : `Automatischer Commit erfolgreich: "${finalCommitMessage}"`;
+                    
+                    showNotification(successMessage, 'info');
+                    
+                    // Zurücksetzen des Status
+                    setTimeout(() => {
+                        if (statusBarItem) {
+                            statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+                            statusBarItem.tooltip = "Comitto Git-Automatisierung";
+                        }
+                    }, 2000);
+                }
             } catch (commitError) {
                 console.error('Commit fehlgeschlagen:', commitError);
                 
@@ -1133,6 +1205,7 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                     showNotification('Keine Änderungen zum Committen gefunden.', 'info');
                     isCommitInProgress = false;
                     statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+                    statusBarItem.tooltip = "Comitto Git-Automatisierung";
                     changedFiles.clear();
                     return;
                 }
@@ -1151,16 +1224,26 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             
             // Automatischen Push ausführen, wenn konfiguriert
             if (gitSettings.autoPush) {
+                updateProgress('push', 'Starte Push-Prozess');
+                
                 try {
                     await performAutoPush(repoPath);
                 } catch (pushError) {
                     console.error('Push fehlgeschlagen:', pushError);
                     showNotification(`Push fehlgeschlagen: ${pushError.message}`, 'error');
                 }
+            } else {
+                // Erfolgsmeldung bei abgeschlossenem Commit ohne Push
+                updateProgress('complete', 'Commit abgeschlossen');
+                
+                // Zurücksetzen des Status nach 2 Sekunden
+                setTimeout(() => {
+                    if (statusBarItem) {
+                        statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+                        statusBarItem.tooltip = "Comitto Git-Automatisierung";
+                    }
+                }, 2000);
             }
-            
-            // Statusleiste aktualisieren
-            statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
         } catch (error) {
             console.error('Git-Befehl fehlgeschlagen:', error);
             
@@ -1175,24 +1258,20 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             }
             
             // Benachrichtigung anzeigen
-            const notificationSettings = config.get('notifications');
-            if (notificationSettings.onError) {
-                showNotification(`Git-Befehl fehlgeschlagen: ${errorMessage}`, 'error');
-            }
+            showNotification(`Git-Befehl fehlgeschlagen: ${errorMessage}`, 'error');
             
             statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+            statusBarItem.tooltip = "Comitto Git-Automatisierung";
             throw error;
         }
     } catch (error) {
         console.error('Comitto Fehler:', error);
         
         // Benachrichtigung anzeigen
-        const notificationSettings = vscode.workspace.getConfiguration('comitto').get('notifications');
-        if (notificationSettings.onError) {
-            showNotification(`Comitto Fehler: ${error.message}`, 'error');
-        }
+        showNotification(`Comitto Fehler: ${error.message}`, 'error');
         
         statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+        statusBarItem.tooltip = "Comitto Git-Automatisierung";
     } finally {
         isCommitInProgress = false;
     }
@@ -1207,12 +1286,13 @@ async function performAutoPush(repoPath) {
     const notificationSettings = config.get('notifications');
     const MAX_PUSH_RETRIES = 2;
     
-    statusBarItem.text = "$(sync~spin) Comitto: Pushe Änderungen...";
+    updateStatusBarProgress('Pushe Änderungen', 0, 'Bereite Push vor');
     
     // Aktuelle Branch bestimmen
     let currentBranch;
     try {
         currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
+        updateStatusBarProgress('Pushe Änderungen', 20, `Branch: ${currentBranch}`);
     } catch (error) {
         throw new Error(`Fehler beim Ermitteln des aktuellen Branches: ${error.message}`);
     }
@@ -1228,12 +1308,25 @@ async function performAutoPush(repoPath) {
     // Versuche es mehrfach mit Push
     for (let i = 0; i <= MAX_PUSH_RETRIES; i++) {
         try {
+            updateStatusBarProgress('Pushe Änderungen', 40 + (i * 20), `Versuch ${i+1}/${MAX_PUSH_RETRIES+1}`);
             await executeGitCommand(pushCommand, repoPath);
             pushSuccess = true;
+            updateStatusBarProgress('Pushe Änderungen', 100, 'Erfolgreich');
+            
+            // Kurze Anzeige des Erfolgs, dann zurück zum normalen Status
+            setTimeout(() => {
+                if (statusBarItem) {
+                    statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+                    statusBarItem.tooltip = "Comitto Git-Automatisierung";
+                }
+            }, 2000);
+            
             break;
         } catch (error) {
             pushError = error;
             console.warn(`Push-Versuch ${i+1} fehlgeschlagen:`, error);
+            
+            updateStatusBarProgress('Pushe Änderungen', 40 + (i * 20), `Fehler: ${error.message.substring(0, 30)}...`);
             
             // Bei bestimmten Fehlern erneut versuchen
             if (error.message.includes('Connection timed out') || 
@@ -1242,6 +1335,7 @@ async function performAutoPush(repoPath) {
                 
                 // Kurze Pause vor dem nächsten Versuch
                 if (i < MAX_PUSH_RETRIES) {
+                    showNotification(`Push fehlgeschlagen. Versuche erneut in ${2 * (i + 1)} Sekunden...`, 'warning', false);
                     await new Promise(resolve => setTimeout(resolve, 2000 * (i + 1)));
                     continue;
                 }
@@ -1252,34 +1346,22 @@ async function performAutoPush(repoPath) {
         }
     }
     
-    // Ergebnis verarbeiten
-    if (pushSuccess) {
-        if (notificationSettings.onPush) {
-            showNotification(`Änderungen wurden zu origin/${currentBranch} gepusht.`, 'info');
-        }
-    } else if (pushError) {
-        // Versuche ein Pull bei bestimmten Fehlern
-        if (pushError.message.includes('failed to push some refs') || 
-            pushError.message.includes('rejected') ||
-            pushError.message.includes('non-fast-forward')) {
-            
-            try {
-                showNotification('Push fehlgeschlagen. Versuche Pull...', 'warning');
-                await executeGitCommand(`git pull origin ${currentBranch}`, repoPath);
-                
-                // Erneut versuchen zu pushen
-                await executeGitCommand(pushCommand, repoPath);
-                
-                if (notificationSettings.onPush) {
-                    showNotification(`Pull & Push erfolgreich: Änderungen wurden zu origin/${currentBranch} gepusht.`, 'info');
-                }
-            } catch (pullError) {
-                throw new Error(`Push fehlgeschlagen und Pull konnte nicht ausgeführt werden: ${pullError.message}`);
+    // Nach Abschluss der Push-Versuche
+    if (!pushSuccess) {
+        updateStatusBarProgress('Push fehlgeschlagen', -1, pushError ? pushError.message.substring(0, 30) : '');
+        
+        // Zurück zum normalen Status nach 3 Sekunden
+        setTimeout(() => {
+            if (statusBarItem) {
+                statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+                statusBarItem.tooltip = "Comitto Git-Automatisierung";
             }
-        } else {
-            throw pushError;
-        }
+        }, 3000);
+        
+        throw new Error(pushError ? pushError.message : 'Unbekannter Push-Fehler');
     }
+    
+    return pushSuccess;
 }
 
 /**
@@ -1367,8 +1449,9 @@ async function stageChanges(mode) {
  * und fügt sie immer zum Debug-Log hinzu
  * @param {string} message Die anzuzeigende Nachricht
  * @param {string} type Der Typ der Nachricht (info, warning, error)
+ * @param {boolean} showToast Ob ein Toast angezeigt werden soll
  */
-function showNotification(message, type = 'info') {
+function showNotification(message, type = 'info', showToast = true) {
     const config = vscode.workspace.getConfiguration('comitto');
     const uiSettings = config.get('uiSettings');
     const debug = config.get('debug');
@@ -1376,8 +1459,8 @@ function showNotification(message, type = 'info') {
     // Zum Debug-Log hinzufügen
     addDebugLog(message, type);
     
-    // Benachrichtigung anzeigen, wenn aktiviert
-    if (uiSettings && uiSettings.showNotifications) {
+    // Benachrichtigung anzeigen, wenn aktiviert und showToast ist true
+    if (uiSettings && uiSettings.showNotifications && showToast) {
         switch (type) {
             case 'info':
                 vscode.window.showInformationMessage(message);
@@ -1394,17 +1477,71 @@ function showNotification(message, type = 'info') {
     }
     
     // Status in der Statusleiste aktualisieren
-    if (type === 'error' && statusBarItem) {
-        const originalText = statusBarItem.text;
-        statusBarItem.text = "$(error) Comitto: Fehler";
-        
-        // Nach 3 Sekunden zurücksetzen
-        setTimeout(() => {
-            if (statusBarItem) {
-                statusBarItem.text = originalText;
-            }
-        }, 3000);
+    if (statusBarItem) {
+        updateStatusBarForNotification(message, type);
     }
+}
+
+/**
+ * Aktualisiert die Statusleiste basierend auf einer Benachrichtigung
+ * @param {string} message Die anzuzeigende Nachricht
+ * @param {string} type Der Typ der Nachricht (info, warning, error)
+ */
+function updateStatusBarForNotification(message, type) {
+    if (!statusBarItem) return;
+    
+    const originalText = statusBarItem.text;
+    
+    // Icon je nach Typ wählen
+    let icon = '$(info)';
+    switch (type) {
+        case 'info':
+            icon = '$(info)';
+            break;
+        case 'warning':
+            icon = '$(warning)';
+            break;
+        case 'error':
+            icon = '$(error)';
+            break;
+        default:
+            icon = '$(info)';
+    }
+    
+    // Statusleiste aktualisieren
+    statusBarItem.text = `${icon} Comitto: ${message}`;
+    statusBarItem.tooltip = message;
+    
+    // Nach 3 Sekunden zurücksetzen
+    setTimeout(() => {
+        if (statusBarItem) {
+            statusBarItem.text = originalText;
+            statusBarItem.tooltip = 'Comitto Git-Automatisierung';
+        }
+    }, 3000);
+}
+
+/**
+ * Aktualisiert die Statusleiste mit einer Fortschrittsmeldung
+ * @param {string} operation Die laufende Operation
+ * @param {number} progress Fortschritt zwischen 0 und 100
+ * @param {string} details Zusätzliche Details zur Operation
+ */
+function updateStatusBarProgress(operation, progress = -1, details = '') {
+    if (!statusBarItem) return;
+    
+    let progressBar = '';
+    if (progress >= 0 && progress <= 100) {
+        const progressChars = 10;
+        const filledChars = Math.floor((progress / 100) * progressChars);
+        const emptyChars = progressChars - filledChars;
+        
+        progressBar = ' [' + '█'.repeat(filledChars) + '░'.repeat(emptyChars) + ']';
+    }
+    
+    const detailsText = details ? ` - ${details}` : '';
+    statusBarItem.text = `$(sync~spin) Comitto: ${operation}${progressBar}${detailsText}`;
+    statusBarItem.tooltip = `${operation}${detailsText}`;
 }
 
 /**
@@ -1605,6 +1742,13 @@ async function generateWithOpenAI(prompt) {
     }
     
     try {
+        // Aktualisiere Statusleiste für Benutzer-Feedback
+        updateStatusBarProgress('OpenAI generiert', 0, `Modell: ${model}`);
+        
+        console.log(`Verwende OpenAI-Modell: ${model}`);
+        showNotification(`KI-Nachricht wird mit ${model} generiert...`, 'info', false);
+        
+        const requestStart = Date.now();
         const response = await axios.post('https://api.openai.com/v1/chat/completions', {
             model: model,
             messages: [
@@ -1620,7 +1764,19 @@ async function generateWithOpenAI(prompt) {
             }
         });
         
+        const requestDuration = ((Date.now() - requestStart) / 1000).toFixed(2);
+        updateStatusBarProgress('OpenAI generiert', 100, `Fertig in ${requestDuration}s`);
+        
         if (response.data && response.data.choices && response.data.choices[0]) {
+            // Details für das Debugging im Hintergrund anzeigen
+            const tokenInfo = response.data.usage ? 
+                `Tokens: ${response.data.usage.prompt_tokens}/${response.data.usage.completion_tokens}` : 
+                'Token-Infos nicht verfügbar';
+            
+            console.log(`OpenAI-Antwort erhalten. ${tokenInfo}. Zeit: ${requestDuration}s`);
+            showNotification(`Commit-Nachricht generiert. ${tokenInfo}.`, 'info', false);
+            
+            // Nachricht zurückgeben
             return response.data.choices[0].message.content.trim()
                 .replace(/^["']|["']$/g, '')
                 .replace(/\n/g, ' ');
@@ -1628,8 +1784,38 @@ async function generateWithOpenAI(prompt) {
             throw new Error('Unerwartetes Antwortformat von OpenAI');
         }
     } catch (error) {
-        console.error('OpenAI API-Fehler:', error.response?.data || error.message);
-        throw new Error(`Fehler bei der Kommunikation mit OpenAI: ${error.message}`);
+        updateStatusBarProgress('OpenAI-Fehler', -1);
+        
+        // Detailliertere Fehlerinformationen
+        let errorMessage = 'Fehler bei der Kommunikation mit OpenAI';
+        let errorDetails = '';
+        
+        if (error.response) {
+            // API antwortete mit einem Fehlercode
+            errorMessage = `OpenAI API-Fehler: ${error.response.status} ${error.response.statusText}`;
+            
+            if (error.response.data && error.response.data.error) {
+                const apiError = error.response.data.error;
+                errorDetails = `Typ: ${apiError.type}, Code: ${apiError.code}, Nachricht: ${apiError.message}`;
+                console.error('OpenAI API-Fehler Details:', apiError);
+                
+                if (apiError.code === 'model_not_found') {
+                    errorMessage = `Das Modell '${model}' ist nicht verfügbar oder existiert nicht.`;
+                } else if (apiError.type === 'insufficient_quota') {
+                    errorMessage = 'Ihr OpenAI-Kontingent ist erschöpft. Bitte überprüfen Sie Ihr OpenAI-Konto.';
+                } else if (apiError.type === 'invalid_request_error' && apiError.message.includes('API key')) {
+                    errorMessage = 'Ungültiger OpenAI API-Schlüssel. Bitte überprüfen Sie Ihre Einstellungen.';
+                }
+            }
+        } else if (error.request) {
+            // Keine Antwort erhalten
+            errorMessage = 'Keine Antwort von OpenAI erhalten. Bitte überprüfen Sie Ihre Internetverbindung.';
+        }
+        
+        console.error('OpenAI API-Fehler:', errorMessage, errorDetails || error.message);
+        showNotification(errorMessage, 'error');
+        
+        throw new Error(errorMessage);
     }
 }
 

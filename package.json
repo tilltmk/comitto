@@ -266,7 +266,7 @@
           "type": "object",
           "default": {
             "endpoint": "http://localhost:11434/api/generate",
-            "model": "llama3"
+            "model": "granite3.3:2b"
           },
           "description": "Ollama API settings",
           "properties": {
@@ -277,14 +277,14 @@
             },
             "model": {
               "type": "string",
-              "default": "llama3",
+              "default": "granite3.3:2b",
               "description": "The Ollama model to use"
             }
           }
         },
         "comitto.ollama-model": {
           "type": "string",
-          "default": "llama3",
+          "default": "granite3.3:2b",
           "description": "Abwärtskompatibilität für Ollama-Modell-Einstellung"
         },
         "comitto.anthropic": {

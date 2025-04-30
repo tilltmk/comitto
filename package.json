@@ -28,6 +28,7 @@
     "onCommand:comitto.showDashboard",
     "onCommand:comitto.showSimpleUI",
     "onCommand:comitto.selectAiProvider",
+    "onCommand:comitto.selectOpenAIModel",
     "onCommand:comitto.toggleSimpleMode",
     "onCommand:comitto.selectTheme",
     "onCommand:comitto.toggleOnSave",
@@ -135,6 +136,11 @@
         "icon": "$(symbol-misc)"
       },
       {
+        "command": "comitto.selectOpenAIModel",
+        "title": "Comitto: Select OpenAI Model",
+        "icon": "$(symbol-parameter)"
+      },
+      {
         "command": "comitto.configureTriggers",
         "title": "Comitto: Configure Triggers",
         "icon": "$(settings-gear)"
@@ -197,6 +203,10 @@
         },
         {
           "command": "comitto.selectAiProvider",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.selectOpenAIModel",
           "when": "workspaceHasGit"
         },
         {

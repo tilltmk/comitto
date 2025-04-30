@@ -430,6 +430,44 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
         })
     );
     
+    // OpenAI-Modell auswählen
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.selectOpenAIModel', async () => {
+            try {
+                const models = [
+                    { label: 'GPT-4o', value: 'gpt-4o' },
+                    { label: 'GPT-4o Mini', value: 'gpt-4o-mini' },
+                    { label: 'GPT-4', value: 'gpt-4' },
+                    { label: 'GPT-4 Turbo', value: 'gpt-4-turbo' },
+                    { label: 'GPT-3.5 Turbo', value: 'gpt-3.5-turbo' }
+                ];
+                
+                const selection = await vscode.window.showQuickPick(models, {
+                    placeHolder: 'Wähle ein OpenAI-Modell',
+                    title: 'OpenAI-Modell auswählen'
+                });
+                
+                if (selection) {
+                    const config = vscode.workspace.getConfiguration('comitto');
+                    const openaiConfig = config.get('openai') || {};
+                    
+                    // Aktualisiere das Modell in den Einstellungen
+                    openaiConfig.model = selection.value;
+                    await config.update('openai', openaiConfig, vscode.ConfigurationTarget.Global);
+                    
+                    showNotification(`OpenAI-Modell wurde auf ${selection.label} (${selection.value}) gesetzt.`, 'info');
+                    
+                    // UI aktualisieren
+                    if (providers) {
+                        providers.settingsProvider.refresh();
+                    }
+                }
+            } catch (error) {
+                handleError(error, "Fehler bei der Auswahl des OpenAI-Modells", true);
+            }
+        })
+    );
+    
     // Alle Änderungen stagen
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.stageAll', async () => {

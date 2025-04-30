@@ -468,6 +468,120 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
         })
     );
     
+    // OpenAI API-Schlüssel bearbeiten
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.editOpenAIKey', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const openaiConfig = config.get('openai') || {};
+                const currentKey = openaiConfig.apiKey || '';
+                
+                // Maske für den Schlüssel erstellen, falls einer existiert
+                const maskedKey = currentKey ? '********' + currentKey.slice(-4) : '';
+                
+                const input = await vscode.window.showInputBox({
+                    prompt: 'OpenAI API-Schlüssel eingeben',
+                    placeHolder: 'sk-...',
+                    value: maskedKey,
+                    password: true // Eingabe als Passwort maskieren
+                });
+                
+                if (input !== undefined) {
+                    // Wenn der Benutzer nicht die maskierte Version gelassen hat
+                    if (input !== maskedKey) {
+                        // Schlüssel aktualisieren
+                        openaiConfig.apiKey = input;
+                        await config.update('openai', openaiConfig, vscode.ConfigurationTarget.Global);
+                        showNotification('OpenAI API-Schlüssel wurde aktualisiert.', 'info');
+                    }
+                    
+                    // UI aktualisieren
+                    if (providers) {
+                        providers.settingsProvider.refresh();
+                    }
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Bearbeiten des OpenAI API-Schlüssels", true);
+            }
+        })
+    );
+    
+    // Und auch einen Befehl für Anthropic, da dieser ebenfalls in der UI referenziert wird
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.editAnthropicKey', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const anthropicConfig = config.get('anthropic') || {};
+                const currentKey = anthropicConfig.apiKey || '';
+                
+                // Maske für den Schlüssel erstellen, falls einer existiert
+                const maskedKey = currentKey ? '********' + currentKey.slice(-4) : '';
+                
+                const input = await vscode.window.showInputBox({
+                    prompt: 'Anthropic API-Schlüssel eingeben',
+                    placeHolder: 'sk-...',
+                    value: maskedKey,
+                    password: true // Eingabe als Passwort maskieren
+                });
+                
+                if (input !== undefined) {
+                    // Wenn der Benutzer nicht die maskierte Version gelassen hat
+                    if (input !== maskedKey) {
+                        // Schlüssel aktualisieren
+                        anthropicConfig.apiKey = input;
+                        await config.update('anthropic', anthropicConfig, vscode.ConfigurationTarget.Global);
+                        showNotification('Anthropic API-Schlüssel wurde aktualisiert.', 'info');
+                    }
+                    
+                    // UI aktualisieren
+                    if (providers) {
+                        providers.settingsProvider.refresh();
+                    }
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Bearbeiten des Anthropic API-Schlüssels", true);
+            }
+        })
+    );
+    
+    // Und auch einen Befehl für die Bearbeitung der Prompt-Vorlage
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.editPromptTemplate', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const currentTemplate = config.get('promptTemplate') || 'Generiere eine Commit-Nachricht für diese Änderungen: {changes}';
+                
+                // Multi-line Text Editor verwenden, um die Vorlage zu bearbeiten
+                const document = await vscode.workspace.openTextDocument({
+                    content: currentTemplate,
+                    language: 'markdown'
+                });
+                
+                const editor = await vscode.window.showTextDocument(document);
+                
+                // Event-Listener für das Speichern registrieren
+                const disposable = vscode.workspace.onDidSaveTextDocument(async (doc) => {
+                    if (doc === document) {
+                        const newTemplate = doc.getText();
+                        await config.update('promptTemplate', newTemplate, vscode.ConfigurationTarget.Global);
+                        showNotification('Prompt-Vorlage wurde aktualisiert.', 'info');
+                        
+                        // Event-Listener und temporäres Dokument entfernen
+                        disposable.dispose();
+                        setTimeout(() => {
+                            vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+                        }, 500);
+                    }
+                });
+                
+                // Info-Meldung anzeigen
+                vscode.window.showInformationMessage('Bearbeiten Sie die Prompt-Vorlage und speichern Sie die Datei (STRG+S), um die Änderungen zu übernehmen.');
+            } catch (error) {
+                handleError(error, "Fehler beim Bearbeiten der Prompt-Vorlage", true);
+            }
+        })
+    );
+    
     // Alle Änderungen stagen
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.stageAll', async () => {

@@ -6,7 +6,7 @@ const fs = require('fs');
 const ignore = require('ignore');
 const ui = require('./ui');
 const commands = require('./commands');
-const { executeGitCommand, getStatusText, ComittoError, ErrorTypes, logError, getErrorLogs, withRetry, getDiagnosticInfo } = require('./utils');
+const { executeGitCommand, getStatusText, ComittoError, ErrorTypes, logError, getErrorLogs, withRetry, getDiagnosticInfo, updateStatusBarProgress } = require('./utils');
 const os = require('os');
 const { WebviewPanel } = require('vscode');
 
@@ -964,7 +964,7 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
     
     try {
         isCommitInProgress = true;
-        statusBarItem.text = "$(sync~spin) Comitto: Commit wird vorbereitet...";
+        updateStatusBarProgress(statusBarItem, 'Commit vorbereiten', 5, 'Starte Prozess');
 
         // Git-Repository-Pfad bestimmen
         const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -980,24 +980,29 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             // Prüfen, ob Git initialisiert ist
             try {
                 await executeGitCommand('git rev-parse --is-inside-work-tree', repoPath);
+                updateStatusBarProgress(statusBarItem, 'Commit vorbereiten', 10, 'Git-Repo geprüft');
             } catch (error) {
                 throw new Error('Kein Git-Repository gefunden. Bitte initialisieren Sie zuerst ein Git-Repository.');
             }
             
             // Dateien zum Staging hinzufügen
             try {
+                updateStatusBarProgress(statusBarItem, 'Änderungen stagen', 20, gitSettings.stageMode);
                 await stageChanges(gitSettings.stageMode);
+                updateStatusBarProgress(statusBarItem, 'Staging abgeschlossen', 30);
             } catch (stageError) {
                 console.error('Fehler beim Stagen der Änderungen:', stageError);
                 showNotification(`Fehler beim Stagen: ${stageError.message}. Versuche Fallback-Methode...`, 'warning');
                 
                 // Fallback: Alle Änderungen stagen
                 await executeGitCommand('git add .', repoPath);
+                updateStatusBarProgress(statusBarItem, 'Staging (Fallback)', 30);
             }
             
             // git status ausführen, um Änderungen zu erhalten
             let gitStatus = '';
             try {
+                updateStatusBarProgress(statusBarItem, 'Status abrufen', 35);
                 gitStatus = await executeGitCommand('git status --porcelain', repoPath);
             } catch (statusError) {
                 // Wenn git status fehlschlägt, versuchen wir es trotzdem weiter
@@ -1007,7 +1012,7 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             
             if (!gitStatus.trim() && !isManualTrigger) {
                 isCommitInProgress = false;
-                statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+                updateStatusBarProgress(statusBarItem, 'Keine Änderungen', 100);
                 changedFiles.clear();
                 return;
             } else if (!gitStatus.trim() && isManualTrigger) {
@@ -1017,16 +1022,19 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             // Änderungen abrufen für KI-Commit-Nachricht
             let diffOutput = '';
             try {
-                statusBarItem.text = "$(sync~spin) Comitto: Diff wird berechnet...";
+                updateStatusBarProgress(statusBarItem, 'Diff berechnen', 40);
                 diffOutput = await executeGitCommand('git diff --cached', repoPath);
+                updateStatusBarProgress(statusBarItem, 'Diff berechnet', 50);
             } catch (diffError) {
                 // Bei Pufferüberlauf oder anderen Diff-Fehlern trotzdem weitermachen
                 console.warn('Fehler beim Abrufen des Diffs, versuche alternative Methode:', diffError);
                 
                 try {
                     // Nur Liste der geänderten Dateien abrufen
+                    updateStatusBarProgress(statusBarItem, 'Diff (Alternative)', 45);
                     const fileList = await executeGitCommand('git diff --cached --name-status', repoPath);
                     diffOutput = 'Diff konnte nicht vollständig abgerufen werden.\nGeänderte Dateien:\n' + fileList;
+                    updateStatusBarProgress(statusBarItem, 'Diff (Alternativ) berechnet', 50);
                 } catch (fileListError) {
                     console.error('Auch die Dateiliste konnte nicht abgerufen werden:', fileListError);
                     diffOutput = 'Diff-Inhalt konnte nicht abgerufen werden. Commit wird trotzdem versucht.';
@@ -1034,13 +1042,15 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             }
             
             // Commit-Nachricht generieren
-            statusBarItem.text = "$(sync~spin) Comitto: Generiere Commit-Nachricht...";
+            updateStatusBarProgress(statusBarItem, 'KI generiert Commit-Nachricht', 60);
             let commitMessage = '';
             
             try {
                 commitMessage = await commands.generateCommitMessage(gitStatus, diffOutput);
+                updateStatusBarProgress(statusBarItem, 'Commit-Nachricht generiert', 75);
             } catch (messageError) {
                 console.error('Fehler bei der Commit-Nachricht-Generierung:', messageError);
+                updateStatusBarProgress(statusBarItem, 'Fallback-Nachricht', 70);
                 
                 // Fallback-Nachricht mit Datum
                 const now = new Date();
@@ -1069,7 +1079,7 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             // Branch-Handling
             try {
                 if (gitSettings.branch) {
-                    statusBarItem.text = "$(sync~spin) Comitto: Prüfe Branch...";
+                    updateStatusBarProgress(statusBarItem, 'Branch prüfen', 80);
                     
                     // Aktuelle Branch bestimmen
                     const currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
@@ -1083,18 +1093,22 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                         if (branchExists) {
                             // Zu existierendem Branch wechseln
                             try {
+                                updateStatusBarProgress(statusBarItem, `Wechsle zu ${gitSettings.branch}`, 82);
                                 await executeGitCommand(`git checkout ${gitSettings.branch}`, repoPath);
                                 showNotification(`Zu Branch '${gitSettings.branch}' gewechselt.`, 'info');
                             } catch (checkoutError) {
                                 // Fehler beim Checkout - möglicherweise ungespeicherte Änderungen
+                                updateStatusBarProgress(statusBarItem, 'Branch-Wechsel fehlgeschlagen', -1);
                                 showNotification(`Fehler beim Wechseln zu Branch '${gitSettings.branch}': ${checkoutError.message}. Fortfahren mit aktuellem Branch.`, 'warning');
                             }
                         } else {
                             // Neuen Branch erstellen und wechseln
                             try {
+                                updateStatusBarProgress(statusBarItem, `Erstelle Branch ${gitSettings.branch}`, 82);
                                 await executeGitCommand(`git checkout -b ${gitSettings.branch}`, repoPath);
                                 showNotification(`Branch '${gitSettings.branch}' erstellt und ausgecheckt.`, 'info');
                             } catch (createBranchError) {
+                                updateStatusBarProgress(statusBarItem, 'Branch-Erstellung fehlgeschlagen', -1);
                                 showNotification(`Fehler beim Erstellen des Branches '${gitSettings.branch}': ${createBranchError.message}. Fortfahren mit aktuellem Branch.`, 'warning');
                             }
                         }
@@ -1106,12 +1120,13 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             }
             
             // Git Commit durchführen
-            statusBarItem.text = "$(sync~spin) Comitto: Führe Commit aus...";
+            updateStatusBarProgress(statusBarItem, 'Führe Commit aus', 90);
             
             try {
                 // Escapte Anführungszeichen für Shell
                 const escapedMessage = commitMessage.replace(/"/g, '\\"').replace(/`/g, "'");
                 await executeGitCommand(`git commit -m "${escapedMessage}"`, repoPath);
+                updateStatusBarProgress(statusBarItem, 'Commit abgeschlossen', 95);
                 
                 // Benachrichtigungen anzeigen basierend auf den Einstellungen
                 const notificationSettings = config.get('notifications');
@@ -1130,21 +1145,23 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                 
                 // Wenn nichts zum Committen da ist, ist das kein echter Fehler
                 if (commitError.message.includes('nothing to commit')) {
+                    updateStatusBarProgress(statusBarItem, 'Keine Änderungen', 100);
                     showNotification('Keine Änderungen zum Committen gefunden.', 'info');
                     isCommitInProgress = false;
-                    statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
                     changedFiles.clear();
                     return;
                 }
                 
                 // Bei anderen Fehlern versuchen, es noch einmal
                 if (retryCount < MAX_RETRIES) {
+                    updateStatusBarProgress(statusBarItem, 'Commit fehlgeschlagen, neuer Versuch', 85);
                     showNotification(`Commit fehlgeschlagen: ${commitError.message}. Versuche es erneut...`, 'warning');
                     setTimeout(() => {
                         performAutoCommit(isManualTrigger, retryCount + 1);
                     }, 2000); // 2 Sekunden Verzögerung vor dem Retry
                     return;
                 } else {
+                    updateStatusBarProgress(statusBarItem, 'Commit endgültig fehlgeschlagen', -1);
                     throw new Error(`Commit fehlgeschlagen nach ${MAX_RETRIES} Versuchen: ${commitError.message}`);
                 }
             }
@@ -1152,17 +1169,20 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             // Automatischen Push ausführen, wenn konfiguriert
             if (gitSettings.autoPush) {
                 try {
+                    updateStatusBarProgress(statusBarItem, 'Push ausführen', 97);
                     await performAutoPush(repoPath);
+                    updateStatusBarProgress(statusBarItem, 'Push abgeschlossen', 100);
                 } catch (pushError) {
                     console.error('Push fehlgeschlagen:', pushError);
+                    updateStatusBarProgress(statusBarItem, 'Push fehlgeschlagen', -1);
                     showNotification(`Push fehlgeschlagen: ${pushError.message}`, 'error');
                 }
+            } else {
+                updateStatusBarProgress(statusBarItem, 'Vorgang abgeschlossen', 100);
             }
-            
-            // Statusleiste aktualisieren
-            statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
         } catch (error) {
             console.error('Git-Befehl fehlgeschlagen:', error);
+            updateStatusBarProgress(statusBarItem, 'Git-Fehler', -1);
             
             // Fehlerbehandlung verbessern
             let errorMessage = error.message;
@@ -1180,19 +1200,17 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                 showNotification(`Git-Befehl fehlgeschlagen: ${errorMessage}`, 'error');
             }
             
-            statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
             throw error;
         }
     } catch (error) {
         console.error('Comitto Fehler:', error);
+        updateStatusBarProgress(statusBarItem, 'Fehler', -1);
         
         // Benachrichtigung anzeigen
         const notificationSettings = vscode.workspace.getConfiguration('comitto').get('notifications');
         if (notificationSettings.onError) {
             showNotification(`Comitto Fehler: ${error.message}`, 'error');
         }
-        
-        statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
     } finally {
         isCommitInProgress = false;
     }
@@ -1538,7 +1556,7 @@ async function generateWithOllama(prompt) {
     
     try {
         // Statusleiste aktualisieren
-        updateStatusBarProgress('Ollama generiert', 0, `Modell: ${model}`);
+        updateStatusBarProgress(statusBarItem, 'Ollama generiert', 0, `Modell: ${model}`);
         showNotification(`KI-Nachricht wird mit Ollama (${model}) generiert...`, 'info', false);
         
         console.log(`Verwende Ollama-Modell: ${model} auf ${endpoint}`);
@@ -1561,7 +1579,7 @@ async function generateWithOllama(prompt) {
         });
         
         const requestDuration = ((Date.now() - requestStart) / 1000).toFixed(2);
-        updateStatusBarProgress('Ollama generiert', 100, `Fertig in ${requestDuration}s`);
+        updateStatusBarProgress(statusBarItem, 'Ollama generiert', 100, `Fertig in ${requestDuration}s`);
         
         let commitMessage = '';
         
@@ -1599,7 +1617,7 @@ async function generateWithOllama(prompt) {
         console.error('Ollama API-Fehler:', error.response?.data || error.message);
         
         // Statusleiste aktualisieren
-        updateStatusBarProgress('Ollama-Fehler', -1);
+        updateStatusBarProgress(statusBarItem, 'Ollama-Fehler', -1);
         
         // Detaillierte Fehlermeldung
         let errorMessage = 'Fehler bei der Kommunikation mit Ollama';
@@ -1641,6 +1659,9 @@ async function generateWithOpenAI(prompt) {
     }
     
     try {
+        updateStatusBarProgress(statusBarItem, 'OpenAI generiert', 20, `Modell: ${model}`);
+        showNotification(`KI-Nachricht wird mit OpenAI (${model}) generiert...`, 'info', false);
+        
         const response = await axios.post('https://api.openai.com/v1/chat/completions', {
             model: model,
             messages: [
@@ -1656,6 +1677,8 @@ async function generateWithOpenAI(prompt) {
             }
         });
         
+        updateStatusBarProgress(statusBarItem, 'OpenAI generiert', 100, 'Fertig');
+        
         if (response.data && response.data.choices && response.data.choices[0]) {
             return response.data.choices[0].message.content.trim()
                 .replace(/^["']|["']$/g, '')
@@ -1664,6 +1687,7 @@ async function generateWithOpenAI(prompt) {
             throw new Error('Unerwartetes Antwortformat von OpenAI');
         }
     } catch (error) {
+        updateStatusBarProgress(statusBarItem, 'OpenAI-Fehler', -1);
         console.error('OpenAI API-Fehler:', error.response?.data || error.message);
         throw new Error(`Fehler bei der Kommunikation mit OpenAI: ${error.message}`);
     }
@@ -1684,6 +1708,9 @@ async function generateWithAnthropic(prompt) {
     }
     
     try {
+        updateStatusBarProgress(statusBarItem, 'Anthropic generiert', 20, `Modell: ${model}`);
+        showNotification(`KI-Nachricht wird mit Anthropic (${model}) generiert...`, 'info', false);
+        
         const response = await axios.post('https://api.anthropic.com/v1/messages', {
             model: model,
             max_tokens: 100,
@@ -1700,6 +1727,8 @@ async function generateWithAnthropic(prompt) {
             }
         });
         
+        updateStatusBarProgress(statusBarItem, 'Anthropic generiert', 100, 'Fertig');
+        
         if (response.data && response.data.content && response.data.content[0]) {
             return response.data.content[0].text.trim()
                 .replace(/^["']|["']$/g, '')
@@ -1708,6 +1737,7 @@ async function generateWithAnthropic(prompt) {
             throw new Error('Unerwartetes Antwortformat von Anthropic');
         }
     } catch (error) {
+        updateStatusBarProgress(statusBarItem, 'Anthropic-Fehler', -1);
         console.error('Anthropic API-Fehler:', error.response?.data || error.message);
         throw new Error(`Fehler bei der Kommunikation mit Anthropic: ${error.message}`);
     }

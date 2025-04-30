@@ -2,7 +2,7 @@
   "name": "comitto",
   "displayName": "Comitto",
   "description": "Automatisierte Git-Commits mit KI-generierten Commit-Nachrichten",
-  "version": "2.2.5",
+  "version": "2.2.6",
   "publisher": "tilltmk",
   "repository": {
     "type": "git",

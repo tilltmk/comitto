@@ -268,7 +268,19 @@
             "endpoint": "http://localhost:11434/api/generate",
             "model": "llama3"
           },
-          "description": "Ollama API settings"
+          "description": "Ollama API settings",
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "default": "http://localhost:11434/api/generate",
+              "description": "Endpoint for the Ollama API"
+            },
+            "model": {
+              "type": "string",
+              "default": "llama3",
+              "description": "The Ollama model to use"
+            }
+          }
         },
         "comitto.anthropic": {
           "type": "object",

@@ -139,6 +139,15 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     // Ollama-Endpoint bearbeiten (ersetzt durch configureOllamaSettings)
     // context.subscriptions.push(vscode.commands.registerCommand('comitto.editOllamaEndpoint', async () => { ... }));
 
+    // Ollama-Einstellungen konfigurieren (neuer kombinierter Befehl)
+    context.subscriptions.push(vscode.commands.registerCommand('comitto.configureOllamaSettings', async () => {
+        const success = await configureOllamaSettings();
+        if (success && providers) {
+            providers.statusProvider.refresh();
+            providers.settingsProvider.refresh();
+        }
+    }));
+
     // OpenAI-Modell auswählen
     context.subscriptions.push(vscode.commands.registerCommand('comitto.selectOpenAIModel', async () => {
         await handleOpenAIModelSelectionCommand(); // Ruft die dedizierte Funktion auf

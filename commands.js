@@ -1,6 +1,7 @@
 const vscode = require('vscode');
 const ui = require('./ui'); // Importiere UI-Modul für Hilfsfunktionen
 const { executeGitCommand } = require('./utils'); // Annahme: executeGitCommand ist in utils.js
+const axios = require('axios');
 
 /**
  * Registriert die Befehle für die UI-Interaktionen
@@ -1627,30 +1628,115 @@ function processCommitMessage(rawMessage) {
 async function handleOpenAIModelSelectionCommand() {
     const config = vscode.workspace.getConfiguration('comitto');
     const currentModel = config.get('openai.model');
-    const models = [
-        'gpt-4-turbo-preview',
-        'gpt-4',
-        'gpt-4-0613',
-        'gpt-4-1106-preview',
-        'gpt-3.5-turbo',
-        'gpt-3.5-turbo-0613',
-        'gpt-3.5-turbo-1106'
-    ];
     
-    const selected = await vscode.window.showQuickPick(
-        models.map(name => ({
-            label: name,
-            description: name === currentModel ? '(Aktuell)' : ''
-        })),
-        { 
-            placeHolder: 'OpenAI-Modell auswählen',
-            ignoreFocusOut: true
+    // Statusbar aktualisieren
+    if (statusBarItem) {
+        statusBarItem.text = "$(sync~spin) Comitto: Lade verfügbare Modelle...";
+    }
+    
+    // Modelle von der OpenAI API abfragen
+    try {
+        const apiKey = config.get('openai.apiKey');
+        
+        if (!apiKey) {
+            throw new Error('OpenAI API-Schlüssel nicht konfiguriert');
         }
-    );
-    
-    if (selected) {
-        await config.update('openai.model', selected.label, vscode.ConfigurationTarget.Global);
-        vscode.window.showInformationMessage(`OpenAI-Modell auf ${selected.label} gesetzt.`);
+        
+        // Verfügbare Modelle von der OpenAI API abrufen
+        const response = await axios.get('https://api.openai.com/v1/models', {
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        // Statusleiste zurücksetzen
+        if (statusBarItem) {
+            statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+        }
+        
+        if (!response.data || !response.data.data) {
+            throw new Error('Unerwartetes Antwortformat von OpenAI');
+        }
+        
+        // Filtere nur ChatGPT-kompatible Modelle
+        const chatModels = response.data.data
+            .filter(model => 
+                model.id.includes('gpt-') && 
+                !model.id.includes('-vision-') && 
+                !model.id.includes('instruct')
+            )
+            .map(model => model.id)
+            .sort((a, b) => {
+                // GPT-4 Modelle zuerst
+                if (a.includes('gpt-4') && !b.includes('gpt-4')) return -1;
+                if (!a.includes('gpt-4') && b.includes('gpt-4')) return 1;
+                // Dann nach Version sortieren
+                return b.localeCompare(a);
+            });
+        
+        // Füge die statischen Optionen hinzu, falls diese nicht in der API-Antwort enthalten sind
+        const staticModels = [
+            'gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4-turbo', 
+            'gpt-3.5-turbo', 'gpt-3.5-turbo-0125'
+        ];
+        
+        staticModels.forEach(model => {
+            if (!chatModels.includes(model)) {
+                chatModels.unshift(model);
+            }
+        });
+        
+        // Entferne Duplikate
+        const uniqueModels = [...new Set(chatModels)];
+        
+        const selected = await vscode.window.showQuickPick(
+            uniqueModels.map(name => ({
+                label: name,
+                description: name === currentModel ? '(Aktuell)' : ''
+            })),
+            { 
+                placeHolder: 'OpenAI-Modell auswählen',
+                ignoreFocusOut: true
+            }
+        );
+        
+        if (selected) {
+            await config.update('openai.model', selected.label, vscode.ConfigurationTarget.Global);
+            showNotification(`OpenAI-Modell auf ${selected.label} gesetzt.`, 'info');
+        }
+    } catch (error) {
+        // Statusleiste zurücksetzen
+        if (statusBarItem) {
+            statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+        }
+        
+        console.error('Fehler beim Laden der OpenAI-Modelle:', error);
+        showNotification(`Fehler beim Laden der Modelle: ${error.message}. Verwende Standard-Liste.`, 'warning');
+        
+        // Fallback auf statische Liste
+        const models = [
+            'gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4-turbo',
+            'gpt-4-0125-preview', 'gpt-4-1106-preview',
+            'gpt-4-vision-preview', 'gpt-3.5-turbo',
+            'gpt-3.5-turbo-0125', 'gpt-3.5-turbo-1106'
+        ];
+        
+        const selected = await vscode.window.showQuickPick(
+            models.map(name => ({
+                label: name,
+                description: name === currentModel ? '(Aktuell)' : ''
+            })),
+            { 
+                placeHolder: 'OpenAI-Modell auswählen',
+                ignoreFocusOut: true
+            }
+        );
+        
+        if (selected) {
+            await config.update('openai.model', selected.label, vscode.ConfigurationTarget.Global);
+            showNotification(`OpenAI-Modell auf ${selected.label} gesetzt.`, 'info');
+        }
     }
 }
 
@@ -1733,11 +1819,11 @@ async function configureOllamaSettings() {
             // Fehlerhafte Konfiguration zurücksetzen
             await config.update('ollama-model', undefined, vscode.ConfigurationTarget.Global);
             
-            vscode.window.showInformationMessage('Korrektur der Ollama-Modell-Konfiguration durchgeführt.');
+            showNotification('Korrektur der Ollama-Modell-Konfiguration durchgeführt.', 'info');
         }
         
         // Ollama-Einstellungen abrufen
-        const currentModel = ollamaModel || 'llama2';
+        const currentModel = ollamaModel || 'granite3.3:2b';
         const currentEndpoint = ollamaConfig.endpoint || 'http://localhost:11434';
         
         // Auswahloption für Konfiguration
@@ -1754,16 +1840,50 @@ async function configureOllamaSettings() {
         if (!selected) return false;
         
         if (selected.id === 'model') {
-            // Bekannte Ollama-Modelle vorschlagen
-            const modelOptions = [
+            // Statusleiste aktualisieren
+            if (statusBarItem) {
+                statusBarItem.text = "$(sync~spin) Comitto: Lade verfügbare Modelle...";
+            }
+            
+            // Verfügbare Modelle von Ollama abrufen
+            let availableModels = [];
+            try {
+                const response = await axios.get(`${currentEndpoint}/api/tags`);
+                if (response.data && response.data.models) {
+                    availableModels = response.data.models.map(model => model.name);
+                    showNotification(`${availableModels.length} Ollama-Modelle gefunden.`, 'info');
+                }
+            } catch (error) {
+                console.error('Fehler beim Abrufen der Ollama-Modelle:', error);
+                showNotification(`Keine Ollama-Modelle gefunden: ${error.message}. Verwende Standard-Liste.`, 'warning');
+            } finally {
+                // Statusleiste zurücksetzen
+                if (statusBarItem) {
+                    statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
+                }
+            }
+            
+            // Standardmodelle als Fallback oder Ergänzung
+            const defaultModels = [
+                'granite3.3:2b', 'llama3', 'llama3:8b', 'llama3:70b',
                 'llama2', 'llama2:13b', 'llama2:70b',
                 'mistral', 'mistral:7b-instruct-v0.2',
                 'orca-mini', 'vicuna', 'codellama', 'phi'
             ];
             
+            // Kombiniere verfügbare und Standard-Modelle, entferne Duplikate
+            const allModels = [...new Set([...availableModels, ...defaultModels])];
+            
+            // Sortiere Modelle: Stellt "granite3.3:2b" an erste Stelle, dann den Rest alphabetisch
+            allModels.sort((a, b) => {
+                if (a === 'granite3.3:2b') return -1;
+                if (b === 'granite3.3:2b') return 1;
+                return a.localeCompare(b);
+            });
+            
             const result = await vscode.window.showQuickPick(
                 [
-                    ...modelOptions.map(m => ({ label: m, description: m === currentModel ? '(Aktuell)' : '' })),
+                    ...allModels.map(m => ({ label: m, description: m === currentModel ? '(Aktuell)' : '' })),
                     { label: 'Benutzerdefiniert...', description: 'Eigenen Modellnamen eingeben' }
                 ],
                 {
@@ -1777,20 +1897,20 @@ async function configureOllamaSettings() {
                     const customModel = await vscode.window.showInputBox({
                         prompt: 'Geben Sie den Namen des Ollama-Modells ein',
                         value: currentModel,
-                        placeHolder: 'z.B. wizard-vicuna'
+                        placeHolder: 'z.B. granite3.3:2b'
                     });
                     
                     if (customModel) {
                         const ollamaConfig = config.get('ollama') || {};
                         ollamaConfig.model = customModel;
                         await config.update('ollama', ollamaConfig, vscode.ConfigurationTarget.Global);
-                        vscode.window.showInformationMessage(`Ollama-Modell auf "${customModel}" gesetzt.`);
+                        showNotification(`Ollama-Modell auf "${customModel}" gesetzt.`, 'info');
                     }
                 } else {
                     const ollamaConfig = config.get('ollama') || {};
                     ollamaConfig.model = result.label;
                     await config.update('ollama', ollamaConfig, vscode.ConfigurationTarget.Global);
-                    vscode.window.showInformationMessage(`Ollama-Modell auf "${result.label}" gesetzt.`);
+                    showNotification(`Ollama-Modell auf "${result.label}" gesetzt.`, 'info');
                 }
             }
         } else if (selected.id === 'endpoint') {
@@ -1803,20 +1923,20 @@ async function configureOllamaSettings() {
             if (endpoint) {
                 // Einfache Validierung
                 if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
-                    vscode.window.showWarningMessage('Der Endpoint sollte mit http:// oder https:// beginnen.');
+                    showNotification('Der Endpoint sollte mit http:// oder https:// beginnen.', 'warning');
                     return false;
                 }
                 
                 const ollamaConfig = config.get('ollama') || {};
                 ollamaConfig.endpoint = endpoint;
                 await config.update('ollama', ollamaConfig, vscode.ConfigurationTarget.Global);
-                vscode.window.showInformationMessage(`Ollama-Endpoint auf "${endpoint}" gesetzt.`);
+                showNotification(`Ollama-Endpoint auf "${endpoint}" gesetzt.`, 'info');
             }
         }
         
         return true;
     } catch (error) {
-        vscode.window.showErrorMessage(`Fehler bei der Ollama-Konfiguration: ${error.message}`);
+        showNotification(`Fehler bei der Ollama-Konfiguration: ${error.message}`, 'error');
         return false;
     }
 }

@@ -1816,7 +1816,7 @@ async function generateWithOpenAI(prompt) {
 }
 
 /**
- * Generiert eine Commit-Nachricht mit Anthropic
+ * Generiert eine Commit-Nachricht mit Anthropic 
  * @param {string} prompt Der zu verwendende Prompt
  * @returns {Promise<string>} Generierte Commit-Nachricht
  */

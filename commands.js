@@ -545,6 +545,44 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
         })
     );
     
+    // Und auch einen Befehl für Anthropic, da dieser ebenfalls in der UI referenziert wird
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.editAnthropicKey', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const anthropicConfig = config.get('anthropic') || {};
+                const currentKey = anthropicConfig.apiKey || '';
+                
+                // Maske für den Schlüssel erstellen, falls einer existiert
+                const maskedKey = currentKey ? '********' + currentKey.slice(-4) : '';
+                
+                const input = await vscode.window.showInputBox({
+                    prompt: 'Anthropic API-Schlüssel eingeben',
+                    placeHolder: 'sk-...',
+                    value: maskedKey,
+                    password: true // Eingabe als Passwort maskieren
+                });
+                
+                if (input !== undefined) {
+                    // Wenn der Benutzer nicht die maskierte Version gelassen hat
+                    if (input !== maskedKey) {
+                        // Schlüssel aktualisieren
+                        anthropicConfig.apiKey = input;
+                        await config.update('anthropic', anthropicConfig, vscode.ConfigurationTarget.Global);
+                        showNotification('Anthropic API-Schlüssel wurde aktualisiert.', 'info');
+                    }
+                    
+                    // UI aktualisieren
+                    if (providers) {
+                        providers.settingsProvider.refresh();
+                    }
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Bearbeiten des Anthropic API-Schlüssels", true);
+            }
+        })
+    );
+    
     // Und auch einen Befehl für die Bearbeitung der Prompt-Vorlage
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.editPromptTemplate', async () => {

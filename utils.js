@@ -254,6 +254,66 @@ function getDiagnosticInfo() {
     };
 }
 
+/**
+ * Aktualisiert die Statusleiste mit einem Fortschrittsbalken
+ * @param {object} statusBarItem Das StatusBarItem-Objekt
+ * @param {string} action Die aktuelle Aktion
+ * @param {number} progress Fortschritt (0-100, -1 für Fehler)
+ * @param {string} details Zusätzliche Details (optional)
+ */
+function updateStatusBarProgress(statusBarItem, action, progress, details = '') {
+    if (!statusBarItem) return;
+    
+    // Fortschrittsbalken erstellen
+    let progressBar = '';
+    let progressIcon = '$(sync~spin)';
+    
+    if (progress >= 0 && progress <= 100) {
+        // Visuellen Fortschrittsbalken erstellen
+        const barLength = 10;
+        const filledCount = Math.floor(progress / 100 * barLength);
+        const remainingCount = barLength - filledCount;
+        
+        // Unicode-Zeichen für Balken
+        const filledChar = '█';
+        const emptyChar = '░';
+        
+        progressBar = filledChar.repeat(filledCount) + emptyChar.repeat(remainingCount);
+        
+        // Icon basierend auf Fortschritt
+        if (progress === 100) {
+            progressIcon = '$(check)';
+        }
+    } else if (progress === -1) {
+        // Fehler anzeigen
+        progressIcon = '$(error)';
+    }
+    
+    // Formatierte Statusnachricht
+    let statusText = `${progressIcon} Comitto: ${action}`;
+    
+    // Fortschrittsbalken hinzufügen, wenn relevant
+    if (progress >= 0 && progress < 100) {
+        statusText += ` [${progressBar}]`;
+    }
+    
+    // Details hinzufügen, wenn vorhanden
+    if (details) {
+        statusText += ` (${details})`;
+    }
+    
+    statusBarItem.text = statusText;
+    
+    // Nach erfolgreicher Beendigung den Status zurücksetzen
+    if (progress === 100) {
+        setTimeout(() => {
+            if (statusBarItem && statusBarItem.text === statusText) {
+                statusBarItem.text = "$(sync) Comitto: Aktiv";
+            }
+        }, 3000);
+    }
+}
+
 module.exports = {
     executeGitCommand,
     getStatusText,
@@ -263,5 +323,6 @@ module.exports = {
     getErrorLogs,
     clearErrorLogs,
     withRetry,
-    getDiagnosticInfo
+    getDiagnosticInfo,
+    updateStatusBarProgress
 }; 

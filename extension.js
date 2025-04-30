@@ -1046,7 +1046,7 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             let commitMessage = '';
             
             try {
-                commitMessage = await commands.generateCommitMessage(gitStatus, diffOutput);
+                commitMessage = await generateCommitMessage(gitStatus, diffOutput);
                 updateStatusBarProgress(statusBarItem, 'Commit-Nachricht generiert', 75);
             } catch (messageError) {
                 console.error('Fehler bei der Commit-Nachricht-Generierung:', messageError);
@@ -1426,7 +1426,6 @@ function showNotification(message, type = 'info') {
 }
 
 /**
- * Generiert eine Commit-Nachricht mit dem konfigurierten KI-Modell
  * @param {string} gitStatus Die Ausgabe von git status
  * @param {string} diffOutput Die Ausgabe von git diff
  * @returns {Promise<string>} Generierte Commit-Nachricht
@@ -1447,7 +1446,7 @@ async function generateCommitMessage(gitStatus, diffOutput) {
         .join('\n');
     
     // Prompt-Vorlage mit Änderungen füllen
-    let promptTemplate = config.get('promptTemplate');
+    let promptTemplate = config.get('promptTemplate') || 'Generiere eine Commit-Nachricht für diese Änderungen: {changes}';
     promptTemplate = promptTemplate.replace('{changes}', changes);
     
     // Sprache für die Commit-Nachricht einfügen
@@ -1512,234 +1511,45 @@ async function generateCommitMessage(gitStatus, diffOutput) {
     }
     
     // Verschiedene KI-Provider unterstützen
-    switch (aiProvider) {
-        case 'ollama':
-            return await generateWithOllama(promptTemplate);
-        case 'openai':
-            return await generateWithOpenAI(promptTemplate);
-        case 'anthropic':
-            return await generateWithAnthropic(promptTemplate);
-        default:
-            throw new Error(`Unbekannter KI-Provider: ${aiProvider}`);
-    }
-}
-
-/**
- * Generiert eine Commit-Nachricht mit Ollama
- * @param {string} prompt Der zu verwendende Prompt
- * @returns {Promise<string>} Generierte Commit-Nachricht
- */
-async function generateWithOllama(prompt) {
-    const config = vscode.workspace.getConfiguration('comitto');
-    const endpoint = config.get('ollama').endpoint || 'http://localhost:11434/api/generate';
-    
-    // Backward-Kompatibilität: Prüfen, ob die fehlerhafte ollama-model Konfiguration verwendet wird
-    // und falls ja, diese auf die korrekte ollama Konfiguration übertragen
-    let ollamaConfig = config.get('ollama') || {};
-    let model = ollamaConfig.model;
-    const ollamaModelOld = config.get('ollama-model');
-    
-    if (!model && ollamaModelOld) {
-        // Alte, fehlerhafte Konfiguration gefunden, korrigieren
-        model = ollamaModelOld;
-        // Wert auf die korrekte Konfiguration übertragen
-        ollamaConfig.model = ollamaModelOld;
-        await config.update('ollama', ollamaConfig, vscode.ConfigurationTarget.Global);
-        // Fehlerhafte Konfiguration zurücksetzen
-        await config.update('ollama-model', undefined, vscode.ConfigurationTarget.Global);
-        
-        showNotification('Korrektur der Ollama-Modell-Konfiguration durchgeführt.', 'info');
-    }
-    
-    // Fallback, falls kein Modell konfiguriert ist
-    model = model || 'granite3.3:2b';
-    
+    let generatedMessage = '';
     try {
-        // Statusleiste aktualisieren
-        updateStatusBarProgress(statusBarItem, 'Ollama generiert', 0, `Modell: ${model}`);
-        showNotification(`KI-Nachricht wird mit Ollama (${model}) generiert...`, 'info', false);
+        switch (aiProvider) {
+            case 'ollama':
+                generatedMessage = await generateWithOllama(promptTemplate);
+                break;
+            case 'openai':
+                generatedMessage = await generateWithOpenAI(promptTemplate);
+                break;
+            case 'anthropic':
+                generatedMessage = await generateWithAnthropic(promptTemplate);
+                break;
+            default:
+                throw new Error(`Unbekannter KI-Provider: ${aiProvider}`);
+        }
         
-        console.log(`Verwende Ollama-Modell: ${model} auf ${endpoint}`);
-        
-        // HTTP-Anfrage vorbereiten und Startzeit messen
-        const requestStart = Date.now();
-        
-        // Prüfen, ob der Endpunkt /api/generate enthält - verschiedene API-Pfade
-        const apiEndpoint = endpoint.endsWith('/api/generate') ? endpoint : 
-                           (endpoint.endsWith('/') ? `${endpoint}api/generate` : `${endpoint}/api/generate`);
-        
-        const response = await axios.post(apiEndpoint, {
-            model: model,
-            prompt: prompt,
-            stream: false,
-            options: {
-                temperature: 0.3,
-                num_predict: 100
+        // Nachricht verarbeiten und zurückgeben
+        if (typeof generatedMessage === 'string') {
+            // Nachricht bereinigen
+            generatedMessage = generatedMessage.trim();
+            // Anführungszeichen entfernen, falls vorhanden
+            generatedMessage = generatedMessage.replace(/^["']|["']$/g, '');
+            // Auf die erste Zeile beschränken, wenn sinnvoll
+            const firstLine = generatedMessage.split('\n')[0];
+            if (firstLine && firstLine.length > 5) {
+                generatedMessage = firstLine;
             }
-        });
-        
-        const requestDuration = ((Date.now() - requestStart) / 1000).toFixed(2);
-        updateStatusBarProgress(statusBarItem, 'Ollama generiert', 100, `Fertig in ${requestDuration}s`);
-        
-        let commitMessage = '';
-        
-        if (response.data && typeof response.data.response === 'string') {
-            commitMessage = response.data.response.trim();
-            
-            // Debugging-Informationen
-            const evalDuration = response.data.eval_duration ? 
-                (response.data.eval_duration / 1000000000).toFixed(2) + 's' : 'n/a';
-            const totalDuration = response.data.total_duration ? 
-                (response.data.total_duration / 1000000000).toFixed(2) + 's' : requestDuration + 's';
-            
-            console.log(`Ollama-Antwort erhalten. Eval-Zeit: ${evalDuration}, Gesamt-Zeit: ${totalDuration}`);
-            showNotification(`Commit-Nachricht mit Ollama generiert (${totalDuration}).`, 'info', false);
-            
-            // Entferne Anführungszeichen am Anfang und Ende
-            commitMessage = commitMessage.replace(/^["']|["']$/g, '');
-            
-            // Beschränke auf eine Zeile
-            const firstLine = commitMessage.split('\n')[0];
-            if (firstLine.length > 5) { // Nur verwenden, wenn die erste Zeile sinnvoll ist
-                commitMessage = firstLine;
+            // Auf 72 Zeichen beschränken (Git-Konvention)
+            if (generatedMessage.length > 72) {
+                generatedMessage = generatedMessage.substring(0, 72);
             }
             
-            // Kürze auf max. 72 Zeichen (Git-Konvention)
-            if (commitMessage.length > 72) {
-                commitMessage = commitMessage.substring(0, 72);
-            }
-            
-            return commitMessage;
+            return generatedMessage;
         } else {
-            throw new Error('Unerwartetes Antwortformat von Ollama');
+            throw new Error('Commit-Nachricht konnte nicht generiert werden: Ungültiges Format');
         }
     } catch (error) {
-        console.error('Ollama API-Fehler:', error.response?.data || error.message);
-        
-        // Statusleiste aktualisieren
-        updateStatusBarProgress(statusBarItem, 'Ollama-Fehler', -1);
-        
-        // Detaillierte Fehlermeldung
-        let errorMessage = 'Fehler bei der Kommunikation mit Ollama';
-        
-        if (error.code === 'ECONNREFUSED') {
-            errorMessage = 'Verbindung zu Ollama fehlgeschlagen. Bitte stellen Sie sicher, dass Ollama läuft und erreichbar ist.';
-        } else if (error.code === 'ETIMEDOUT' || error.code === 'TIMEOUT') {
-            errorMessage = 'Zeitüberschreitung bei der Anfrage an Ollama. Bitte prüfen Sie die Verbindung oder versuchen Sie ein kleineres Modell.';
-        } else if (error.response?.status === 404) {
-            errorMessage = `Das Ollama-Modell "${model}" wurde nicht gefunden. Bitte stellen Sie sicher, dass das Modell installiert ist.`;
-            
-            // Zusätzliche Hilfe zur Installation anbieten
-            showNotification(`Modell "${model}" nicht gefunden. Installieren Sie es mit: ollama pull ${model}`, 'warning');
-        } else if (error.response?.data) {
-            errorMessage = `Ollama-Fehler: ${error.response.data.error || JSON.stringify(error.response.data)}`;
-        } else {
-            errorMessage = `Ollama-Fehler: ${error.message}`;
-        }
-        
-        showNotification(errorMessage, 'error');
-        
-        // Fallback: Einfache, generische Commit-Nachricht
-        return "chore: Änderungen commited";
-    }
-}
-
-/**
- * Generiert eine Commit-Nachricht mit OpenAI
- * @param {string} prompt Der zu verwendende Prompt
- * @returns {Promise<string>} Generierte Commit-Nachricht
- */
-async function generateWithOpenAI(prompt) {
-    const config = vscode.workspace.getConfiguration('comitto');
-    const apiKey = config.get('openai.apiKey');
-    const model = config.get('openai.model');
-    
-    if (!apiKey) {
-        throw new Error('OpenAI API-Schlüssel nicht konfiguriert');
-    }
-    
-    try {
-        updateStatusBarProgress(statusBarItem, 'OpenAI generiert', 20, `Modell: ${model}`);
-        showNotification(`KI-Nachricht wird mit OpenAI (${model}) generiert...`, 'info', false);
-        
-        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-            model: model,
-            messages: [
-                { role: 'system', content: 'Du bist ein Assistent, der hilft, präzise Git-Commit-Nachrichten zu erstellen.' },
-                { role: 'user', content: prompt }
-            ],
-            temperature: 0.3,
-            max_tokens: 100
-        }, {
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        updateStatusBarProgress(statusBarItem, 'OpenAI generiert', 100, 'Fertig');
-        
-        if (response.data && response.data.choices && response.data.choices[0]) {
-            return response.data.choices[0].message.content.trim()
-                .replace(/^["']|["']$/g, '')
-                .replace(/\n/g, ' ');
-        } else {
-            throw new Error('Unerwartetes Antwortformat von OpenAI');
-        }
-    } catch (error) {
-        updateStatusBarProgress(statusBarItem, 'OpenAI-Fehler', -1);
-        console.error('OpenAI API-Fehler:', error.response?.data || error.message);
-        throw new Error(`Fehler bei der Kommunikation mit OpenAI: ${error.message}`);
-    }
-}
-
-/**
- * Generiert eine Commit-Nachricht mit Anthropic
- * @param {string} prompt Der zu verwendende Prompt
- * @returns {Promise<string>} Generierte Commit-Nachricht
- */
-async function generateWithAnthropic(prompt) {
-    const config = vscode.workspace.getConfiguration('comitto');
-    const apiKey = config.get('anthropic.apiKey');
-    const model = config.get('anthropic.model');
-    
-    if (!apiKey) {
-        throw new Error('Anthropic API-Schlüssel nicht konfiguriert');
-    }
-    
-    try {
-        updateStatusBarProgress(statusBarItem, 'Anthropic generiert', 20, `Modell: ${model}`);
-        showNotification(`KI-Nachricht wird mit Anthropic (${model}) generiert...`, 'info', false);
-        
-        const response = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: model,
-            max_tokens: 100,
-            temperature: 0.3,
-            system: 'Du bist ein Assistent, der hilft, präzise Git-Commit-Nachrichten zu erstellen.',
-            messages: [
-                { role: 'user', content: prompt }
-            ]
-        }, {
-            headers: {
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        updateStatusBarProgress(statusBarItem, 'Anthropic generiert', 100, 'Fertig');
-        
-        if (response.data && response.data.content && response.data.content[0]) {
-            return response.data.content[0].text.trim()
-                .replace(/^["']|["']$/g, '')
-                .replace(/\n/g, ' ');
-        } else {
-            throw new Error('Unerwartetes Antwortformat von Anthropic');
-        }
-    } catch (error) {
-        updateStatusBarProgress(statusBarItem, 'Anthropic-Fehler', -1);
-        console.error('Anthropic API-Fehler:', error.response?.data || error.message);
-        throw new Error(`Fehler bei der Kommunikation mit Anthropic: ${error.message}`);
+        console.error('Fehler beim Generieren der Commit-Nachricht:', error);
+        throw new Error(`Fehler beim Generieren der Commit-Nachricht: ${error.message}`);
     }
 }
 

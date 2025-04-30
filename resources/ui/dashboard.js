@@ -2,6 +2,9 @@
 // Modern JavaScript for an interactive dashboard with animations and glassmorphism effects
 
 (function() {
+    // VSCode API für die Kommunikation mit der Extension
+    const vscode = acquireVsCodeApi();
+    
     // Wait until the DOM is loaded
     document.addEventListener('DOMContentLoaded', () => {
         console.log('Dashboard DOM loaded');
@@ -41,8 +44,9 @@
             toggleBtn.addEventListener('click', () => {
                 // Toggle status, send to extension
                 const isEnabled = toggleBtn.getAttribute('data-enabled') === 'true';
-                sendMessageToVscode({
-                    command: 'toggleAutoCommit'
+                vscode.postMessage({
+                    command: 'executeCommand',
+                    commandId: 'comitto.toggleAutoCommit'
                 });
             });
         } else {
@@ -53,8 +57,9 @@
         if (commitBtn) {
             commitBtn.addEventListener('click', () => {
                 // Start manual commit
-                sendMessageToVscode({
-                    command: 'manualCommit'
+                vscode.postMessage({
+                    command: 'executeCommand',
+                    commandId: 'comitto.performManualCommit'
                 });
             });
         } else {
@@ -65,7 +70,7 @@
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
                 // Refresh dashboard
-                sendMessageToVscode({
+                vscode.postMessage({
                     command: 'refresh'
                 });
             });
@@ -77,8 +82,9 @@
         if (configureAIBtn) {
             configureAIBtn.addEventListener('click', () => {
                 // Configure AI provider
-                sendMessageToVscode({
-                    command: 'configureProvider'
+                vscode.postMessage({
+                    command: 'executeCommand',
+                    commandId: 'comitto.selectAiProvider'
                 });
             });
         } else {
@@ -89,8 +95,9 @@
         if (configureTriggersBtn) {
             configureTriggersBtn.addEventListener('click', () => {
                 // Configure triggers
-                sendMessageToVscode({
-                    command: 'configureTriggers'
+                vscode.postMessage({
+                    command: 'executeCommand',
+                    commandId: 'comitto.configureTriggers'
                 });
             });
         } else {
@@ -101,8 +108,9 @@
         if (openSettingsBtn) {
             openSettingsBtn.addEventListener('click', () => {
                 // Open settings
-                sendMessageToVscode({
-                    command: 'openSettings'
+                vscode.postMessage({
+                    command: 'executeCommand',
+                    commandId: 'comitto.openSettings'
                 });
             });
         } else {

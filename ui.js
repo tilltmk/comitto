@@ -893,6 +893,439 @@ class QuickActionsViewProvider {
 }
 
 /**
+ * Klasse für die Dashboard-Anzeige in einem Webview-Panel
+ */
+class DashboardProvider {
+    constructor(context) {
+        this._context = context;
+        this._panel = null;
+    }
+
+    /**
+     * Zeigt das Dashboard-Panel an
+     */
+    show() {
+        // Falls das Panel bereits geöffnet ist, dieses in den Vordergrund stellen
+        if (this._panel) {
+            this._panel.reveal();
+            return;
+        }
+
+        // Neues Panel erstellen
+        this._panel = vscode.window.createWebviewPanel(
+            'comittoDashboard',
+            'Comitto Dashboard',
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+                localResourceRoots: [
+                    vscode.Uri.file(path.join(this._context.extensionPath, 'resources'))
+                ]
+            }
+        );
+
+        // Basis-URI für lokale Ressourcen
+        const resourcesBaseUri = this._panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this._context.extensionPath, 'resources'))
+        );
+
+        // HTML-Inhalt generieren
+        this._panel.webview.html = this._getHtmlContent(resourcesBaseUri);
+
+        // Event-Handler für das Schließen des Panels
+        this._panel.onDidDispose(() => {
+            this._panel = null;
+        }, null, this._context.subscriptions);
+
+        // Nachrichtenhandling zwischen Webview und Extension
+        this._panel.webview.onDidReceiveMessage(async (message) => {
+            try {
+                switch (message.command) {
+                    case 'refresh':
+                        // Dashboard-Daten aktualisieren
+                        await this._refreshDashboard();
+                        break;
+                    case 'executeCommand':
+                        // VSCode-Befehl ausführen
+                        if (message.args) {
+                            await vscode.commands.executeCommand(message.commandId, ...message.args);
+                        } else {
+                            await vscode.commands.executeCommand(message.commandId);
+                        }
+                        break;
+                    // Weitere Befehle hier hinzufügen
+                }
+            } catch (error) {
+                console.error('Fehler bei der Verarbeitung der Dashboard-Nachricht:', error);
+                // Fehler an das Dashboard zurücksenden
+                this._panel.webview.postMessage({
+                    command: 'error',
+                    message: `Fehler: ${error.message || 'Unbekannter Fehler'}`
+                });
+            }
+        }, null, this._context.subscriptions);
+
+        // Initialer Refresh
+        this._refreshDashboard();
+    }
+
+    /**
+     * Aktualisiert die Dashboard-Daten
+     */
+    async _refreshDashboard() {
+        if (!this._panel) return;
+
+        try {
+            // Konfiguration laden
+            const config = vscode.workspace.getConfiguration('comitto');
+            const isEnabled = config.get('autoCommitEnabled');
+            const aiProvider = config.get('aiProvider');
+            const triggerRules = config.get('triggerRules');
+            const gitSettings = config.get('gitSettings');
+            const uiSettings = config.get('uiSettings');
+
+            // Daten an das Dashboard senden
+            this._panel.webview.postMessage({
+                command: 'updateData',
+                data: {
+                    isEnabled,
+                    aiProvider,
+                    triggerRules,
+                    gitSettings,
+                    uiSettings
+                }
+            });
+        } catch (error) {
+            console.error('Fehler beim Aktualisieren des Dashboards:', error);
+            this._panel.webview.postMessage({
+                command: 'error',
+                message: `Fehler beim Aktualisieren der Daten: ${error.message || 'Unbekannter Fehler'}`
+            });
+        }
+    }
+
+    /**
+     * Generiert den HTML-Inhalt für das Dashboard
+     * @param {vscode.Uri} resourcesBaseUri Basis-URI für lokale Ressourcen
+     * @returns {string} HTML-Inhalt
+     */
+    _getHtmlContent(resourcesBaseUri) {
+        // CSS-Pfade für dark/light Theme
+        const cssUri = `${resourcesBaseUri}/ui/dashboard.css`;
+        const scriptUri = `${resourcesBaseUri}/ui/dashboard.js`;
+        
+        return `<!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Comitto Dashboard</title>
+            <link rel="stylesheet" href="${cssUri}">
+            <style>
+                body {
+                    font-family: var(--vscode-font-family);
+                    background-color: var(--vscode-editor-background);
+                    color: var(--vscode-foreground);
+                    padding: 20px;
+                }
+                button {
+                    background-color: var(--vscode-button-background);
+                    color: var(--vscode-button-foreground);
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin-right: 10px;
+                    margin-bottom: 10px;
+                }
+                button:hover {
+                    background-color: var(--vscode-button-hoverBackground);
+                }
+                .dashboard-container {
+                    display: flex;
+                    flex-direction: column;
+                    max-width: 100%;
+                }
+                .section {
+                    margin-bottom: 20px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                    padding-bottom: 15px;
+                }
+                .section-title {
+                    font-size: 1.2em;
+                    font-weight: bold;
+                    margin-bottom: 10px;
+                }
+                .settings-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                    gap: 15px;
+                    margin-top: 15px;
+                }
+                .setting-card {
+                    background-color: var(--vscode-editor-inactiveSelectionBackground);
+                    border-radius: 4px;
+                    padding: 12px;
+                }
+                .setting-name {
+                    font-weight: bold;
+                    margin-bottom: 5px;
+                }
+                .setting-value {
+                    opacity: 0.8;
+                }
+                .actions-container {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 10px;
+                    margin-top: 15px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="dashboard-container">
+                <h1>Comitto Dashboard</h1>
+                
+                <div class="section">
+                    <div class="section-title">Status</div>
+                    <div id="status">Wird geladen...</div>
+                    <div class="actions-container">
+                        <button id="btn-toggle-enabled">Status umschalten</button>
+                        <button id="btn-manual-commit">Manuellen Commit ausführen</button>
+                        <button id="btn-stage-all">Alle Änderungen stagen</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Einstellungen</div>
+                    <div class="settings-grid" id="settings-grid">
+                        <!-- Wird dynamisch befüllt -->
+                    </div>
+                    <div class="actions-container">
+                        <button id="btn-ai-provider">KI-Provider ändern</button>
+                        <button id="btn-edit-triggerrules">Trigger-Regeln bearbeiten</button>
+                        <button id="btn-open-settings">Alle Einstellungen öffnen</button>
+                    </div>
+                </div>
+            </div>
+            <script src="${scriptUri}"></script>
+        </body>
+        </html>`;
+    }
+}
+
+/**
+ * Klasse für eine vereinfachte Benutzeroberfläche in einem Webview-Panel
+ */
+class SimpleUIProvider {
+    constructor(context) {
+        this._context = context;
+        this._panel = null;
+    }
+
+    /**
+     * Zeigt das einfache UI-Panel an
+     */
+    show() {
+        // Falls das Panel bereits geöffnet ist, dieses in den Vordergrund stellen
+        if (this._panel) {
+            this._panel.reveal();
+            return;
+        }
+
+        // Neues Panel erstellen
+        this._panel = vscode.window.createWebviewPanel(
+            'comittoSimpleUI',
+            'Comitto - Einfache Benutzeroberfläche',
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+                localResourceRoots: [
+                    vscode.Uri.file(path.join(this._context.extensionPath, 'resources'))
+                ]
+            }
+        );
+
+        // Basis-URI für lokale Ressourcen
+        const resourcesBaseUri = this._panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(this._context.extensionPath, 'resources'))
+        );
+
+        // HTML-Inhalt generieren
+        this._panel.webview.html = this._getHtmlContent(resourcesBaseUri);
+
+        // Event-Handler für das Schließen des Panels
+        this._panel.onDidDispose(() => {
+            this._panel = null;
+        }, null, this._context.subscriptions);
+
+        // Nachrichtenhandling zwischen Webview und Extension
+        this._panel.webview.onDidReceiveMessage(async (message) => {
+            try {
+                switch (message.command) {
+                    case 'executeCommand':
+                        // VSCode-Befehl ausführen
+                        if (message.args) {
+                            await vscode.commands.executeCommand(message.commandId, ...message.args);
+                        } else {
+                            await vscode.commands.executeCommand(message.commandId);
+                        }
+                        // Nach Befehlsausführung UI aktualisieren
+                        this._refreshSimpleUI();
+                        break;
+                    case 'refresh':
+                        // UI-Daten aktualisieren
+                        await this._refreshSimpleUI();
+                        break;
+                    // Weitere Befehle hier hinzufügen
+                }
+            } catch (error) {
+                console.error('Fehler bei der Verarbeitung der SimpleUI-Nachricht:', error);
+                // Fehler an das SimpleUI zurücksenden
+                this._panel.webview.postMessage({
+                    command: 'error',
+                    message: `Fehler: ${error.message || 'Unbekannter Fehler'}`
+                });
+            }
+        }, null, this._context.subscriptions);
+
+        // Initialer Refresh
+        this._refreshSimpleUI();
+    }
+
+    /**
+     * Aktualisiert die SimpleUI-Daten
+     */
+    async _refreshSimpleUI() {
+        if (!this._panel) return;
+
+        try {
+            // Konfiguration laden
+            const config = vscode.workspace.getConfiguration('comitto');
+            const isEnabled = config.get('autoCommitEnabled');
+            const aiProvider = config.get('aiProvider');
+            
+            // Daten an die SimpleUI senden
+            this._panel.webview.postMessage({
+                command: 'updateStatus',
+                data: {
+                    isEnabled,
+                    aiProvider,
+                    provider: getProviderDisplayName(aiProvider)
+                }
+            });
+        } catch (error) {
+            console.error('Fehler beim Aktualisieren der SimpleUI:', error);
+            this._panel.webview.postMessage({
+                command: 'error',
+                message: `Fehler beim Aktualisieren der Daten: ${error.message || 'Unbekannter Fehler'}`
+            });
+        }
+    }
+
+    /**
+     * Generiert den HTML-Inhalt für die SimpleUI
+     * @param {vscode.Uri} resourcesBaseUri Basis-URI für lokale Ressourcen
+     * @returns {string} HTML-Inhalt
+     */
+    _getHtmlContent(resourcesBaseUri) {
+        // CSS-Pfade für dark/light Theme
+        const cssUri = `${resourcesBaseUri}/ui/simple-ui.css`;
+        const scriptUri = `${resourcesBaseUri}/ui/simple-ui.js`;
+        
+        return `<!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Comitto - Einfache Benutzeroberfläche</title>
+            <link rel="stylesheet" href="${cssUri}">
+            <style>
+                body {
+                    font-family: var(--vscode-font-family);
+                    background-color: var(--vscode-editor-background);
+                    color: var(--vscode-foreground);
+                    padding: 20px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                }
+                .simple-ui-container {
+                    max-width: 600px;
+                    text-align: center;
+                }
+                .status-indicator {
+                    display: inline-block;
+                    padding: 8px 16px;
+                    border-radius: 20px;
+                    font-weight: bold;
+                    margin: 20px 0;
+                }
+                .status-enabled {
+                    background-color: var(--vscode-testing-iconPassed);
+                    color: white;
+                }
+                .status-disabled {
+                    background-color: var(--vscode-testing-iconFailed);
+                    color: white;
+                }
+                .button-row {
+                    display: flex;
+                    justify-content: center;
+                    gap: 10px;
+                    margin: 20px 0;
+                    flex-wrap: wrap;
+                }
+                button {
+                    background-color: var(--vscode-button-background);
+                    color: var(--vscode-button-foreground);
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 1em;
+                }
+                button:hover {
+                    background-color: var(--vscode-button-hoverBackground);
+                }
+                .provider-info {
+                    margin: 15px 0;
+                    font-style: italic;
+                }
+                .logo {
+                    max-width: 120px;
+                    margin-bottom: 20px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="simple-ui-container">
+                <h1>Comitto</h1>
+                <p>KI-gestützte Git-Commit-Automatisierung</p>
+                
+                <div id="status" class="status-indicator">Wird geladen...</div>
+                
+                <div class="provider-info" id="provider-info">Provider wird geladen...</div>
+                
+                <div class="button-row">
+                    <button id="btn-toggle">Auto-Commit umschalten</button>
+                    <button id="btn-manual-commit">Manueller Commit</button>
+                </div>
+                
+                <div class="button-row">
+                    <button id="btn-stage-all">Alle Änderungen stagen</button>
+                    <button id="btn-show-dashboard">Dashboard öffnen</button>
+                </div>
+            </div>
+            <script src="${scriptUri}"></script>
+        </body>
+        </html>`;
+    }
+}
+
+/**
  * UI helper functions
  */
 
@@ -1031,6 +1464,10 @@ function registerUI(context) {
     });
     context.subscriptions.push(settingsTreeView);
 
+    // Dashboard und SimpleUI initialisieren
+    const dashboardProvider = new DashboardProvider(context);
+    const simpleUIProvider = new SimpleUIProvider(context);
+
     // Nach kurzer Verzögerung Refresh ausführen, um sicherzustellen, dass die UI aktualisiert wird
     setTimeout(() => {
         statusProvider.refresh();
@@ -1048,6 +1485,8 @@ function registerUI(context) {
         statusProvider,
         quickActionsProvider,
         settingsProvider,
+        dashboardProvider,
+        simpleUIProvider,
         statusTreeView,
         settingsTreeView,
         quickActionsTreeView
@@ -1059,6 +1498,8 @@ module.exports = {
     StatusViewProvider,
     QuickActionsViewProvider,
     SettingsViewProvider,
+    DashboardProvider,
+    SimpleUIProvider,
     getProviderDisplayName,
     getProviderIcon,
     getOpenAIModelOptions,

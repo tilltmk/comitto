@@ -2,7 +2,7 @@
   "name": "comitto",
   "displayName": "Comitto",
   "description": "Automatisierte Git-Commits mit KI-generierten Commit-Nachrichten",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "publisher": "tilltmk",
   "repository": {
     "type": "git",
@@ -27,7 +27,20 @@
     "onCommand:comitto.manualCommit",
     "onCommand:comitto.showDashboard",
     "onCommand:comitto.showSimpleUI",
-    "onCommand:comitto.selectAiProvider"
+    "onCommand:comitto.selectAiProvider",
+    "onCommand:comitto.toggleSimpleMode",
+    "onCommand:comitto.selectTheme",
+    "onCommand:comitto.toggleOnSave",
+    "onCommand:comitto.toggleOnInterval",
+    "onCommand:comitto.toggleOnBranchSwitch",
+    "onCommand:comitto.editFilePatterns",
+    "onCommand:comitto.editMinChangeCount",
+    "onCommand:comitto.editTimeThreshold",
+    "onCommand:comitto.editFileCountThreshold",
+    "onCommand:comitto.refreshSettings",
+    "onCommand:comitto.openSettings",
+    "onCommand:comitto.performManualCommit",
+    "onCommand:comitto.stageAll"
   ],
   "main": "./dist/extension.js",
   "files": [

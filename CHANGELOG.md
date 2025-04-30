@@ -21,6 +21,13 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 - Fehlerbehandlung bei der KI-Generierung verbessert
 - Korrektur der Befehlsregistrierung für konsistente Benennung
 
+## [2.2.1] - 2024-10-30
+
+### Fehlerbehebungen
+- Fehlerhafte Befehlsregistrierung behoben, die zum Fehlen von UI-Komponenten und Befehlen führte
+- Alle fehlenden Befehle wurden korrekt implementiert und registriert
+- Aktivierungsereignisse in package.json aktualisiert, um alle Befehle zu unterstützen
+
 ## [2.1.0] - 2024-06-01
 
 ### Hinzugefügt

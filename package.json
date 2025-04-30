@@ -29,6 +29,10 @@
     "onCommand:comitto.showSimpleUI",
     "onCommand:comitto.selectAiProvider",
     "onCommand:comitto.selectOpenAIModel",
+    "onCommand:comitto.selectAnthropicModel",
+    "onCommand:comitto.editOpenAIKey",
+    "onCommand:comitto.editAnthropicKey",
+    "onCommand:comitto.editPromptTemplate",
     "onCommand:comitto.toggleSimpleMode",
     "onCommand:comitto.selectTheme",
     "onCommand:comitto.toggleOnSave",
@@ -141,6 +145,26 @@
         "icon": "$(symbol-parameter)"
       },
       {
+        "command": "comitto.selectAnthropicModel",
+        "title": "Comitto: Select Anthropic Model",
+        "icon": "$(symbol-parameter)"
+      },
+      {
+        "command": "comitto.editOpenAIKey",
+        "title": "Comitto: Edit OpenAI API Key",
+        "icon": "$(key)"
+      },
+      {
+        "command": "comitto.editAnthropicKey",
+        "title": "Comitto: Edit Anthropic API Key",
+        "icon": "$(key)"
+      },
+      {
+        "command": "comitto.editPromptTemplate",
+        "title": "Comitto: Edit Prompt Template",
+        "icon": "$(edit)"
+      },
+      {
         "command": "comitto.configureTriggers",
         "title": "Comitto: Configure Triggers",
         "icon": "$(settings-gear)"
@@ -210,19 +234,19 @@
           "when": "workspaceHasGit"
         },
         {
-          "command": "comitto.configureTriggers",
+          "command": "comitto.selectAnthropicModel",
           "when": "workspaceHasGit"
         },
         {
-          "command": "comitto.showSimpleUI",
+          "command": "comitto.editOpenAIKey",
           "when": "workspaceHasGit"
         },
         {
-          "command": "comitto.stageAll",
+          "command": "comitto.editAnthropicKey",
           "when": "workspaceHasGit"
         },
         {
-          "command": "comitto.stageSelected",
+          "command": "comitto.editPromptTemplate",
           "when": "workspaceHasGit"
         }
       ]

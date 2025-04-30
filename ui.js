@@ -341,7 +341,7 @@ class SettingsViewProvider {
                     ollamaEndpointItem.iconPath = new vscode.ThemeIcon('link');
                     ollamaEndpointItem.tooltip = 'Configure the API endpoint for the Ollama service';
                     ollamaEndpointItem.command = {
-                        command: 'comitto.configureOllamaSettings',
+                        command: 'comitto.openSettings',
                         title: 'Configure Ollama Settings'
                     };
                     items.push(ollamaEndpointItem);
@@ -351,7 +351,7 @@ class SettingsViewProvider {
                     ollamaModelItem.iconPath = new vscode.ThemeIcon('symbol-class');
                     ollamaModelItem.tooltip = 'Select the Ollama model to use';
                     ollamaModelItem.command = {
-                        command: 'comitto.configureOllamaSettings',
+                        command: 'comitto.openSettings',
                         title: 'Configure Ollama Settings'
                     };
                     items.push(ollamaModelItem);

@@ -153,6 +153,294 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
             }
         })
     );
+    
+    // Einfachen Modus umschalten
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.toggleSimpleMode', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const uiSettings = config.get('uiSettings');
+                const newValue = !uiSettings.simpleMode;
+                
+                await config.update('uiSettings', { ...uiSettings, simpleMode: newValue }, vscode.ConfigurationTarget.Global);
+                showNotification(`Einfacher Modus wurde ${newValue ? 'aktiviert' : 'deaktiviert'}.`, 'info');
+                
+                // UI aktualisieren
+                if (providers) {
+                    providers.settingsProvider.refresh();
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Umschalten des einfachen Modus", true);
+            }
+        })
+    );
+    
+    // Theme auswählen
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.selectTheme', async () => {
+            try {
+                const themes = ['auto', 'hell', 'dunkel'];
+                const selection = await vscode.window.showQuickPick(themes, {
+                    placeHolder: 'Wähle ein Theme für Comitto'
+                });
+                
+                if (selection) {
+                    const config = vscode.workspace.getConfiguration('comitto');
+                    const uiSettings = config.get('uiSettings');
+                    await config.update('uiSettings', { ...uiSettings, theme: selection }, vscode.ConfigurationTarget.Global);
+                    showNotification(`Theme wurde auf '${selection}' gesetzt.`, 'info');
+                }
+            } catch (error) {
+                handleError(error, "Fehler bei der Auswahl des Themes", true);
+            }
+        })
+    );
+    
+    // onSave-Trigger umschalten
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.toggleOnSave', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const triggerRules = config.get('triggerRules');
+                const newValue = !triggerRules.onSave;
+                
+                await config.update('triggerRules', { ...triggerRules, onSave: newValue }, vscode.ConfigurationTarget.Global);
+                showNotification(`Auto-Commit beim Speichern wurde ${newValue ? 'aktiviert' : 'deaktiviert'}.`, 'info');
+                
+                // UI aktualisieren
+                if (providers) {
+                    providers.settingsProvider.refresh();
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Umschalten des onSave-Triggers", true);
+            }
+        })
+    );
+    
+    // onInterval-Trigger umschalten
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.toggleOnInterval', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const triggerRules = config.get('triggerRules');
+                const newValue = !triggerRules.onInterval;
+                
+                await config.update('triggerRules', { ...triggerRules, onInterval: newValue }, vscode.ConfigurationTarget.Global);
+                showNotification(`Auto-Commit im Intervall wurde ${newValue ? 'aktiviert' : 'deaktiviert'}.`, 'info');
+                
+                // UI aktualisieren
+                if (providers) {
+                    providers.settingsProvider.refresh();
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Umschalten des onInterval-Triggers", true);
+            }
+        })
+    );
+    
+    // onBranchSwitch-Trigger umschalten
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.toggleOnBranchSwitch', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const triggerRules = config.get('triggerRules');
+                const newValue = !triggerRules.onBranchSwitch;
+                
+                await config.update('triggerRules', { ...triggerRules, onBranchSwitch: newValue }, vscode.ConfigurationTarget.Global);
+                showNotification(`Auto-Commit beim Branch-Wechsel wurde ${newValue ? 'aktiviert' : 'deaktiviert'}.`, 'info');
+                
+                // UI aktualisieren
+                if (providers) {
+                    providers.settingsProvider.refresh();
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Umschalten des onBranchSwitch-Triggers", true);
+            }
+        })
+    );
+    
+    // Dateimuster bearbeiten
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.editFilePatterns', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const triggerRules = config.get('triggerRules');
+                const currentPatterns = triggerRules.filePatterns.join('\n');
+                
+                const input = await vscode.window.showInputBox({
+                    prompt: 'Geben Sie Dateimuster ein (durch Zeilenumbrüche getrennt)',
+                    value: currentPatterns,
+                    multiline: true
+                });
+                
+                if (input !== undefined) {
+                    const newPatterns = input.split('\n').filter(p => p.trim().length > 0);
+                    await config.update('triggerRules', { ...triggerRules, filePatterns: newPatterns }, vscode.ConfigurationTarget.Global);
+                    showNotification('Dateimuster wurden aktualisiert.', 'info');
+                }
+                
+                // UI aktualisieren
+                if (providers) {
+                    providers.settingsProvider.refresh();
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Bearbeiten der Dateimuster", true);
+            }
+        })
+    );
+    
+    // Minimale Änderungsanzahl bearbeiten
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.editMinChangeCount', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const triggerRules = config.get('triggerRules');
+                
+                const input = await vscode.window.showInputBox({
+                    prompt: 'Minimale Anzahl von Änderungen für Auto-Commit',
+                    value: triggerRules.minChangeCount.toString(),
+                    validateInput: (value) => {
+                        const num = parseInt(value);
+                        return isNaN(num) || num < 0 ? 'Bitte geben Sie eine positive Zahl ein' : null;
+                    }
+                });
+                
+                if (input !== undefined) {
+                    const newValue = parseInt(input);
+                    await config.update('triggerRules', { ...triggerRules, minChangeCount: newValue }, vscode.ConfigurationTarget.Global);
+                    showNotification(`Minimale Änderungsanzahl wurde auf ${newValue} gesetzt.`, 'info');
+                }
+                
+                // UI aktualisieren
+                if (providers) {
+                    providers.settingsProvider.refresh();
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Bearbeiten der minimalen Änderungsanzahl", true);
+            }
+        })
+    );
+    
+    // Zeitschwellenwert bearbeiten
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.editTimeThreshold', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const triggerRules = config.get('triggerRules');
+                
+                const input = await vscode.window.showInputBox({
+                    prompt: 'Zeitschwellenwert in Minuten für Auto-Commit',
+                    value: triggerRules.timeThresholdMinutes.toString(),
+                    validateInput: (value) => {
+                        const num = parseInt(value);
+                        return isNaN(num) || num < 1 ? 'Bitte geben Sie eine positive Zahl größer als 0 ein' : null;
+                    }
+                });
+                
+                if (input !== undefined) {
+                    const newValue = parseInt(input);
+                    await config.update('triggerRules', { ...triggerRules, timeThresholdMinutes: newValue }, vscode.ConfigurationTarget.Global);
+                    showNotification(`Zeitschwellenwert wurde auf ${newValue} Minuten gesetzt.`, 'info');
+                }
+                
+                // UI aktualisieren
+                if (providers) {
+                    providers.settingsProvider.refresh();
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Bearbeiten des Zeitschwellenwerts", true);
+            }
+        })
+    );
+    
+    // Dateianzahlschwellenwert bearbeiten
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.editFileCountThreshold', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const triggerRules = config.get('triggerRules');
+                
+                const input = await vscode.window.showInputBox({
+                    prompt: 'Dateianzahlschwellenwert für Auto-Commit',
+                    value: triggerRules.fileCountThreshold.toString(),
+                    validateInput: (value) => {
+                        const num = parseInt(value);
+                        return isNaN(num) || num < 1 ? 'Bitte geben Sie eine positive Zahl größer als 0 ein' : null;
+                    }
+                });
+                
+                if (input !== undefined) {
+                    const newValue = parseInt(input);
+                    await config.update('triggerRules', { ...triggerRules, fileCountThreshold: newValue }, vscode.ConfigurationTarget.Global);
+                    showNotification(`Dateianzahlschwellenwert wurde auf ${newValue} gesetzt.`, 'info');
+                }
+                
+                // UI aktualisieren
+                if (providers) {
+                    providers.settingsProvider.refresh();
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Bearbeiten des Dateianzahlschwellenwerts", true);
+            }
+        })
+    );
+    
+    // Einstellungen aktualisieren
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.refreshSettings', async () => {
+            try {
+                // UI-Provider aktualisieren
+                if (providers) {
+                    providers.statusProvider.refresh();
+                    providers.settingsProvider.refresh();
+                    providers.quickActionsProvider.refresh();
+                }
+                
+                showNotification('Einstellungen wurden aktualisiert.', 'info');
+            } catch (error) {
+                handleError(error, "Fehler beim Aktualisieren der Einstellungen", true);
+            }
+        })
+    );
+    
+    // Einstellungen öffnen
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.openSettings', async () => {
+            try {
+                await vscode.commands.executeCommand('workbench.action.openSettings', 'comitto');
+            } catch (error) {
+                handleError(error, "Fehler beim Öffnen der Einstellungen", true);
+            }
+        })
+    );
+    
+    // Manuellen Commit durchführen
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.performManualCommit', async () => {
+            try {
+                await performAutoCommit(true); // true = manueller Trigger
+            } catch (error) {
+                handleError(error, "Fehler beim manuellen Commit", true);
+            }
+        })
+    );
+    
+    // Alle Änderungen stagen
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.stageAll', async () => {
+            try {
+                const gitCmd = await executeGitCommand('add -A');
+                showNotification('Alle Änderungen wurden zum Staging-Bereich hinzugefügt.', 'info');
+                
+                // UI aktualisieren
+                if (providers) {
+                    providers.statusProvider.refresh();
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Hinzufügen aller Änderungen zum Staging-Bereich", true);
+            }
+        })
+    );
 }
 
 /**

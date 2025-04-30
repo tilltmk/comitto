@@ -1,49 +1,49 @@
 # Comitto
 
-Automatisierte Git-Commits mit KI-generierten Commit-Nachrichten
+Automated Git Commits with AI-generated Commit Messages
 
-## Funktionen
+## Features
 
-- **Automatische Commits**: Überwacht Dateiänderungen und führt automatisch Commits durch
-- **KI-generierte Commit-Nachrichten**: Nutzt OpenAI, Anthropic Claude oder Ollama
-- **Visuelle Status-Anzeige**: Fortschrittsbalken und detailliertes Feedback während des Commit-Prozesses
-- **Konfigurierbare Auslöser**: Steuern Sie, wann Commits ausgeführt werden sollen
-- **Dashboard**: Übersichtliche Darstellung der Aktivitäten und Einstellungen
-- **VSCode-Integration**: Vollständig in die IDE integriert
+- **Automatic Commits**: Monitors file changes and performs commits automatically
+- **AI-generated Commit Messages**: Uses OpenAI, Anthropic Claude or Ollama
+- **Visual Status Display**: Progress bar and detailed feedback during the commit process
+- **Configurable Triggers**: Control when commits should be executed
+- **Dashboard**: Clear presentation of activities and settings
+- **VSCode Integration**: Fully integrated into the IDE
 
 ## Installation
 
-1. Installieren Sie die Erweiterung über den VSCode Marketplace
-2. Konfigurieren Sie Ihren bevorzugten KI-Provider
-3. Aktivieren Sie die automatischen Commits
+1. Install the extension via the VSCode Marketplace
+2. Configure your preferred AI provider
+3. Activate automatic commits
 
-## Konfiguration
+## Configuration
 
-### KI-Provider
+### AI Providers
 
-- **OpenAI**: API-Schlüssel erforderlich
-- **Anthropic Claude**: API-Schlüssel erforderlich
-- **Ollama**: Lokale Installation ohne API-Schlüssel
+- **OpenAI**: API key required
+- **Anthropic Claude**: API key required
+- **Ollama**: Local installation without API key
 
-### Auslöser
+### Triggers
 
-- Bei Dateispeicherung
-- In regelmäßigen Intervallen
-- Bei Erreichen einer bestimmten Anzahl von Änderungen
+- On file save
+- At regular intervals
+- When reaching a certain number of changes
 
-## Nutzung
+## Usage
 
-- Statusleiste zeigt den aktuellen Status und Fortschritt an
-- Seitenleistenansicht mit Status, Schnellaktionen und Einstellungen
-- Dashboard für detaillierte Übersicht und Konfiguration
+- Status bar shows current status and progress
+- Sidebar view with status, quick actions and settings
+- Dashboard for detailed overview and configuration
 
-## Version 2.1.0 (Neu)
+## Version 2.1.0 (New)
 
-- Verbesserte Statusleiste mit visuellem Fortschrittsbalken
-- Verbesserte Fehlerbehandlung für alle KI-Provider
-- Visuelles Feedback während der Commit-Generierung
-- Bessere Modellauswahl für OpenAI mit Icons und Kategorien
+- Improved status bar with visual progress indicator
+- Enhanced error handling for all AI providers
+- Visual feedback during commit generation
+- Better model selection for OpenAI with icons and categories
 
 ## Support
 
-Bei Fragen oder Problemen erstellen Sie bitte ein Issue im GitHub-Repository.
+For questions or issues, please create an issue in the GitHub repository.

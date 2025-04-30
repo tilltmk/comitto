@@ -1719,8 +1719,23 @@ async function configureOllamaSettings() {
     try {
         const config = vscode.workspace.getConfiguration('comitto');
         
+        // Backward-Kompatibilität: Prüfen, ob die fehlerhafte oliama-model Konfiguration verwendet wird
+        let ollamaModel = config.get('ollama.model');
+        const ollamaModelOld = config.get('ollama-model');
+        
+        if (!ollamaModel && ollamaModelOld) {
+            // Alte, fehlerhafte Konfiguration gefunden, korrigieren
+            ollamaModel = ollamaModelOld;
+            // Wert auf die korrekte Konfiguration übertragen
+            await config.update('ollama.model', ollamaModelOld, vscode.ConfigurationTarget.Global);
+            // Fehlerhafte Konfiguration zurücksetzen
+            await config.update('ollama-model', undefined, vscode.ConfigurationTarget.Global);
+            
+            vscode.window.showInformationMessage('Korrektur der Ollama-Modell-Konfiguration durchgeführt.');
+        }
+        
         // Ollama-Einstellungen abrufen
-        const currentModel = config.get('ollama.model') || 'llama2';
+        const currentModel = ollamaModel || 'llama2';
         const currentEndpoint = config.get('ollama.endpoint') || 'http://localhost:11434';
         
         // Auswahloption für Konfiguration

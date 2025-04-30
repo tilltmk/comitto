@@ -265,23 +265,23 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
             try {
                 const config = vscode.workspace.getConfiguration('comitto');
                 const triggerRules = config.get('triggerRules');
-                const currentPatterns = triggerRules.filePatterns.join('\n');
+                const currentPatterns = triggerRules.filePatterns.join(', ');
                 
-                const input = await vscode.window.showInputBox({
-                    prompt: 'Geben Sie Dateimuster ein (durch Zeilenumbrüche getrennt)',
+                const newPatterns = await vscode.window.showInputBox({
+                    prompt: "Dateimuster (durch Komma getrennt)",
                     value: currentPatterns,
-                    multiline: true
+                    placeHolder: "z.B. **/*.js, **/*.ts"
                 });
                 
-                if (input !== undefined) {
-                    const newPatterns = input.split('\n').filter(p => p.trim().length > 0);
-                    await config.update('triggerRules', { ...triggerRules, filePatterns: newPatterns }, vscode.ConfigurationTarget.Global);
+                if (newPatterns !== undefined) {
+                    const patternsArray = newPatterns.split(',').map(p => p.trim()).filter(p => p.length > 0);
+                    await config.update('triggerRules', { ...triggerRules, filePatterns: patternsArray }, vscode.ConfigurationTarget.Global);
                     showNotification('Dateimuster wurden aktualisiert.', 'info');
-                }
-                
-                // UI aktualisieren
-                if (providers) {
-                    providers.settingsProvider.refresh();
+                    
+                    // UI aktualisieren
+                    if (providers) {
+                        providers.settingsProvider.refresh();
+                    }
                 }
             } catch (error) {
                 handleError(error, "Fehler beim Bearbeiten der Dateimuster", true);
@@ -295,25 +295,27 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
             try {
                 const config = vscode.workspace.getConfiguration('comitto');
                 const triggerRules = config.get('triggerRules');
+                const currentValue = triggerRules.minChangeCount.toString();
                 
-                const input = await vscode.window.showInputBox({
-                    prompt: 'Minimale Anzahl von Änderungen für Auto-Commit',
-                    value: triggerRules.minChangeCount.toString(),
-                    validateInput: (value) => {
-                        const num = parseInt(value);
-                        return isNaN(num) || num < 0 ? 'Bitte geben Sie eine positive Zahl ein' : null;
-                    }
+                const newValue = await vscode.window.showInputBox({
+                    prompt: "Minimale Anzahl an Änderungen für Auto-Commit",
+                    value: currentValue,
+                    placeHolder: "z.B. 10"
                 });
                 
-                if (input !== undefined) {
-                    const newValue = parseInt(input);
-                    await config.update('triggerRules', { ...triggerRules, minChangeCount: newValue }, vscode.ConfigurationTarget.Global);
-                    showNotification(`Minimale Änderungsanzahl wurde auf ${newValue} gesetzt.`, 'info');
-                }
-                
-                // UI aktualisieren
-                if (providers) {
-                    providers.settingsProvider.refresh();
+                if (newValue !== undefined) {
+                    const numValue = parseInt(newValue);
+                    if (!isNaN(numValue) && numValue >= 0) {
+                        await config.update('triggerRules', { ...triggerRules, minChangeCount: numValue }, vscode.ConfigurationTarget.Global);
+                        showNotification(`Minimale Änderungsanzahl auf ${numValue} gesetzt.`, 'info');
+                        
+                        // UI aktualisieren
+                        if (providers) {
+                            providers.settingsProvider.refresh();
+                        }
+                    } else {
+                        showNotification('Bitte geben Sie eine gültige Zahl ein.', 'error');
+                    }
                 }
             } catch (error) {
                 handleError(error, "Fehler beim Bearbeiten der minimalen Änderungsanzahl", true);
@@ -321,66 +323,70 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
         })
     );
     
-    // Zeitschwellenwert bearbeiten
+    // Zeitschwellwert bearbeiten
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.editTimeThreshold', async () => {
             try {
                 const config = vscode.workspace.getConfiguration('comitto');
                 const triggerRules = config.get('triggerRules');
+                const currentValue = triggerRules.timeThresholdMinutes.toString();
                 
-                const input = await vscode.window.showInputBox({
-                    prompt: 'Zeitschwellenwert in Minuten für Auto-Commit',
-                    value: triggerRules.timeThresholdMinutes.toString(),
-                    validateInput: (value) => {
-                        const num = parseInt(value);
-                        return isNaN(num) || num < 1 ? 'Bitte geben Sie eine positive Zahl größer als 0 ein' : null;
-                    }
+                const newValue = await vscode.window.showInputBox({
+                    prompt: "Zeitschwellwert in Minuten (Zeit seit letztem Commit)",
+                    value: currentValue,
+                    placeHolder: "z.B. 30"
                 });
                 
-                if (input !== undefined) {
-                    const newValue = parseInt(input);
-                    await config.update('triggerRules', { ...triggerRules, timeThresholdMinutes: newValue }, vscode.ConfigurationTarget.Global);
-                    showNotification(`Zeitschwellenwert wurde auf ${newValue} Minuten gesetzt.`, 'info');
-                }
-                
-                // UI aktualisieren
-                if (providers) {
-                    providers.settingsProvider.refresh();
+                if (newValue !== undefined) {
+                    const numValue = parseInt(newValue);
+                    if (!isNaN(numValue) && numValue >= 0) {
+                        await config.update('triggerRules', { ...triggerRules, timeThresholdMinutes: numValue }, vscode.ConfigurationTarget.Global);
+                        showNotification(`Zeitschwellwert auf ${numValue} Minuten gesetzt.`, 'info');
+                        
+                        // UI aktualisieren
+                        if (providers) {
+                            providers.settingsProvider.refresh();
+                        }
+                    } else {
+                        showNotification('Bitte geben Sie eine gültige Zahl ein.', 'error');
+                    }
                 }
             } catch (error) {
-                handleError(error, "Fehler beim Bearbeiten des Zeitschwellenwerts", true);
+                handleError(error, "Fehler beim Bearbeiten des Zeitschwellwerts", true);
             }
         })
     );
     
-    // Dateianzahlschwellenwert bearbeiten
+    // Dateien-Schwellwert bearbeiten
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.editFileCountThreshold', async () => {
             try {
                 const config = vscode.workspace.getConfiguration('comitto');
                 const triggerRules = config.get('triggerRules');
+                const currentValue = triggerRules.fileCountThreshold.toString();
                 
-                const input = await vscode.window.showInputBox({
-                    prompt: 'Dateianzahlschwellenwert für Auto-Commit',
-                    value: triggerRules.fileCountThreshold.toString(),
-                    validateInput: (value) => {
-                        const num = parseInt(value);
-                        return isNaN(num) || num < 1 ? 'Bitte geben Sie eine positive Zahl größer als 0 ein' : null;
-                    }
+                const newValue = await vscode.window.showInputBox({
+                    prompt: "Dateien-Schwellwert (Anzahl der geänderten Dateien)",
+                    value: currentValue,
+                    placeHolder: "z.B. 3"
                 });
                 
-                if (input !== undefined) {
-                    const newValue = parseInt(input);
-                    await config.update('triggerRules', { ...triggerRules, fileCountThreshold: newValue }, vscode.ConfigurationTarget.Global);
-                    showNotification(`Dateianzahlschwellenwert wurde auf ${newValue} gesetzt.`, 'info');
-                }
-                
-                // UI aktualisieren
-                if (providers) {
-                    providers.settingsProvider.refresh();
+                if (newValue !== undefined) {
+                    const numValue = parseInt(newValue);
+                    if (!isNaN(numValue) && numValue >= 0) {
+                        await config.update('triggerRules', { ...triggerRules, fileCountThreshold: numValue }, vscode.ConfigurationTarget.Global);
+                        showNotification(`Dateien-Schwellwert auf ${numValue} gesetzt.`, 'info');
+                        
+                        // UI aktualisieren
+                        if (providers) {
+                            providers.settingsProvider.refresh();
+                        }
+                    } else {
+                        showNotification('Bitte geben Sie eine gültige Zahl ein.', 'error');
+                    }
                 }
             } catch (error) {
-                handleError(error, "Fehler beim Bearbeiten des Dateianzahlschwellenwerts", true);
+                handleError(error, "Fehler beim Bearbeiten des Dateien-Schwellwerts", true);
             }
         })
     );
@@ -395,7 +401,6 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                     providers.settingsProvider.refresh();
                     providers.quickActionsProvider.refresh();
                 }
-                
                 showNotification('Einstellungen wurden aktualisiert.', 'info');
             } catch (error) {
                 handleError(error, "Fehler beim Aktualisieren der Einstellungen", true);
@@ -414,7 +419,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
         })
     );
     
-    // Manuellen Commit durchführen
+    // Manuellen Commit ausführen (Alias für manualCommit)
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.performManualCommit', async () => {
             try {
@@ -429,15 +434,28 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.stageAll', async () => {
             try {
-                const gitCmd = await executeGitCommand('add -A');
-                showNotification('Alle Änderungen wurden zum Staging-Bereich hinzugefügt.', 'info');
-                
-                // UI aktualisieren
-                if (providers) {
-                    providers.statusProvider.refresh();
+                const gitExtension = vscode.extensions.getExtension('vscode.git')?.exports;
+                if (gitExtension) {
+                    const git = gitExtension.getAPI(1);
+                    if (git.repositories && git.repositories.length > 0) {
+                        await git.repositories[0].add([]);
+                        showNotification('Alle Änderungen wurden gestagt.', 'info');
+                    } else {
+                        showNotification('Kein Git-Repository gefunden.', 'error');
+                    }
+                } else {
+                    // Fallback auf git add -A
+                    const workspaceFolders = vscode.workspace.workspaceFolders;
+                    if (workspaceFolders && workspaceFolders.length > 0) {
+                        const path = workspaceFolders[0].uri.fsPath;
+                        await executeGitCommand(path, ['add', '-A']);
+                        showNotification('Alle Änderungen wurden gestagt.', 'info');
+                    } else {
+                        showNotification('Kein Arbeitsbereich geöffnet.', 'error');
+                    }
                 }
             } catch (error) {
-                handleError(error, "Fehler beim Hinzufügen aller Änderungen zum Staging-Bereich", true);
+                handleError(error, "Fehler beim Stagen aller Änderungen", true);
             }
         })
     );

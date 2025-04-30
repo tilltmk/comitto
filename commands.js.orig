@@ -1,0 +1,122 @@
+const vscode = require('vscode');
+const ui = require('./ui'); // Importiere UI-Modul für Hilfsfunktionen
+const { executeGitCommand, getStatusText, updateStatusBarProgress } = require('./utils');
+const { generateWithOllama, generateWithOpenAI, generateWithAnthropic } = require('./extension');
+const axios = require('axios');
+
+// Globale Variable für die Statusleiste, wird in registerCommands gesetzt
+global.statusBarItem = null;
+
+/**
+ * Registriert Befehle für die Erweiterung
+ * @param {vscode.ExtensionContext} context VSCode-Erweiterungskontext
+ * @param {Object} providers UI-Provider-Instanzen
+ * @param {vscode.StatusBarItem} statusBarItem Statusleistenelement
+ * @param {Function} setupFileWatcher Funktion zum Einrichten des FileWatchers
+ * @param {Function} disableFileWatcher Funktion zum Deaktivieren des FileWatchers
+ * @param {Function} performAutoCommit Funktion zum Ausführen eines Auto-Commits
+ * @param {Function} showNotification Funktion zum Anzeigen von Benachrichtigungen
+ */
+function registerCommands(context, providers, statusBarItem, setupFileWatcher, disableFileWatcher, performAutoCommit, showNotification) {
+    // Die globale Variable setzen
+    global.statusBarItem = statusBarItem;
+    
+    // Auto-Commit ein-/ausschalten
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.enableAutoCommit', async () => {
+            // Konfiguration abrufen und ändern
+            const config = vscode.workspace.getConfiguration('comitto');
+            await config.update('autoCommitEnabled', true, vscode.ConfigurationTarget.Global);
+            
+            // FileWatcher einrichten
+            setupFileWatcher(context);
+            
+            // Statusleiste aktualisieren
+            updateStatusBarProgress(statusBarItem, 'Aktiv', 100, 'Automatische Commits aktiviert');
+            showNotification('Automatische Commits aktiviert', 'info');
+            
+            // UI-Provider aktualisieren
+            if (providers) {
+                providers.statusProvider.refresh();
+                providers.settingsProvider.refresh();
+                providers.quickActionsProvider.refresh();
+            }
+        })
+    );
+    
+    // Weitere Befehle hinzufügen
+    // ...
+}
+
+/**
+ * Generiert eine Commit-Nachricht basierend auf Git-Status und Diff
+ * @param {string} gitStatus Git-Status-Ausgabe
+ * @param {string} diffOutput Git-Diff-Ausgabe
+ * @returns {Promise<string>} Generierte Commit-Nachricht
+ */
+async function generateCommitMessage(gitStatus, diffOutput) {
+    const config = vscode.workspace.getConfiguration('comitto');
+    const aiProvider = config.get('aiProvider');
+    const gitSettings = config.get('gitSettings');
+    
+    // Änderungen in ein lesbares Format bringen
+    const changes = gitStatus.split('\n')
+        .filter(line => line.trim().length > 0)
+        .map(line => {
+            const status = line.substring(0, 2).trim();
+            const filePath = line.substring(3).trim();
+            return `${getStatusText(status)} ${filePath}`;
+        })
+        .join('\n');
+    
+    // Prompt-Vorlage mit Änderungen füllen
+    let promptTemplate = config.get('promptTemplate');
+    promptTemplate = promptTemplate.replace('{changes}', changes);
+    
+    // Sprache für die Commit-Nachricht einfügen
+    const language = gitSettings.commitMessageLanguage || 'de';
+    if (!promptTemplate.includes(language)) {
+        promptTemplate += `\nDie Commit-Nachricht soll auf ${language.toUpperCase()} sein.`;
+    }
+    
+    // Commit-Stil einfügen
+    const style = gitSettings.commitMessageStyle || 'conventional';
+    if (style === 'conventional' && !promptTemplate.includes('conventional')) {
+        promptTemplate += `\nVerwende das Conventional Commits Format (feat, fix, docs, style, etc.).`;
+    }
+    
+    // Verschiedene KI-Provider unterstützen
+    switch (aiProvider) {
+        case 'ollama':
+            return await generateWithOllama(promptTemplate);
+        case 'openai':
+            return await generateWithOpenAI(promptTemplate);
+        case 'anthropic':
+            return await generateWithAnthropic(promptTemplate);
+        default:
+            throw new Error(`Unbekannter KI-Provider: ${aiProvider}`);
+    }
+}
+
+/**
+ * Fehlerbehandlung für Commands
+ */
+function handleError(error, context, showNotification = true) {
+    console.error('Fehler in commands.js:', error);
+    
+    if (showNotification) {
+        vscode.window.showErrorMessage(`Comitto Fehler: ${error.message}`);
+    }
+    
+    // Statusleiste aktualisieren
+    if (global.statusBarItem) {
+        updateStatusBarProgress(global.statusBarItem, 'Fehler', -1);
+    }
+}
+
+// Notwendige Exporte für externe Module
+module.exports = {
+    registerCommands,
+    generateCommitMessage,
+    handleError
+}; 

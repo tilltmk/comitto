@@ -2,6 +2,25 @@
 
 Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert.
 
+## [2.2.0] - 2024-07-15
+
+### Verbessert
+- Vermeidung der globalen Variable `statusBarItem` zugunsten einer Closure-Lösung
+- Verbesserte Fehlerbehandlung mit try/catch-Blöcken für alle asynchronen Operationen
+- Konsistente Fehlerbehandlung in allen Funktionen mit Kontext-Informationen
+- Mindestanforderung für VSCode-Version auf 1.74.0 aktualisiert
+
+### Hinzugefügt
+- Fehlende Befehle implementiert: `comitto.showDashboard`, `comitto.showSimpleUI`, `comitto.selectAiProvider`
+- Automatische Wiederherstellung des Statusleisten-Status nach Fehlern
+- Verbesserte Prompt-Generierung mit intelligenter Diff-Verarbeitung
+- Bessere Verarbeitung von Commit-Nachrichten mit Unterstützung für mehrzeilige Formate
+
+### Behoben
+- Problem mit fehlenden Befehlen in der Befehlspalette behoben
+- Fehlerbehandlung bei der KI-Generierung verbessert
+- Korrektur der Befehlsregistrierung für konsistente Benennung
+
 ## [2.1.0] - 2024-06-01
 
 ### Hinzugefügt

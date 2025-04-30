@@ -2,14 +2,14 @@
   "name": "comitto",
   "displayName": "Comitto",
   "description": "Automatisierte Git-Commits mit KI-generierten Commit-Nachrichten",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "publisher": "tilltmk",
   "repository": {
     "type": "git",
     "url": "https://github.com/tilltmk/comitto"
   },
   "engines": {
-    "vscode": "^1.70.0"
+    "vscode": "^1.74.0"
   },
   "categories": [
     "Other",
@@ -24,7 +24,10 @@
     "onCommand:comitto.enableAutoCommit",
     "onCommand:comitto.disableAutoCommit",
     "onCommand:comitto.toggleAutoCommit",
-    "onCommand:comitto.performManualCommit"
+    "onCommand:comitto.manualCommit",
+    "onCommand:comitto.showDashboard",
+    "onCommand:comitto.showSimpleUI",
+    "onCommand:comitto.selectAiProvider"
   ],
   "main": "./dist/extension.js",
   "files": [
@@ -94,7 +97,7 @@
         "icon": "$(git-commit)"
       },
       {
-        "command": "comitto.performManualCommit",
+        "command": "comitto.manualCommit",
         "title": "Comitto: Perform Manual AI Commit",
         "icon": "$(git-commit)"
       },
@@ -114,8 +117,8 @@
         "icon": "$(dashboard)"
       },
       {
-        "command": "comitto.configureAIProvider",
-        "title": "Comitto: Configure AI Provider",
+        "command": "comitto.selectAiProvider",
+        "title": "Comitto: Select AI Provider",
         "icon": "$(symbol-misc)"
       },
       {
@@ -147,7 +150,7 @@
           "group": "navigation"
         },
         {
-          "command": "comitto.performManualCommit",
+          "command": "comitto.manualCommit",
           "when": "view == comitto-status",
           "group": "navigation"
         },
@@ -180,7 +183,7 @@
           "when": "workspaceHasGit"
         },
         {
-          "command": "comitto.configureAIProvider",
+          "command": "comitto.selectAiProvider",
           "when": "workspaceHasGit"
         },
         {

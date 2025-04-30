@@ -666,12 +666,59 @@ async function handleShowDashboardCommand(context) {
                 context.subscriptions
             );
             
-            // Nachrichtenhandler hinzufügen (vereinfacht)
+            // Ursprünglichen Nachrichtenhandler wieder hinzufügen
             panel.webview.onDidReceiveMessage(
-                message => {
-                    console.log("Nachricht vom Dashboard erhalten:", message);
-                    if (message.command === 'test') {
-                        vscode.window.showInformationMessage('Testnachricht vom Dashboard!');
+                async (message) => {
+                    try {
+                        switch (message.command) {
+                            case 'refresh':
+                                try {
+                                    // Stelle sicher, dass das Panel noch existiert
+                                    const currentPanel = context.globalState.get('comittoDashboardPanelInstance');
+                                    if (currentPanel) {
+                                        currentPanel.webview.html = generateDashboardHTML(context, currentPanel);
+                                    } else {
+                                        console.warn("Versuch, HTML für ein nicht mehr existierendes Dashboard zu aktualisieren.");
+                                    }
+                                } catch (error) {
+                                    console.error('Fehler beim Aktualisieren des Dashboards:', error);
+                                    vscode.window.showErrorMessage(`Fehler beim Aktualisieren des Dashboards: ${error.message}`);
+                                }
+                                break;
+                            case 'toggleAutoCommit':
+                                try {
+                                    const config = vscode.workspace.getConfiguration('comitto');
+                                    const enabled = !config.get('autoCommitEnabled');
+                                    await config.update('autoCommitEnabled', enabled, vscode.ConfigurationTarget.Global);
+                                    // Dashboard nach Aktualisierung neu laden
+                                    const currentPanel = context.globalState.get('comittoDashboardPanelInstance');
+                                    if (currentPanel) {
+                                        currentPanel.webview.html = generateDashboardHTML(context, currentPanel);
+                                    }
+                                } catch (error) {
+                                    console.error('Fehler beim Umschalten des Auto-Commit-Status:', error);
+                                    vscode.window.showErrorMessage(`Fehler beim Umschalten des Auto-Commit-Status: ${error.message}`);
+                                }
+                                break;
+                            case 'manualCommit':
+                                vscode.commands.executeCommand('comitto.performManualCommit');
+                                break;
+                            case 'openSettings':
+                                vscode.commands.executeCommand('comitto.openSettings');
+                                break;
+                            case 'configureProvider':
+                                vscode.commands.executeCommand('comitto.configureAIProvider');
+                                break;
+                            case 'configureTriggers':
+                                vscode.commands.executeCommand('comitto.configureTriggers');
+                                break;
+                        }
+                    } catch (error) {
+                        console.error('Fehler bei der Verarbeitung des Dashboard-Befehls:', error);
+                        panel?.webview?.postMessage({ 
+                            type: 'error', 
+                            content: `Fehler bei der Befehlsverarbeitung: ${error.message}` 
+                        });
                     }
                 },
                 undefined,
@@ -679,29 +726,18 @@ async function handleShowDashboardCommand(context) {
             );
         }
 
-        // Minimales HTML setzen zum Testen
-        panel.webview.html = `
-            <!DOCTYPE html>
-            <html lang="de">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Comitto Dashboard Test</title>
-            </head>
-            <body>
-                <h1>Comitto Dashboard Test</h1>
-                <p>Wenn Sie dies sehen, funktioniert das Panel.</p>
-                <button id="testButton">Testnachricht senden</button>
-                
-                <script>
-                    const vscode = acquireVsCodeApi();
-                    document.getElementById('testButton').addEventListener('click', () => {
-                        vscode.postMessage({ command: 'test' });
-                    });
-                </script>
-            </body>
-            </html>
-        `;
+        // Gestyltes HTML setzen
+        try {
+            // Übergebe das Panel an generateDashboardHTML
+            panel.webview.html = generateDashboardHTML(context, panel); 
+        } catch (error) {
+             console.error('Fehler beim Generieren des Dashboard-HTML:', error);
+             vscode.window.showErrorMessage(`Fehler beim Öffnen des Dashboards: ${error.message}`);
+             // Fallback-HTML setzen
+             panel.webview.html = `
+                <html><body><h1>Fehler beim Laden des Dashboards</h1><p>${error.message}</p></body></html>
+            `;
+        }
         
     } catch (error) {
         console.error('Fehler beim Öffnen des Dashboards:', error);
@@ -710,492 +746,16 @@ async function handleShowDashboardCommand(context) {
 }
 
 /**
- * Behandelt das Kommando zur Konfiguration des KI-Providers.
- * @param {Object} providers 
- */
-async function handleConfigureAIProviderCommand(providers) {
-    const providerOptions = [
-        { label: 'Ollama (lokal)', id: 'ollama' },
-        { label: 'OpenAI', id: 'openai' },
-        { label: 'Anthropic Claude', id: 'anthropic' }
-    ];
-    
-    const selectedProvider = await vscode.window.showQuickPick(providerOptions, {
-                placeHolder: 'KI-Provider auswählen',
-                title: 'Comitto - KI-Provider konfigurieren'
-    });
-    
-    if (!selectedProvider) return;
-    
-    // Provider in der Konfiguration speichern
-    await vscode.workspace.getConfiguration('comitto').update('aiProvider', selectedProvider.id, vscode.ConfigurationTarget.Global);
-    vscode.window.showInformationMessage(`KI-Provider auf "${selectedProvider.label}" gesetzt.`);
-    
-    // Provider-spezifische Einstellungen konfigurieren
-    let configSuccess = true;
-    switch (selectedProvider.id) {
-        case 'ollama':
-            configSuccess = await configureOllamaSettings();
-                    break;
-                case 'openai':
-            await handleOpenAIModelSelectionCommand();
-            await handleEditOpenAIKeyCommand(); // Fragen wir gleich nach dem Key
-            break;
-        case 'anthropic':
-            await handleSelectAnthropicModelCommand();
-            await handleEditAnthropicKeyCommand(); // Fragen wir gleich nach dem Key
-            break;
-    }
-    
-    // UI nur aktualisieren, wenn Konfiguration erfolgreich war
-    if (configSuccess && providers) {
-        providers.statusProvider.refresh();
-        providers.quickActionsProvider.refresh();
-        providers.settingsProvider.refresh();
-    }
-}
-
-/**
- * Konfiguriert die Ollama-Einstellungen (Endpunkt und Modell) mit verbesserter UX.
- * @returns {Promise<boolean>} True bei Erfolg, False bei Abbruch/Fehler.
- */
-async function configureOllamaSettings() {
-    try {
-        const config = vscode.workspace.getConfiguration('comitto');
-        const currentEndpoint = config.get('ollama.endpoint') || 'http://localhost:11434/api/generate';
-        const currentModel = config.get('ollama.model') || 'llama3';
-        
-        // Konfiguration des Endpoints
-        const endpoint = await vscode.window.showInputBox({
-            placeHolder: 'http://localhost:11434/api/generate',
-            prompt: 'Ollama API-Endpunkt',
-            value: currentEndpoint,
-            validateInput: value => {
-                if (!value) return 'Der Endpunkt darf nicht leer sein';
-                if (!value.startsWith('http://') && !value.startsWith('https://')) {
-                    return 'Der Endpunkt muss mit http:// oder https:// beginnen';
-                }
-                // Einfache URL-Validierung (optional, könnte komplexer sein)
-                try {
-                    new URL(value);
-                } catch (e) {
-                    return 'Ungültige URL';
-                }
-                return null; // Kein Fehler
-            },
-            ignoreFocusOut: true
-        });
-        
-        // Abbruch durch Benutzer
-        if (endpoint === undefined) return false;
-
-        await config.update('ollama.endpoint', endpoint, vscode.ConfigurationTarget.Global);
-        
-        // Versuche, die Verbindung zu Ollama zu testen und Modelle zu laden
-        let availableModels = [];
-        let connectionError = null;
-        try {
-            const statusBarMessage = vscode.window.setStatusBarMessage('$(sync~spin) Teste Verbindung zu Ollama und lade Modelle...', 5000);
-            const axios = require('axios');
-            // Verwende /api/tags zum Testen der Verbindung und Abrufen der Modelle
-            const tagsEndpoint = endpoint.replace(/\/api\/(generate|chat)$/, '/api/tags');
-            const response = await axios.get(tagsEndpoint, { timeout: 7000 }); // 7 Sekunden Timeout
-            statusBarMessage.dispose(); // Nachricht entfernen
-            
-            if (response.data && response.data.models) {
-                availableModels = response.data.models.map(model => model.name).sort();
-                vscode.window.showInformationMessage(`Verbindung zu Ollama erfolgreich! ${availableModels.length} Modelle gefunden.`);
-            } else {
-                vscode.window.showWarningMessage('Verbindung zu Ollama erfolgreich, aber keine Modelle gefunden.');
-            }
-        } catch (error) {
-            connectionError = error;
-            console.error('Fehler beim Testen der Ollama-Verbindung:', error);
-            vscode.window.showWarningMessage(
-                `Warnung: Konnte keine Verbindung zu Ollama herstellen (${error.message}). ` +
-                'Bitte stellen Sie sicher, dass Ollama läuft und der Endpunkt korrekt ist.'
-            );
-        }
-        
-        // Konfiguration des Modells
-        const popularModels = [
-            'llama3', 'mistral', 'mixtral', 'phi', 'gemma', 'codellama', 'orca-mini'
-        ];
-        
-        // Kombiniere populäre und verfügbare Modelle ohne Duplikate
-        const allModels = [...new Set([...availableModels, ...popularModels])].sort(); // Sortieren für bessere Übersicht
-        
-        // QuickPick für Modell-Auswahl
-        const quickPickItems = allModels.map(model => ({
-            label: model,
-            description: availableModels.includes(model) ? '$(check) Lokal verfügbar' : '$(cloud-download) Evtl. Download nötig',
-            detail: model === currentModel ? '(Aktuell ausgewählt)' : ''
-        }));
-        
-        const selectedModel = await vscode.window.showQuickPick(quickPickItems, {
-            placeHolder: 'Wählen Sie ein Ollama-Modell',
-            title: 'Ollama Modell auswählen',
-            ignoreFocusOut: true
-        });
-        
-        // Abbruch durch Benutzer
-        if (!selectedModel) return false;
-
-        await config.update('ollama.model', selectedModel.label, vscode.ConfigurationTarget.Global);
-        vscode.window.showInformationMessage(`Ollama-Modell auf "${selectedModel.label}" gesetzt.`);
-        
-        return true; // Erfolg
-    } catch (error) {
-        vscode.window.showErrorMessage(`Fehler bei der Konfiguration von Ollama: ${error.message}`);
-        console.error('Fehler bei der Konfiguration von Ollama:', error);
-        return false; // Fehler
-    }
-}
-
-/**
- * Funktion zum Verwalten der OpenAI-Modellauswahl
- * Verbesserte Implementierung mit moderner Benutzeroberfläche
- * @returns {Promise<void>}
- */
-async function handleOpenAIModelSelectionCommand() {
-    try {
-        // OpenAI-Modelle aus UI-Modul abrufen
-        const models = ui.getOpenAIModelOptions().map(option => ({
-            label: option.label,
-            description: option.value,
-            detail: option.value === 'gpt-4o' ? 'Empfohlen' : undefined
-        }));
-        
-        // Aktuelles Modell abrufen
-        const config = vscode.workspace.getConfiguration('comitto');
-        const currentModel = config.get('openai.model');
-        
-        // Modellauswahl anzeigen
-        const selectedModel = await vscode.window.showQuickPick(models, {
-            placeHolder: 'Wählen Sie ein OpenAI-Modell',
-            title: 'OpenAI-Modell auswählen',
-            matchOnDescription: true,
-            matchOnDetail: true
-        });
-        
-        if (selectedModel) {
-            // Konfiguration aktualisieren
-            await config.update('openai.model', selectedModel.description, vscode.ConfigurationTarget.Global);
-            vscode.window.showInformationMessage(`OpenAI-Modell auf "${selectedModel.label}" gesetzt.`);
-        }
-    } catch (error) {
-        vscode.window.showErrorMessage(`Fehler bei der OpenAI-Modellauswahl: ${error.message}`);
-    }
-}
-
-/**
- * Behandelt das Kommando zur Konfiguration der Trigger-Regeln.
- * @param {vscode.ExtensionContext} context 
- * @param {Object} providers 
- */
-async function handleConfigureTriggersCommand(context, providers) {
-    const configOptions = [
-        // { label: 'Grafischer Trigger-Konfigurator öffnen', id: 'graphical', description: 'Visuelle Einstellung der Trigger' }, // Zukünftig?
-        { label: 'Trigger-Einstellungen bearbeiten', id: 'direct', description: 'Einzelne Trigger-Regeln anpassen' }
-    ];
-    
-    const selectedOption = await vscode.window.showQuickPick(configOptions, {
-        placeHolder: 'Wie möchten Sie die Trigger konfigurieren?',
-            title: 'Comitto - Trigger konfigurieren'
-        });
-        
-    if (!selectedOption) return;
-    
-    // if (selectedOption.id === 'graphical') {
-    //     showTriggerConfigWebview(context, providers); // Für zukünftige grafische UI
-    // } else
-     if (selectedOption.id === 'direct') {
-        // Menü zur Auswahl der spezifischen Trigger-Einstellung
-        const config = vscode.workspace.getConfiguration('comitto');
-        const rules = config.get('triggerRules');
-        
-        const triggerOptions = [
-            { label: `Datei-Anzahl Schwellenwert: ${rules.fileCountThreshold}`, id: 'comitto.editFileCountThreshold' },
-            { label: `Änderungs-Anzahl Schwellenwert: ${rules.minChangeCount}`, id: 'comitto.editMinChangeCount' },
-            { label: `Zeit-Schwellwert (Minuten): ${rules.timeThresholdMinutes}`, id: 'comitto.editTimeThreshold' },
-            { label: `Trigger bei Speichern: ${rules.onSave ? 'Ja' : 'Nein'}`, id: 'comitto.toggleOnSave' },
-            { label: `Intervall-Trigger: ${rules.onInterval ? `Ja (alle ${rules.intervalMinutes} Min.)` : 'Nein'}`, id: 'comitto.toggleOnInterval' },
-            { label: `Intervall-Dauer bearbeiten`, id: 'comitto.editIntervalMinutes', disabled: !rules.onInterval }, // Nur wenn Intervall aktiv
-            { label: `Trigger bei Branch-Wechsel: ${rules.onBranchSwitch ? 'Ja' : 'Nein'}`, id: 'comitto.toggleOnBranchSwitch' },
-            { label: 'Dateimuster bearbeiten', id: 'comitto.editFilePatterns' },
-            { label: 'Spezifische Dateien bearbeiten', id: 'comitto.editSpecificFiles' }
-        ];
-        
-        const selectedTrigger = await vscode.window.showQuickPick(
-             triggerOptions.filter(opt => !opt.disabled), // Deaktivierte Optionen ausblenden
-             {
-                placeHolder: 'Welche Trigger-Einstellung möchten Sie bearbeiten?',
-                title: 'Comitto - Trigger-Regel bearbeiten'
-             }
-        );
-        
-        if (selectedTrigger && selectedTrigger.id) {
-            vscode.commands.executeCommand(selectedTrigger.id);
-        }
-    }
-}
-
-/**
- * Zeigt eine einfache Benutzeroberfläche für grundlegende Funktionen.
- * @param {vscode.ExtensionContext} context 
- * @param {Object} providers 
- */
-function showSimpleUI(context, providers) {
-    try {
-        // Neues Panel erstellen
-        const panel = vscode.window.createWebviewPanel(
-            'comittoSimpleUI',
-            'Comitto: Einfache Benutzeroberfläche',
-            vscode.ViewColumn.One,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [
-                    vscode.Uri.joinPath(context.extensionUri, 'resources')
-                ]
-            }
-        );
-        
-        // Konfiguration auslesen
-        const config = vscode.workspace.getConfiguration('comitto');
-        const autoCommitEnabled = config.get('autoCommitEnabled');
-        const providerName = ui.getProviderDisplayName(config.get('aiProvider'));
-        
-        // HTML für das Webview generieren und setzen
-        panel.webview.html = generateSimpleUIHTML(autoCommitEnabled, providerName, context);
-        
-        // Nachrichten vom Webview verarbeiten
-        panel.webview.onDidReceiveMessage(
-            async (message) => {
-                try {
-                    switch (message.command) {
-                        case 'toggleAutoCommit':
-                            const newEnabled = !autoCommitEnabled;
-                            await config.update('autoCommitEnabled', newEnabled, vscode.ConfigurationTarget.Global);
-                            // UI-Aktualisierung (wird automatisch durch Konfigurationsänderung ausgelöst)
-                            break;
-                        case 'performManualCommit':
-                            vscode.commands.executeCommand('comitto.performManualCommit');
-                            break;
-                        case 'selectProvider':
-                            vscode.commands.executeCommand('comitto.configureAIProvider');
-                            break;
-                        case 'configureTriggers':
-                            vscode.commands.executeCommand('comitto.configureTriggers');
-                            break;
-                        case 'openDashboard':
-                            vscode.commands.executeCommand('comitto.showDashboard');
-                            break;
-                        case 'openSettings':
-                            vscode.commands.executeCommand('comitto.openSettings');
-                            break;
-                    }
-                } catch (error) {
-                    vscode.window.showErrorMessage(`Fehler bei der Verarbeitung der SimpleUI-Aktion: ${error.message}`);
-                }
-            },
-            undefined,
-            context.subscriptions
-        );
-    } catch (error) {
-        console.error('Fehler beim Öffnen der einfachen Benutzeroberfläche:', error);
-        vscode.window.showErrorMessage(`Fehler beim Öffnen der einfachen Benutzeroberfläche: ${error.message}`);
-    }
-}
-
-/**
- * Generiert das HTML für die einfache Benutzeroberfläche.
- * @param {boolean} autoCommitEnabled 
- * @param {string} providerName 
- * @param {vscode.ExtensionContext} context
- * @returns {string} 
- */
-function generateSimpleUIHTML(autoCommitEnabled, providerName, context) {
-    // Pfade zu Ressourcen erstellen
-    const simpleUIJsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'simpleUI.js');
-    const styleUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'styles.css');
-    const animationsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui', 'animations.css');
-    const logoUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icon.svg');
-
-    // Webview URIs erstellen
-    let panel = context.globalState.get('comittoSimpleUIPanel');
-    if (!panel) return "<div>Simple UI konnte nicht geladen werden.</div>";
-
-    const simpleUIJsWebviewUri = panel.webview.asWebviewUri(simpleUIJsUri);
-    const styleWebviewUri = panel.webview.asWebviewUri(styleUri);
-    const animationsWebviewUri = panel.webview.asWebviewUri(animationsUri);
-    const logoWebviewUri = panel.webview.asWebviewUri(logoUri);
-    
-    // Nonce für CSP
-    const nonce = getNonce();
-
-    // Version aus package.json lesen
-    let version = '0.9.5'; // Aktuelle Version
-    try {
-        const pkgPath = vscode.Uri.joinPath(context.extensionUri, 'package.json').fsPath;
-        const pkg = JSON.parse(require('fs').readFileSync(pkgPath, 'utf8'));
-        version = pkg.version || version;
-    } catch (e) {
-        console.error("Fehler beim Lesen der package.json für Version", e);
-    }
-
-    return `
-    <!DOCTYPE html>
-    <html lang="de">
-    <head>
-        <meta charset="UTF-8">
-        <!-- Content Security Policy -->
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${panel.webview.cspSource} https://cdn.jsdelivr.net 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src ${panel.webview.cspSource} https: data:; script-src 'nonce-${nonce}' https://cdn.jsdelivr.net; connect-src 'none';">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        
-        <!-- Tailwind CSS -->
-        <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-        
-        <!-- Custom Styles -->
-        <link href="${styleWebviewUri}" rel="stylesheet">
-        <link href="${animationsWebviewUri}" rel="stylesheet">
-        
-        <!-- Google Fonts - Inter -->
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-        
-        <title>Comitto - Einfache Bedienung</title>
-        
-        <style nonce="${nonce}">
-            /* Spezifische Inline-Styles für diese Ansicht */
-            .animated-bg {
-                background: linear-gradient(-45deg, #6366f1, #4f46e5, #3b82f6, #0ea5e9);
-                background-size: 400% 400%;
-                animation: animated-bg 15s ease infinite;
-            }
-            
-            .status-box {
-                border-radius: 16px;
-                padding: 1rem;
-                margin: 1.5rem 0;
-                text-align: center;
-                font-size: 1.25rem;
-                font-weight: 500;
-                transition: all 0.3s ease;
-            }
-            
-            .provider-card {
-                display: flex;
-                align-items: center;
-                gap: 1rem;
-                padding: 1rem;
-                border-radius: 12px;
-                background: rgba(255, 255, 255, 0.1);
-                margin-bottom: 1rem;
-            }
-            
-            .provider-icon {
-                font-size: 2rem;
-                width: 48px;
-                height: 48px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                border-radius: 12px;
-                background: rgba(99, 102, 241, 0.2);
-            }
-        </style>
-    </head>
-    <body class="vscode-dark">
-        <div class="container animated-bg">
-            <!-- Header mit Logo -->
-            <div class="header flex items-center justify-center py-6">
-                <img src="${logoWebviewUri}" alt="Comitto Logo" class="h-16 w-16 floating-element"/>
-                <h1 class="text-3xl font-bold ml-4 typing">Comitto</h1>
-            </div>
-            
-            <!-- Status-Anzeige -->
-            <div class="status-box glass-container ${autoCommitEnabled ? 'bg-green-900 bg-opacity-20' : 'bg-red-900 bg-opacity-20'} border ${autoCommitEnabled ? 'border-green-500' : 'border-red-500'} shadow-lg">
-                <div class="flex items-center justify-center">
-                    <span class="status-indicator ${autoCommitEnabled ? 'status-active pulse' : 'status-inactive'} mr-2"></span>
-                    <span>Automatische Commits: <strong>${autoCommitEnabled ? 'AKTIVIERT' : 'DEAKTIVIERT'}</strong></span>
-                </div>
-            </div>
-            
-            <!-- Aktions-Buttons -->
-            <div class="action-buttons flex flex-col gap-4 mt-8">
-                <button id="toggleBtn" class="btn ${autoCommitEnabled ? 'btn-danger' : 'btn-secondary'} hover-lift w-full text-lg py-4" data-enabled="${autoCommitEnabled}">
-                    <span class="icon text-2xl">${autoCommitEnabled ? '🚫' : '✅'}</span>
-                    ${autoCommitEnabled ? 'Auto-Commit deaktivieren' : 'Auto-Commit aktivieren'}
-                </button>
-                
-                <button id="manualCommitBtn" class="btn hover-lift w-full text-lg py-4">
-                    <span class="icon text-2xl">💾</span>
-                    Manuellen Commit ausführen
-                </button>
-            </div>
-            
-            <!-- KI-Provider Info -->
-            <div class="info-box glass-container mt-8 p-4 rounded-xl shadow-lg">
-                <h2 class="text-xl font-semibold mb-4 flex items-center">
-                    <span class="icon mr-2">🧠</span> KI-Provider
-                </h2>
-                <div class="provider-card">
-                    <div class="provider-icon">🤖</div>
-                    <div class="flex-1">
-                        <p>Aktiver Provider:</p>
-                        <p class="text-lg font-semibold">${providerName}</p>
-                    </div>
-                    <button id="configureAIBtn" class="btn btn-icon">
-                        <span class="icon">⚙️</span>
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Weitere Aktionen -->
-            <div class="info-box glass-container mt-6 p-4 rounded-xl shadow-lg">
-                <h2 class="text-xl font-semibold mb-4 flex items-center">
-                    <span class="icon mr-2">⚡</span> Weitere Aktionen
-                </h2>
-                <div class="grid grid-cols-1 gap-3">
-                    <button id="configureTriggersBtn" class="btn btn-secondary hover-lift">
-                        <span class="icon">⚙️</span> Trigger konfigurieren
-                    </button>
-                    <button id="openDashboardBtn" class="btn btn-secondary hover-lift">
-                        <span class="icon">📊</span> Dashboard öffnen
-                    </button>
-                    <button id="openSettingsBtn" class="btn btn-secondary hover-lift">
-                        <span class="icon">🔧</span> Alle Einstellungen
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Footer -->
-            <div class="footer mt-8 mb-4 text-center opacity-70">
-                <p>Comitto v${version}</p>
-            </div>
-        </div>
-        
-        <!-- Simple UI JavaScript -->
-        <script nonce="${nonce}" src="${simpleUIJsWebviewUri}"></script>
-    </body>
-    </html>
-    `;
-}
-
-/**
  * Generiert das HTML für das Dashboard (Webview).
  * @param {vscode.ExtensionContext} context
+ * @param {vscode.WebviewPanel} panel Das aktuelle Webview-Panel
  * @returns {string} HTML-Inhalt
  */
-function generateDashboardHTML(context) {
-    // Bestehendes Panel abrufen
-    let panel = context.globalState.get('comittoDashboardPanel');
+function generateDashboardHTML(context, panel) { // panel hier als Argument hinzugefügt
     if (!panel || !panel.webview) {
-        console.error('Dashboard-Panel nicht gefunden oder webview nicht verfügbar');
-        // Das Panel sollte bereits erstellt worden sein, bevor diese Funktion aufgerufen wird
-        // Statt undefined zurückzugeben, geben wir eine Fehlermeldung zurück
+        console.error('generateDashboardHTML: Panel oder Webview ist nicht verfügbar.');
         return `<html><body><h1>Fehler beim Initialisieren des Dashboards</h1>
-                <p>Bitte schließen Sie das Dashboard und versuchen Sie es erneut zu öffnen.</p></body></html>`;
+                <p>Das Webview-Panel ist nicht verfügbar. Bitte schließen Sie das Dashboard und versuchen Sie es erneut.</p></body></html>`;
     }
     
     const config = vscode.workspace.getConfiguration('comitto');

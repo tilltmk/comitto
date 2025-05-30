@@ -81,6 +81,11 @@ function addDebugLog(message, type = 'info') {
                          console.log;
     consoleMethod(`[Comitto Debug] ${message}`);
     
+    // An LogsViewProvider weiterleiten, falls verfügbar
+    if (uiProviders && uiProviders.logsProvider) {
+        uiProviders.logsProvider.addLog(message, type);
+    }
+    
     // Auf Webview-Updates verzichten, da dies Fehler verursacht
     // Stattdessen werden wir die Debug-Logs beim Öffnen des Dashboards aktualisieren
 }
@@ -539,7 +544,35 @@ async function activate(context) {
         ensureResourceDirs(context);
 
         // UI-Komponenten registrieren
-        uiProviders = ui.registerUI(context);
+        const mainViewProvider = new ui.MainViewProvider(context);
+        const logsViewProvider = new ui.LogsViewProvider(context);
+        const dashboardProvider = new ui.DashboardProvider(context);
+        const simpleUIProvider = new ui.SimpleUIProvider(context);
+        
+        // Tree Views registrieren
+        const mainTreeView = vscode.window.createTreeView('comitto-main', {
+            treeDataProvider: mainViewProvider,
+            showCollapseAll: true
+        });
+        
+        const logsTreeView = vscode.window.createTreeView('comitto-logs', {
+            treeDataProvider: logsViewProvider,
+            showCollapseAll: false
+        });
+        
+        context.subscriptions.push(mainTreeView, logsTreeView);
+        
+        // UI-Provider-Objekt für die Befehle
+        uiProviders = {
+            mainProvider: mainViewProvider,
+            logsProvider: logsViewProvider,
+            dashboardProvider: dashboardProvider,
+            simpleUIProvider: simpleUIProvider,
+            // Für Kompatibilität mit bestehenden Befehlen
+            statusProvider: mainViewProvider,
+            settingsProvider: mainViewProvider,
+            quickActionsProvider: mainViewProvider
+        };
 
         // Statusleistenelement erstellen
         statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -568,6 +601,14 @@ async function activate(context) {
             disableFileWatcher,     // Funktion übergeben
             performAutoCommit,      // Funktion übergeben
             showNotification        // Funktion übergeben
+        );
+        
+        // clearLogs Command registrieren
+        context.subscriptions.push(
+            vscode.commands.registerCommand('comitto.clearLogs', () => {
+                uiProviders.logsProvider.clearLogs();
+                showNotification('Debug-Logs gelöscht', 'info');
+            })
         );
         
         // .gitignore einlesen, wenn vorhanden und konfiguriert
@@ -1437,82 +1478,117 @@ async function generateCommitMessage(gitStatus, diffOutput) {
     const aiProvider = config.get('aiProvider');
     const gitSettings = config.get('gitSettings');
     
-    // Änderungen in ein lesbares Format bringen
-    const changes = gitStatus.split('\n')
-        .filter(line => line.trim().length > 0)
-        .map(line => {
+    // SCHRITT 1: Dateiliste mit Status erstellen (IMMER verfügbar für die KI)
+    let fileList = '';
+    let fileCount = 0;
+    
+    if (gitStatus && gitStatus.trim()) {
+        const statusLines = gitStatus.split('\n').filter(line => line.trim().length > 0);
+        fileCount = statusLines.length;
+        
+        fileList = statusLines.map(line => {
             const status = line.substring(0, 2).trim();
             const filePath = line.substring(3).trim();
-            return `${getStatusText(status)} ${filePath}`;
-        })
-        .join('\n');
+            
+            // Status in lesbaren Text umwandeln
+            let statusText = '';
+            const firstChar = status.charAt(0);
+            const secondChar = status.charAt(1);
+            
+            if (firstChar === 'M' || secondChar === 'M') statusText = 'Geändert';
+            else if (firstChar === 'A') statusText = 'Neu hinzugefügt';
+            else if (firstChar === 'D') statusText = 'Gelöscht';
+            else if (firstChar === 'R') statusText = 'Umbenannt';
+            else if (firstChar === 'C') statusText = 'Kopiert';
+            else if (status === '??') statusText = 'Neue Datei (untracked)';
+            else statusText = `Status: ${status}`;
+            
+            return `${statusText}: ${filePath}`;
+        }).join('\n');
+    }
     
-    // Prompt-Vorlage mit Änderungen füllen
-    let promptTemplate = config.get('promptTemplate') || 'Generiere eine Commit-Nachricht für diese Änderungen: {changes}';
-    promptTemplate = promptTemplate.replace('{changes}', changes);
+    // SCHRITT 2: Basis-Prompt mit Dateiliste erstellen
+    let promptTemplate = config.get('promptTemplate') || 
+        'Generiere eine aussagekräftige Commit-Nachricht basierend auf den folgenden Änderungen.\n\n{changes}';
     
-    // Sprache für die Commit-Nachricht einfügen
+    // Dateiliste in den Prompt einfügen
+    const changesSection = fileList || 'Keine spezifischen Dateiänderungen erkannt.';
+    promptTemplate = promptTemplate.replace('{changes}', changesSection);
+    
+    // SCHRITT 3: Sprache hinzufügen
     const language = gitSettings.commitMessageLanguage || 'de';
-    if (!promptTemplate.includes(language)) {
-        promptTemplate += `\nDie Commit-Nachricht soll auf ${language.toUpperCase()} sein.`;
+    if (!promptTemplate.toLowerCase().includes(language)) {
+        const languageInstruction = language === 'de' ? 
+            '\nDie Commit-Nachricht soll auf DEUTSCH sein.' :
+            language === 'en' ? '\nThe commit message should be in ENGLISH.' :
+            `\nDie Commit-Nachricht soll auf ${language.toUpperCase()} sein.`;
+        promptTemplate += languageInstruction;
     }
     
-    // Commit-Stil einfügen
+    // SCHRITT 4: Commit-Stil hinzufügen
     const style = gitSettings.commitMessageStyle || 'conventional';
-    if (style === 'conventional' && !promptTemplate.includes('conventional')) {
-        promptTemplate += `\nVerwende das Conventional Commits Format (feat, fix, docs, style, etc.).`;
+    let styleInstruction = '';
+    
+    switch (style) {
+        case 'conventional':
+            styleInstruction = '\nVerwende das Conventional Commits Format (feat:, fix:, docs:, style:, refactor:, test:, chore:, etc.).';
+            break;
+        case 'gitmoji':
+            styleInstruction = '\nVerwende Gitmoji-Emojis am Anfang der Commit-Nachricht (🎉 für neue Features, 🐛 für Bugfixes, 📚 für Dokumentation, 💄 für Styling, etc.).';
+            break;
+        case 'angular':
+            styleInstruction = '\nVerwende das Angular Commit Convention Format: type(scope): description.';
+            break;
+        case 'atom':
+            styleInstruction = '\nVerwende das Atom Editor Commit Format: :emoji: description.';
+            break;
+        case 'simple':
+            styleInstruction = '\nVerwende einfache, klare und beschreibende Commit-Nachrichten ohne spezifisches Format.';
+            break;
     }
     
-    // Diff-Informationen für komplexere Abrechnungen hinzufügen
-    if (diffOutput && diffOutput.length > 0) {
-        // Eine aggressiv gekürzte Version des Diffs anhängen, um den Kontext zu verbessern,
-        // aber nicht zu viel Token zu verwenden
-        const maxDiffLength = 2000; // Maximale Anzahl der Zeichen des Diffs reduziert auf 2000
-        
-        // Sehr große Diffs erkennen und Warnung ausgeben
-        if (diffOutput.length > 100000) {
-            console.warn(`Extrem großer Diff (${diffOutput.length} Zeichen) wird stark gekürzt.`);
-        }
-        
-        // Intelligente Kürzung: Nur die ersten Änderungen jeder Datei
-        let shortenedDiff = '';
-        
-        try {
-            // Aufteilen nach Dateiänderungen (beginnen mit 'diff --git')
-            const fileChanges = diffOutput.split('diff --git');
-            
-            // Die ersten Änderungen für jede Datei extrahieren (maximal 5 Dateien)
-            const maxFiles = 5;
-            const filesToInclude = fileChanges.slice(0, maxFiles);
-            
-            filesToInclude.forEach((fileChange, index) => {
-                if (index === 0 && !fileChange.trim()) return; // Erstes Element kann leer sein
-                
-                // Jede Dateiänderung auf maximal 400 Zeichen beschränken
-                const maxPerFile = 400;
-                const truncatedChange = fileChange.length > maxPerFile 
-                    ? fileChange.substring(0, maxPerFile) + '...' 
-                    : fileChange;
-                
-                shortenedDiff += (index > 0 ? 'diff --git' : '') + truncatedChange + '\n';
-            });
-            
-            // Kürzen, wenn insgesamt zu lang
-            if (shortenedDiff.length > maxDiffLength) {
-                shortenedDiff = shortenedDiff.substring(0, maxDiffLength);
-            }
-            
-            shortenedDiff += `\n[Diff wurde gekürzt, insgesamt ${diffOutput.length} Zeichen in ${fileChanges.length} Dateien]`;
-        } catch (error) {
-            console.error('Fehler beim Kürzen des Diffs:', error);
-            shortenedDiff = diffOutput.substring(0, maxDiffLength) + 
-                `...\n[Diff wurde einfach gekürzt, insgesamt ${diffOutput.length} Zeichen]`;
-        }
-        
-        promptTemplate += `\n\nHier ist ein Ausschnitt der konkreten Änderungen:\n\n${shortenedDiff}`;
+    if (styleInstruction && !promptTemplate.includes(styleInstruction.toLowerCase())) {
+        promptTemplate += styleInstruction;
     }
     
-    // Verschiedene KI-Provider unterstützen
+    // SCHRITT 5: Entscheiden, ob Diff-Inhalt hinzugefügt werden soll
+    const MAX_REASONABLE_DIFF_LENGTH = 1500; // Schwellwert für "angemessene" Diff-Größe
+    const MAX_DIFF_INCLUDED = 800; // Maximale Diff-Länge, die tatsächlich hinzugefügt wird
+    
+    let shouldIncludeDiff = false;
+    let diffSnippet = '';
+    
+    if (diffOutput && diffOutput.trim()) {
+        // Entscheidungslogik: Diff nur bei überschaubarer Größe hinzufügen
+        if (diffOutput.length <= MAX_REASONABLE_DIFF_LENGTH) {
+            shouldIncludeDiff = true;
+            diffSnippet = diffOutput;
+        } else if (fileCount <= 3) {
+            // Bei wenigen Dateien: gekürzten Diff hinzufügen
+            shouldIncludeDiff = true;
+            diffSnippet = diffOutput.substring(0, MAX_DIFF_INCLUDED) + 
+                `\n\n[Diff gekürzt - Insgesamt ${diffOutput.length} Zeichen in ${fileCount} Datei(en)]`;
+        }
+        // Bei vielen Dateien oder sehr großem Diff: nur Dateiliste verwenden
+    }
+    
+    // SCHRITT 6: Diff-Inhalt hinzufügen (falls angemessen)
+    if (shouldIncludeDiff && diffSnippet) {
+        promptTemplate += `\n\nHier sind die konkreten Änderungen für besseren Kontext:\n\n${diffSnippet}`;
+    } else if (diffOutput && diffOutput.length > MAX_REASONABLE_DIFF_LENGTH) {
+        // Erklärung, warum kein Diff-Inhalt hinzugefügt wurde
+        promptTemplate += `\n\nHinweis: ${fileCount} Datei(en) mit umfangreichen Änderungen (${diffOutput.length} Zeichen). ` +
+            `Generiere die Commit-Nachricht basierend auf der Dateiliste und den erkennbaren Änderungsmustern.`;
+    }
+    
+    // SCHRITT 7: Längen-Begrenzung für die Commit-Nachricht
+    promptTemplate += '\n\nBitte halte die Commit-Nachricht unter 72 Zeichen und mache sie aussagekräftig und prägnant.';
+    
+    // SCHRITT 8: Debug-Ausgabe
+    console.log(`Commit-Nachricht wird generiert für ${fileCount} Datei(en), Diff-Größe: ${diffOutput?.length || 0} Zeichen, Diff hinzugefügt: ${shouldIncludeDiff}`);
+    addDebugLog(`Generiere Commit für ${fileCount} Dateien (${diffOutput?.length || 0} Zeichen Diff), Provider: ${aiProvider}`, 'info');
+    
+    // SCHRITT 9: KI-Provider aufrufen
     let generatedMessage = '';
     try {
         switch (aiProvider) {
@@ -1529,7 +1605,7 @@ async function generateCommitMessage(gitStatus, diffOutput) {
                 throw new Error(`Unbekannter KI-Provider: ${aiProvider}`);
         }
         
-        // Nachricht verarbeiten und zurückgeben
+        // SCHRITT 10: Nachricht verarbeiten und zurückgeben
         if (typeof generatedMessage === 'string') {
             // Nachricht bereinigen
             generatedMessage = generatedMessage.trim();
@@ -1542,8 +1618,13 @@ async function generateCommitMessage(gitStatus, diffOutput) {
             }
             // Auf 72 Zeichen beschränken (Git-Konvention)
             if (generatedMessage.length > 72) {
-                generatedMessage = generatedMessage.substring(0, 72);
+                const truncated = generatedMessage.substring(0, 69) + '...';
+                console.log(`Commit-Nachricht von ${generatedMessage.length} auf ${truncated.length} Zeichen gekürzt`);
+                generatedMessage = truncated;
             }
+            
+            // Erfolgreiche Generierung protokollieren
+            addDebugLog(`Commit-Nachricht erfolgreich generiert: "${generatedMessage}" (${generatedMessage.length} Zeichen)`, 'success');
             
             return generatedMessage;
         } else {
@@ -1551,7 +1632,42 @@ async function generateCommitMessage(gitStatus, diffOutput) {
         }
     } catch (error) {
         console.error('Fehler beim Generieren der Commit-Nachricht:', error);
-        throw new Error(`Fehler beim Generieren der Commit-Nachricht: ${error.message}`);
+        addDebugLog(`Fehler bei Commit-Generierung: ${error.message}`, 'error');
+        
+        // FALLBACK: Intelligente Standard-Nachricht basierend auf Dateiliste
+        let fallbackMessage = 'chore: update files';
+        
+        if (fileList) {
+            const hasNewFiles = fileList.includes('Neu hinzugefügt') || fileList.includes('Neue Datei');
+            const hasModifiedFiles = fileList.includes('Geändert');
+            const hasDeletedFiles = fileList.includes('Gelöscht');
+            
+            if (hasNewFiles && !hasModifiedFiles && !hasDeletedFiles) {
+                fallbackMessage = fileCount === 1 ? 'feat: add new file' : `feat: add ${fileCount} new files`;
+            } else if (hasDeletedFiles && !hasModifiedFiles && !hasNewFiles) {
+                fallbackMessage = fileCount === 1 ? 'chore: remove file' : `chore: remove ${fileCount} files`;
+            } else if (hasModifiedFiles && !hasNewFiles && !hasDeletedFiles) {
+                fallbackMessage = fileCount === 1 ? 'fix: update file' : `fix: update ${fileCount} files`;
+            } else {
+                fallbackMessage = `chore: update ${fileCount} files`;
+            }
+            
+            // Sprachabhängige Fallback-Nachrichten
+            if (language === 'de') {
+                fallbackMessage = fallbackMessage
+                    .replace('add new file', 'neue Datei hinzugefügt')
+                    .replace('add', 'hinzufügen')
+                    .replace('remove file', 'Datei entfernt')
+                    .replace('remove', 'entfernen')
+                    .replace('update file', 'Datei aktualisiert')
+                    .replace('update', 'aktualisieren')
+                    .replace('files', 'Dateien')
+                    .replace('file', 'Datei');
+            }
+        }
+        
+        addDebugLog(`Verwende Fallback-Commit-Nachricht: "${fallbackMessage}"`, 'warning');
+        return fallbackMessage;
     }
 }
 

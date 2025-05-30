@@ -2,6 +2,7 @@ const vscode = require('vscode');
 const ui = require('./ui'); // Importiere UI-Modul für Hilfsfunktionen
 const { executeGitCommand, getStatusText, updateStatusBarProgress } = require('./utils');
 const axios = require('axios');
+const path = require('path');
 
 // Closure statt globaler Variable für die Statusleiste
 let statusBarItemRef = null;
@@ -650,6 +651,374 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
             }
         })
     );
+    
+    // Auto-Push ein-/ausschalten
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.toggleAutoPush', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const gitSettings = config.get('gitSettings');
+                const currentValue = gitSettings.autoPush || false;
+                
+                gitSettings.autoPush = !currentValue;
+                await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
+                
+                showNotification(`Auto-Push ${!currentValue ? 'aktiviert' : 'deaktiviert'}`, 'info');
+                
+                // UI-Provider aktualisieren
+                if (providers) {
+                    providers.statusProvider.refresh();
+                    providers.settingsProvider.refresh();
+                    providers.quickActionsProvider.refresh();
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Umschalten des Auto-Push", true);
+            }
+        })
+    );
+    
+    // Branch bearbeiten
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.editBranch', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const gitSettings = config.get('gitSettings');
+                const currentBranch = gitSettings.branch || '';
+                
+                const input = await vscode.window.showInputBox({
+                    prompt: 'Branch-Name eingeben (leer für aktuellen Branch)',
+                    value: currentBranch,
+                    placeHolder: 'z.B. main oder feature/new-feature'
+                });
+                
+                if (input !== undefined) {
+                    gitSettings.branch = input;
+                    await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
+                    showNotification(`Branch auf "${input || 'aktueller Branch'}" gesetzt`, 'info');
+                    
+                    // UI-Provider aktualisieren
+                    if (providers) {
+                        providers.statusProvider.refresh();
+                        providers.settingsProvider.refresh();
+                        providers.quickActionsProvider.refresh();
+                    }
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Bearbeiten des Branch", true);
+            }
+        })
+    );
+    
+    // Commit-Stil auswählen
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.selectCommitStyle', async () => {
+            try {
+                const styles = [
+                    { label: 'Conventional Commits', value: 'conventional', description: 'feat:, fix:, docs:, style:, etc.' },
+                    { label: 'Gitmoji', value: 'gitmoji', description: '🎉, 🐛, 📚, 💄, etc.' },
+                    { label: 'Einfach', value: 'simple', description: 'Einfache beschreibende Nachrichten' },
+                    { label: 'Angular', value: 'angular', description: 'Angular Commit Convention' },
+                    { label: 'Atom', value: 'atom', description: 'Atom Editor Style' }
+                ];
+                
+                const selected = await vscode.window.showQuickPick(styles, {
+                    placeHolder: 'Commit-Stil auswählen'
+                });
+                
+                if (selected) {
+                    const config = vscode.workspace.getConfiguration('comitto');
+                    const gitSettings = config.get('gitSettings');
+                    gitSettings.commitMessageStyle = selected.value;
+                    await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
+                    showNotification(`Commit-Stil auf "${selected.label}" gesetzt`, 'info');
+                    
+                    // UI-Provider aktualisieren
+                    if (providers) {
+                        providers.statusProvider.refresh();
+                        providers.settingsProvider.refresh();
+                        providers.quickActionsProvider.refresh();
+                    }
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Auswählen des Commit-Stils", true);
+            }
+        })
+    );
+    
+    // Commit-Sprache auswählen
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.selectCommitLanguage', async () => {
+            try {
+                const languages = [
+                    { label: 'Deutsch', value: 'de' },
+                    { label: 'English', value: 'en' },
+                    { label: 'Français', value: 'fr' },
+                    { label: 'Español', value: 'es' },
+                    { label: 'Italiano', value: 'it' },
+                    { label: '日本語', value: 'ja' },
+                    { label: '中文', value: 'zh' }
+                ];
+                
+                const selected = await vscode.window.showQuickPick(languages, {
+                    placeHolder: 'Sprache für Commit-Nachrichten auswählen'
+                });
+                
+                if (selected) {
+                    const config = vscode.workspace.getConfiguration('comitto');
+                    const gitSettings = config.get('gitSettings');
+                    gitSettings.commitMessageLanguage = selected.value;
+                    await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
+                    showNotification(`Commit-Sprache auf "${selected.label}" gesetzt`, 'info');
+                    
+                    // UI-Provider aktualisieren
+                    if (providers) {
+                        providers.statusProvider.refresh();
+                        providers.settingsProvider.refresh();
+                        providers.quickActionsProvider.refresh();
+                    }
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Auswählen der Commit-Sprache", true);
+            }
+        })
+    );
+    
+    // Trigger konfigurieren
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.configureTriggers', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const triggerRules = config.get('triggerRules');
+                
+                const options = [
+                    { label: `${triggerRules.onSave ? '✓' : '✗'} Bei Speichern`, value: 'onSave' },
+                    { label: `${triggerRules.onInterval ? '✓' : '✗'} Intervall-basiert`, value: 'onInterval' },
+                    { label: `${triggerRules.onBranchSwitch ? '✓' : '✗'} Bei Branch-Wechsel`, value: 'onBranchSwitch' },
+                    { label: 'Datei-Anzahl-Schwellwert bearbeiten', value: 'fileCountThreshold' },
+                    { label: 'Zeit-Schwellwert bearbeiten', value: 'timeThreshold' },
+                    { label: 'Mindest-Änderungs-Anzahl bearbeiten', value: 'minChangeCount' },
+                    { label: 'Datei-Muster bearbeiten', value: 'filePatterns' }
+                ];
+                
+                const selected = await vscode.window.showQuickPick(options, {
+                    placeHolder: 'Trigger-Einstellung auswählen'
+                });
+                
+                if (selected) {
+                    switch (selected.value) {
+                        case 'onSave':
+                        case 'onInterval':
+                        case 'onBranchSwitch':
+                            triggerRules[selected.value] = !triggerRules[selected.value];
+                            await config.update('triggerRules', triggerRules, vscode.ConfigurationTarget.Global);
+                            showNotification(`${selected.label} ${triggerRules[selected.value] ? 'aktiviert' : 'deaktiviert'}`, 'info');
+                            break;
+                        case 'fileCountThreshold':
+                            await vscode.commands.executeCommand('comitto.editFileCountThreshold');
+                            break;
+                        case 'timeThreshold':
+                            await vscode.commands.executeCommand('comitto.editTimeThreshold');
+                            break;
+                        case 'minChangeCount':
+                            await vscode.commands.executeCommand('comitto.editMinChangeCount');
+                            break;
+                        case 'filePatterns':
+                            await vscode.commands.executeCommand('comitto.editFilePatterns');
+                            break;
+                    }
+                    
+                    // UI-Provider aktualisieren
+                    if (providers) {
+                        providers.statusProvider.refresh();
+                        providers.settingsProvider.refresh();
+                        providers.quickActionsProvider.refresh();
+                    }
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Konfigurieren der Trigger", true);
+            }
+        })
+    );
+    
+    // .gitignore ein-/ausschalten
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.toggleUseGitignore', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const gitSettings = config.get('gitSettings');
+                const currentValue = gitSettings.useGitignore !== false;
+                
+                gitSettings.useGitignore = !currentValue;
+                await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
+                
+                showNotification(`Gitignore ${!currentValue ? 'aktiviert' : 'deaktiviert'}`, 'info');
+                
+                // UI-Provider aktualisieren
+                if (providers) {
+                    providers.statusProvider.refresh();
+                    providers.settingsProvider.refresh();
+                    providers.quickActionsProvider.refresh();
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Umschalten der Gitignore-Nutzung", true);
+            }
+        })
+    );
+    
+    // KI-Provider konfigurieren
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.configureAIProvider', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const currentProvider = config.get('aiProvider');
+                
+                const providers = [
+                    { label: 'OpenAI', value: 'openai', description: 'ChatGPT, GPT-4, etc.' },
+                    { label: 'Anthropic', value: 'anthropic', description: 'Claude Models' },
+                    { label: 'Ollama', value: 'ollama', description: 'Lokale AI-Modelle' }
+                ];
+                
+                const selected = await vscode.window.showQuickPick(providers, {
+                    placeHolder: `Aktuell: ${currentProvider}. Neuen KI-Provider auswählen`
+                });
+                
+                if (selected && selected.value !== currentProvider) {
+                    await config.update('aiProvider', selected.value, vscode.ConfigurationTarget.Global);
+                    showNotification(`KI-Provider auf "${selected.label}" gesetzt`, 'info');
+                    
+                    // Je nach Provider weitere Konfiguration anbieten
+                    switch (selected.value) {
+                        case 'openai':
+                            const configureOpenAI = await vscode.window.showInformationMessage(
+                                'OpenAI ausgewählt. Möchten Sie den API-Schlüssel konfigurieren?',
+                                'Ja', 'Nein'
+                            );
+                            if (configureOpenAI === 'Ja') {
+                                await vscode.commands.executeCommand('comitto.editOpenAIKey');
+                            }
+                            break;
+                        case 'anthropic':
+                            const configureAnthropic = await vscode.window.showInformationMessage(
+                                'Anthropic ausgewählt. Möchten Sie den API-Schlüssel konfigurieren?',
+                                'Ja', 'Nein'
+                            );
+                            if (configureAnthropic === 'Ja') {
+                                await vscode.commands.executeCommand('comitto.editAnthropicKey');
+                            }
+                            break;
+                        case 'ollama':
+                            const configureOllama = await vscode.window.showInformationMessage(
+                                'Ollama ausgewählt. Stellen Sie sicher, dass Ollama lokal läuft.',
+                                'OK'
+                            );
+                            break;
+                    }
+                    
+                    // UI-Provider aktualisieren
+                    if (providers) {
+                        providers.statusProvider.refresh();
+                        providers.settingsProvider.refresh();
+                        providers.quickActionsProvider.refresh();
+                    }
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Konfigurieren des KI-Providers", true);
+            }
+        })
+    );
+    
+    // Ausgewählte Dateien stagen
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.stageSelected', async () => {
+            try {
+                const gitExtension = vscode.extensions.getExtension('vscode.git')?.exports;
+                if (gitExtension) {
+                    const git = gitExtension.getAPI(1);
+                    if (git.repositories && git.repositories.length > 0) {
+                        const repository = git.repositories[0];
+                        
+                        // Geänderte Dateien auflisten
+                        const changes = repository.state.workingTreeChanges;
+                        if (changes.length === 0) {
+                            showNotification('Keine Änderungen zum Stagen vorhanden.', 'info');
+                            return;
+                        }
+                        
+                        // Dateien zum Auswählen anbieten
+                        const options = changes.map(change => ({
+                            label: path.basename(change.uri.fsPath),
+                            description: change.uri.fsPath,
+                            value: change.uri
+                        }));
+                        
+                        const selectedFiles = await vscode.window.showQuickPick(options, {
+                            canPickMany: true,
+                            placeHolder: 'Dateien zum Stagen auswählen'
+                        });
+                        
+                        if (selectedFiles && selectedFiles.length > 0) {
+                            const fileUris = selectedFiles.map(file => file.value);
+                            await repository.add(fileUris);
+                            showNotification(`${selectedFiles.length} Datei(en) gestagt.`, 'info');
+                        }
+                    } else {
+                        showNotification('Kein Git-Repository gefunden.', 'error');
+                    }
+                } else {
+                    showNotification('Git-Erweiterung nicht verfügbar.', 'error');
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Stagen ausgewählter Dateien", true);
+            }
+        })
+    );
+    
+    // Stage-Modus auswählen
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.selectStageMode', async () => {
+            try {
+                const config = vscode.workspace.getConfiguration('comitto');
+                const gitSettings = config.get('gitSettings');
+                
+                const stageModes = [
+                    { 
+                        label: 'Alle Dateien stagen', 
+                        value: 'all',
+                        description: 'Automatisch alle geänderten Dateien stagen'
+                    },
+                    { 
+                        label: 'Spezifische Dateien stagen', 
+                        value: 'specific',
+                        description: 'Nur Dateien mit bestimmten Mustern stagen'
+                    },
+                    { 
+                        label: 'Nachfragen', 
+                        value: 'ask',
+                        description: 'Vor jedem Commit nach Dateien fragen'
+                    }
+                ];
+                
+                const selected = await vscode.window.showQuickPick(stageModes, {
+                    placeHolder: 'Stage-Modus auswählen'
+                });
+                
+                if (selected) {
+                    gitSettings.stageMode = selected.value;
+                    await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
+                    showNotification(`Stage-Modus auf "${selected.label}" gesetzt`, 'info');
+                    
+                    // UI-Provider aktualisieren
+                    if (providers) {
+                        providers.statusProvider.refresh();
+                        providers.settingsProvider.refresh();
+                        providers.quickActionsProvider.refresh();
+                    }
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Auswählen des Stage-Modus", true);
+            }
+        })
+    );
 }
 
 /**
@@ -691,6 +1060,14 @@ async function generateCommitMessage(gitStatus, diffOutput, generateWithOllama, 
         const style = gitSettings.commitMessageStyle || 'conventional';
         if (style === 'conventional' && !promptTemplate.includes('conventional')) {
             promptTemplate += `\nVerwende das Conventional Commits Format (feat, fix, docs, style, etc.).`;
+        } else if (style === 'gitmoji' && !promptTemplate.includes('gitmoji')) {
+            promptTemplate += `\nVerwende Gitmoji-Emojis am Anfang der Commit-Nachricht (🎉, 🐛, 📚, 💄, etc.).`;
+        } else if (style === 'angular' && !promptTemplate.includes('angular')) {
+            promptTemplate += `\nVerwende das Angular Commit Convention Format mit type(scope): description.`;
+        } else if (style === 'atom' && !promptTemplate.includes('atom')) {
+            promptTemplate += `\nVerwende das Atom Editor Commit Format: :emoji: description.`;
+        } else if (style === 'simple' && !promptTemplate.includes('simple')) {
+            promptTemplate += `\nVerwende einfache, beschreibende Commit-Nachrichten ohne spezifisches Format.`;
         }
         
         // Verschiedene KI-Provider unterstützen

@@ -2,7 +2,7 @@
   "name": "comitto",
   "displayName": "Comitto",
   "description": "Automatisierte Git-Commits mit KI-generierten Commit-Nachrichten",
-  "version": "2.2.6",
+  "version": "2.3.0",
   "publisher": "tilltmk",
   "repository": {
     "type": "git",
@@ -18,9 +18,7 @@
   "icon": "resources/comitto.png",
   "activationEvents": [
     "onStartupFinished",
-    "onView:comitto-settings",
-    "onView:comitto-status",
-    "onView:comitto-quick-actions",
+    "onView:comitto-main",
     "onCommand:comitto.enableAutoCommit",
     "onCommand:comitto.disableAutoCommit",
     "onCommand:comitto.toggleAutoCommit",
@@ -45,7 +43,16 @@
     "onCommand:comitto.refreshSettings",
     "onCommand:comitto.openSettings",
     "onCommand:comitto.performManualCommit",
-    "onCommand:comitto.stageAll"
+    "onCommand:comitto.stageAll",
+    "onCommand:comitto.toggleAutoPush",
+    "onCommand:comitto.editBranch",
+    "onCommand:comitto.selectCommitStyle",
+    "onCommand:comitto.selectCommitLanguage",
+    "onCommand:comitto.configureTriggers",
+    "onCommand:comitto.toggleUseGitignore",
+    "onCommand:comitto.configureAIProvider",
+    "onCommand:comitto.stageSelected",
+    "onCommand:comitto.selectStageMode"
   ],
   "main": "./dist/extension.js",
   "files": [
@@ -65,36 +72,26 @@
     "views": {
       "comitto-sidebar": [
         {
-          "id": "comitto-status",
-          "name": "Status",
+          "id": "comitto-main",
+          "name": "Comitto Kontrolle",
           "when": "workspaceHasGit"
         },
         {
-          "id": "comitto-quick-actions",
-          "name": "Schnellaktionen",
-          "when": "workspaceHasGit" 
-        },
-        {
-          "id": "comitto-settings",
-          "name": "Einstellungen",
+          "id": "comitto-logs",
+          "name": "Debug-Logs",
           "when": "workspaceHasGit"
         }
       ]
     },
     "viewsWelcome": [
       {
-        "view": "comitto-status",
-        "contents": "No Git repository found.\n[Initialize Git repository](command:git.init)",
+        "view": "comitto-main",
+        "contents": "Kein Git-Repository gefunden.\n[Git-Repository initialisieren](command:git.init)",
         "when": "!workspaceHasGit"
       },
       {
-        "view": "comitto-quick-actions",
-        "contents": "No Git repository found.\n[Initialize Git repository](command:git.init)",
-        "when": "!workspaceHasGit"
-      },
-      {
-        "view": "comitto-settings",
-        "contents": "No Git repository found.\n[Initialize Git repository](command:git.init)",
+        "view": "comitto-logs",
+        "contents": "Kein Git-Repository gefunden.\n[Git-Repository initialisieren](command:git.init)",
         "when": "!workspaceHasGit"
       }
     ],
@@ -183,28 +180,68 @@
         "command": "comitto.stageSelected",
         "title": "Comitto: Stage Selected Files",
         "icon": "$(checklist)"
+      },
+      {
+        "command": "comitto.toggleAutoPush",
+        "title": "Comitto: Toggle Auto Push",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "comitto.editBranch",
+        "title": "Comitto: Edit Branch",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "comitto.selectCommitStyle",
+        "title": "Comitto: Select Commit Style",
+        "icon": "$(symbol-string)"
+      },
+      {
+        "command": "comitto.selectCommitLanguage",
+        "title": "Comitto: Select Commit Language",
+        "icon": "$(symbol-misc)"
+      },
+      {
+        "command": "comitto.toggleUseGitignore",
+        "title": "Comitto: Toggle Use Gitignore",
+        "icon": "$(file-binary)"
+      },
+      {
+        "command": "comitto.configureAIProvider",
+        "title": "Comitto: Configure AI Provider",
+        "icon": "$(robot)"
+      },
+      {
+        "command": "comitto.clearLogs",
+        "title": "Comitto: Clear Debug Logs",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "comitto.selectStageMode",
+        "title": "Comitto: Select Stage Mode",
+        "icon": "$(staged)"
       }
     ],
     "menus": {
       "view/title": [
         {
           "command": "comitto.refreshSettings",
-          "when": "view == comitto-settings",
+          "when": "view == comitto-main",
           "group": "navigation"
         },
         {
           "command": "comitto.manualCommit",
-          "when": "view == comitto-status",
+          "when": "view == comitto-main",
           "group": "navigation"
         },
         {
           "command": "comitto.showSimpleUI",
-          "when": "view == comitto-status",
+          "when": "view == comitto-main",
           "group": "navigation"
         },
         {
           "command": "comitto.showDashboard",
-          "when": "view == comitto-quick-actions",
+          "when": "view == comitto-main",
           "group": "navigation"
         }
       ],
@@ -312,6 +349,38 @@
         {
           "command": "comitto.performManualCommit",
           "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.toggleAutoPush",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.editBranch",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.selectCommitStyle",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.selectCommitLanguage",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.toggleUseGitignore",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.configureAIProvider",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.clearLogs",
+          "when": "workspaceHasGit"
+        },
+        {
+          "command": "comitto.selectStageMode",
+          "when": "workspaceHasGit"
         }
       ]
     },
@@ -352,8 +421,8 @@
             "specificStagingPatterns": [],
             "branch": "",
             "useGitignore": true,
-            "commitMessageStyle": "conventional",
-            "commitMessageLanguage": "en",
+            "commitMessageStyle": "gitmoji",
+            "commitMessageLanguage": "de",
             "maxCommitAttempts": 3
           },
           "description": "Git settings for Comitto"
@@ -423,8 +492,8 @@
         },
         "comitto.promptTemplate": {
           "type": "string",
-          "default": "Generate a meaningful commit message in English following the Conventional Commits format or with a suitable emoji at the beginning.\nKeep it under 80 characters. Here are the changes:\n\n{changes}",
-          "description": "Template for the AI prompt used to generate commit messages"
+          "default": "Generiere eine aussagekräftige Commit-Nachricht basierend auf den folgenden Änderungen.\n\nVerwende je nach Stil:\n- Conventional Commits: feat/fix/docs/style/etc.\n- Gitmoji: 🎉/🐛/📚/💄/etc.\n- Angular: type(scope): description\n- Atom: :emoji: description\n- Simple: Einfache beschreibende Nachrichten\n\nHalte sie unter 72 Zeichen. Hier sind die Änderungen:\n\n{changes}",
+          "description": "Vorlage für den KI-Prompt zur Generierung von Commit-Nachrichten"
         },
         "comitto.uiSettings": {
           "type": "object",

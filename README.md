@@ -12,6 +12,8 @@ Automated Git Commits with AI-generated Commit Messages
  
 ## Features
 
+![image](https://github.com/user-attachments/assets/3fb666f0-114b-4bd3-a10d-b5eef0c667e8)
+
 - **Automatic Commits**: Monitors file changes and performs commits automatically
 - **AI-generated Commit Messages**: Uses OpenAI, Anthropic Claude or Ollama
 - **Visual Status Display**: Progress bar and detailed feedback during the commit process

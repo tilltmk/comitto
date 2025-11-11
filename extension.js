@@ -6,6 +6,7 @@ const fs = require('fs');
 const ignore = require('ignore');
 const ui = require('./ui');
 const commands = require('./commands');
+const settings = require('./settings');
 const { executeGitCommand, getStatusText, ComittoError, ErrorTypes, logError, getErrorLogs, withRetry, getDiagnosticInfo, updateStatusBarProgress } = require('./utils');
 const os = require('os');
 const { WebviewPanel } = require('vscode');
@@ -94,8 +95,10 @@ function addDebugLog(message, type = 'info') {
  * Verbesserte Debug-Protokollierungsfunktion
  */
 function debugLog(message, category = 'allgemein', level = 'info') {
-    const config = vscode.workspace.getConfiguration('comitto');
-    if (!config.get('debug')) return;
+    const debugSettings = settings.get('debug');
+    if (!debugSettings.enabled && !debugSettings.extendedLogging && level !== 'error') {
+        return;
+    }
     
     const timestamp = new Date().toISOString();
     const formattedMessage = `[${timestamp}] [${category}] [${level}] ${message}`;
@@ -615,9 +618,9 @@ async function activate(context) {
         loadGitignore();
 
         // Initialen Status setzen und FileSystemWatcher/Timer ggf. starten
-        const config = vscode.workspace.getConfiguration('comitto');
-        if (config.get('autoCommitEnabled') && hasGit) {
-            setupFileWatcher(context);
+        const initialSettings = settings.getAll();
+        if (initialSettings.autoCommitEnabled && hasGit) {
+            setupFileWatcher(context, initialSettings);
             statusBarItem.text = "$(sync~spin) Comitto: Aktiv";
             addDebugLog('Comitto wurde automatisch aktiviert.', 'info');
         } else if (!hasGit) {
@@ -692,6 +695,11 @@ async function activate(context) {
         
         // Automatische Hintergrundüberwachung einrichten
         setupAutoBackgroundMonitoring(context);
+
+        const settingsChangeDisposable = settings.onDidChange((updatedSettings) => {
+            handleSettingsUpdated(context, updatedSettings);
+        });
+        context.subscriptions.push(settingsChangeDisposable);
         
         // Eventuell kurze Verzögerung für initiale UI-Aktualisierung
         setTimeout(() => {
@@ -789,8 +797,7 @@ function showWelcomeNotification(context) {
     }
 
     // Status der UI anzeigen
-    const config = vscode.workspace.getConfiguration('comitto');
-    const uiSettings = config.get('uiSettings');
+    const uiSettings = settings.get('uiSettings');
     
     if (uiSettings.showNotifications) {
         setTimeout(() => {
@@ -813,11 +820,11 @@ function showWelcomeNotification(context) {
 /**
  * .gitignore-Datei laden und Parser erstellen
  */
-function loadGitignore() {
+function loadGitignore(settingsSnapshot = settings.getAll()) {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) return;
 
-    const gitSettings = vscode.workspace.getConfiguration('comitto').get('gitSettings');
+    const gitSettings = settingsSnapshot?.gitSettings || settings.get('gitSettings');
     if (!gitSettings.useGitignore) {
         gitignoreObj = null;
         return;
@@ -843,7 +850,7 @@ function loadGitignore() {
  * FileSystemWatcher konfigurieren
  * @param {vscode.ExtensionContext} context
  */
-function setupFileWatcher(context) {
+function setupFileWatcher(context, settingsSnapshot = settings.getAll()) {
     // Vorhandenen Watcher deaktivieren
     disableFileWatcher();
 
@@ -854,8 +861,7 @@ function setupFileWatcher(context) {
         return;
     }
 
-    const config = vscode.workspace.getConfiguration('comitto');
-    const triggerRules = config.get('triggerRules');
+    const triggerRules = settingsSnapshot?.triggerRules || settings.get('triggerRules');
     const filePatterns = triggerRules.filePatterns || ['**/*'];
 
     fileWatcher = vscode.workspace.createFileSystemWatcher(filePatterns.length === 1 ? filePatterns[0] : '{' + filePatterns.join(',') + '}');
@@ -905,14 +911,45 @@ function setupIntervalTrigger(minutes) {
     if (minutes > 0) {
         const intervalMs = minutes * 60 * 1000;
         intervalTimer = setInterval(() => {
-            if (vscode.workspace.getConfiguration('comitto').get('autoCommitEnabled') && changedFiles.size > 0) {
-                const notificationSettings = vscode.workspace.getConfiguration('comitto').get('notifications');
+            const latestSettings = settings.getAll();
+            if (latestSettings.autoCommitEnabled && changedFiles.size > 0) {
+                const notificationSettings = latestSettings.notifications;
                 if (notificationSettings.onTriggerFired) {
                     showNotification('Intervall-Trigger aktiviert. Prüfe auf ausstehende Commits...', 'info');
                 }
                 checkCommitTrigger();
             }
         }, intervalMs);
+    }
+}
+
+function handleSettingsUpdated(context, newSettings) {
+    try {
+        addDebugLog('Einstellungen aktualisiert – synchronisiere Comitto.', 'info');
+        loadGitignore(newSettings);
+
+        if (newSettings.autoCommitEnabled) {
+            setupFileWatcher(context, newSettings);
+            if (statusBarItem) {
+                statusBarItem.text = "$(sync) Comitto: Aktiv";
+                statusBarItem.command = "comitto.toggleAutoCommit";
+                statusBarItem.tooltip = "Comitto: Klicke zum Deaktivieren oder manuellen Commit";
+            }
+        } else {
+            disableFileWatcher();
+            if (statusBarItem) {
+                statusBarItem.text = "$(git-commit) Comitto: Inaktiv";
+                statusBarItem.tooltip = "Comitto ist deaktiviert";
+            }
+        }
+
+        if (uiProviders) {
+            uiProviders.statusProvider.refresh();
+            uiProviders.settingsProvider.refresh();
+            uiProviders.quickActionsProvider.refresh();
+        }
+    } catch (error) {
+        console.error('Fehler beim Anwenden der neuen Einstellungen:', error);
     }
 }
 
@@ -968,8 +1005,7 @@ function checkCommitTrigger() {
         return;
     }
 
-    const config = vscode.workspace.getConfiguration('comitto');
-    const rules = config.get('triggerRules');
+    const rules = settings.get('triggerRules');
 
     // Prüfen, ob bestimmte Dateien geändert wurden
     const specificFiles = rules.specificFiles || [];
@@ -994,6 +1030,189 @@ function checkCommitTrigger() {
     }
 }
 
+function escapeRegex(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function matchesBranchPattern(branch, pattern) {
+    if (!pattern || !branch) return false;
+    if (pattern.includes('*')) {
+        const regex = new RegExp(`^${pattern.split('*').map(part => escapeRegex(part)).join('.*')}$`);
+        return regex.test(branch);
+    }
+    return branch === pattern;
+}
+
+function parseQuietRange(range) {
+    if (typeof range !== 'string' || !range.includes('-')) {
+        return null;
+    }
+    const [start, end] = range.split('-').map(part => part.trim());
+    const toMinutes = (time) => {
+        const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(time);
+        if (!match) return null;
+        return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+    };
+    const startMinutes = toMinutes(start);
+    const endMinutes = toMinutes(end);
+    if (startMinutes === null || endMinutes === null) {
+        return null;
+    }
+    return { start: startMinutes, end: endMinutes };
+}
+
+function isWithinQuietHours(quietHours) {
+    if (!Array.isArray(quietHours) || quietHours.length === 0) {
+        return false;
+    }
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    return quietHours.some(range => {
+        const parsed = parseQuietRange(range);
+        if (!parsed) return false;
+        if (parsed.start <= parsed.end) {
+            return currentMinutes >= parsed.start && currentMinutes <= parsed.end;
+        }
+        // Bereich über Mitternacht
+        return currentMinutes >= parsed.start || currentMinutes <= parsed.end;
+    });
+}
+
+async function evaluateGuardianPreconditions({ guardianSettings, isManualTrigger, repoPath, changedFilesSnapshot }) {
+    if (!guardianSettings.smartCommitProtection || isManualTrigger) {
+        return { allow: true };
+    }
+
+    if (guardianSettings.blockOnDirtyWorkspace) {
+        const hasDirty = vscode.workspace.textDocuments.some(doc => doc.isDirty);
+        if (hasDirty) {
+            return {
+                allow: false,
+                message: 'Automatischer Commit abgebrochen: Es gibt ungespeicherte Dateien.',
+                severity: 'warning'
+            };
+        }
+    }
+
+    if (guardianSettings.skipWhenDebugging && vscode.debug?.activeDebugSession) {
+        return {
+            allow: false,
+            message: 'Automatischer Commit pausiert: Aktive Debug-Sitzung erkannt.',
+            severity: 'info'
+        };
+    }
+
+    if (guardianSettings.coolDownMinutes > 0 && lastCommitTime) {
+        const elapsed = (Date.now() - lastCommitTime.getTime()) / 60000;
+        if (elapsed < guardianSettings.coolDownMinutes) {
+            const remaining = Math.max(guardianSettings.coolDownMinutes - elapsed, 0).toFixed(1);
+            return {
+                allow: false,
+                message: `Automatischer Commit pausiert: Cooldown (${remaining} Minuten verbleibend).`,
+                severity: 'info'
+            };
+        }
+    }
+
+    if (guardianSettings.quietHours.length > 0 && isWithinQuietHours(guardianSettings.quietHours)) {
+        return {
+            allow: false,
+            message: 'Automatischer Commit pausiert: Ruhezeit laut Guardian-Einstellungen.',
+            severity: 'info'
+        };
+    }
+
+    let currentBranch = '';
+    try {
+        currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
+    } catch (error) {
+        console.warn('Branch konnte für Guardian-Prüfung nicht ermittelt werden:', error);
+    }
+
+    if (guardianSettings.protectedBranches.some(pattern => matchesBranchPattern(currentBranch, pattern))) {
+        const proceed = await vscode.window.showWarningMessage(
+            `Automatischer Commit auf geschütztem Branch '${currentBranch}'. Trotzdem ausführen?`,
+            { modal: true },
+            'Trotzdem committen',
+            'Abbrechen'
+        );
+        if (proceed !== 'Trotzdem committen') {
+            return {
+                allow: false,
+                message: `Commit auf geschütztem Branch '${currentBranch}' wurde abgebrochen.`,
+                severity: 'warning'
+            };
+        }
+    }
+
+    if (guardianSettings.maxFilesWithoutPrompt > 0 && changedFilesSnapshot.length >= guardianSettings.maxFilesWithoutPrompt) {
+        const confirmation = await vscode.window.showInformationMessage(
+            `Es sind ${changedFilesSnapshot.length} Dateien geändert. Automatischen Commit wirklich ausführen?`,
+            { modal: true },
+            'Ja, Commit ausführen',
+            'Abbrechen'
+        );
+        if (confirmation !== 'Ja, Commit ausführen') {
+            return {
+                allow: false,
+                message: 'Automatischer Commit wurde aufgrund vieler Änderungen abgebrochen.',
+                severity: 'warning'
+            };
+        }
+    }
+
+    return { allow: true, branch: currentBranch };
+}
+
+async function enforceGuardianPostDiff({ guardianSettings, isManualTrigger, diffOutput, gitStatus }) {
+    if (!guardianSettings.smartCommitProtection || isManualTrigger) {
+        return { allow: true };
+    }
+
+    const diffByteLength = Buffer.byteLength(diffOutput || '', 'utf8');
+    const diffSizeKb = diffByteLength / 1024;
+
+    if (guardianSettings.confirmOnLargeChanges && diffSizeKb > guardianSettings.maxDiffSizeKb) {
+        const confirmation = await vscode.window.showWarningMessage(
+            `Diff umfasst ca. ${diffSizeKb.toFixed(1)} KB. Automatischen Commit trotzdem durchführen?`,
+            { modal: true },
+            'Großen Commit bestätigen',
+            'Abbrechen'
+        );
+        if (confirmation !== 'Großen Commit bestätigen') {
+            return {
+                allow: false,
+                message: 'Commit abgebrochen: Diff-Größe überschreitet den Guardian-Schwellwert.',
+                severity: 'warning'
+            };
+        }
+    }
+
+    if (guardianSettings.keywordsRequiringConfirmation.length > 0) {
+        const haystack = `${diffOutput || ''}\n${gitStatus || ''}`.toLowerCase();
+        const matchedKeyword = guardianSettings.keywordsRequiringConfirmation
+            .map(keyword => keyword.toLowerCase())
+            .find(keyword => keyword && haystack.includes(keyword));
+        if (matchedKeyword) {
+            const answer = await vscode.window.showWarningMessage(
+                `Die Änderungen enthalten das Schlüsselwort "${matchedKeyword}". Automatischen Commit wirklich durchführen?`,
+                { modal: true },
+                'Ja, committen',
+                'Abbrechen'
+            );
+            if (answer !== 'Ja, committen') {
+                return {
+                    allow: false,
+                    message: `Commit abgebrochen: Schlüsselwort "${matchedKeyword}" erfordert Bestätigung.`,
+                    severity: 'warning'
+                };
+            }
+        }
+    }
+
+    return { allow: true };
+}
+
 /**
  * Führt den automatischen Commit-Prozess durch
  * @param {boolean} isManualTrigger Gibt an, ob der Commit manuell ausgelöst wurde
@@ -1013,8 +1232,10 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             throw new Error('Kein Workspace gefunden.');
         }
 
-        const config = vscode.workspace.getConfiguration('comitto');
-        const gitSettings = config.get('gitSettings');
+        const currentSettings = settings.getAll();
+        const gitSettings = currentSettings.gitSettings;
+        const guardianSettings = currentSettings.guardian;
+        const notificationSettings = currentSettings.notifications;
         const repoPath = gitSettings.repositoryPath || workspaceFolders[0].uri.fsPath;
         
         try {
@@ -1025,6 +1246,26 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             } catch (error) {
                 throw new Error('Kein Git-Repository gefunden. Bitte initialisieren Sie zuerst ein Git-Repository.');
             }
+
+            const changedFilesSnapshot = Array.from(changedFiles);
+            let currentBranch = '';
+            const guardianPreflight = await evaluateGuardianPreconditions({
+                guardianSettings,
+                isManualTrigger,
+                repoPath,
+                changedFilesSnapshot
+            });
+
+            if (!guardianPreflight.allow) {
+                if (guardianPreflight.message) {
+                    showNotification(guardianPreflight.message, guardianPreflight.severity || 'info');
+                }
+                updateStatusBarProgress(statusBarItem, 'Überwacht', 100, 'Guardian aktiv');
+                isCommitInProgress = false;
+                return;
+            }
+
+            currentBranch = guardianPreflight.branch || '';
             
             // Dateien zum Staging hinzufügen
             try {
@@ -1081,6 +1322,22 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                     diffOutput = 'Diff-Inhalt konnte nicht abgerufen werden. Commit wird trotzdem versucht.';
                 }
             }
+
+            const guardianPostCheck = await enforceGuardianPostDiff({
+                guardianSettings,
+                isManualTrigger,
+                diffOutput,
+                gitStatus
+            });
+
+            if (!guardianPostCheck.allow) {
+                if (guardianPostCheck.message) {
+                    showNotification(guardianPostCheck.message, guardianPostCheck.severity || 'info');
+                }
+                updateStatusBarProgress(statusBarItem, 'Überwacht', 100, 'Guardian aktiv');
+                isCommitInProgress = false;
+                return;
+            }
             
             // Commit-Nachricht generieren
             let commitMessage = '';
@@ -1100,7 +1357,6 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                 const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
                 const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                 
-                const gitSettings = config.get('gitSettings');
                 const language = gitSettings.commitMessageLanguage || 'en';
                 const style = gitSettings.commitMessageStyle || 'conventional';
                 
@@ -1124,8 +1380,10 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                 if (gitSettings.branch) {
                     updateStatusBarProgress(statusBarItem, 'Branch prüfen', 80);
                     
-                    // Aktuelle Branch bestimmen
-                    const currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
+                    // Aktuellen Branch bestimmen (ggf. aus Guardian-Check wiederverwenden)
+                    if (!currentBranch) {
+                        currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
+                    }
                     
                     // Nur wechseln, wenn nicht bereits auf dem Ziel-Branch
                     if (currentBranch !== gitSettings.branch) {
@@ -1172,8 +1430,6 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                 updateStatusBarProgress(statusBarItem, 'Commit abgeschlossen', 95);
                 
                 // Benachrichtigungen anzeigen basierend auf den Einstellungen
-                const notificationSettings = config.get('notifications');
-                
                 if (!isManualTrigger && notificationSettings.onCommit) {
                     showNotification(`Automatischer Commit durchgeführt: ${commitMessage}`, 'info');
                 } else if (isManualTrigger) {
@@ -1238,7 +1494,6 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             }
             
             // Benachrichtigung anzeigen
-            const notificationSettings = config.get('notifications');
             if (notificationSettings.onError) {
                 showNotification(`Git-Befehl fehlgeschlagen: ${errorMessage}`, 'error');
             }
@@ -1250,8 +1505,8 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
         updateStatusBarProgress(statusBarItem, 'Fehler', -1);
         
         // Benachrichtigung anzeigen
-        const notificationSettings = vscode.workspace.getConfiguration('comitto').get('notifications');
-        if (notificationSettings.onError) {
+        const fallbackNotifications = settings.get('notifications');
+        if (fallbackNotifications.onError) {
             showNotification(`Comitto Fehler: ${error.message}`, 'error');
         }
     } finally {
@@ -1264,8 +1519,8 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
  * @param {string} repoPath Der Pfad zum Git-Repository
  */
 async function performAutoPush(repoPath) {
-    const config = vscode.workspace.getConfiguration('comitto');
-    const notificationSettings = config.get('notifications');
+    const currentSettings = settings.getAll();
+    const notificationSettings = currentSettings.notifications;
     const MAX_PUSH_RETRIES = 2;
     
     statusBarItem.text = "$(sync~spin) Comitto: Pushe Änderungen...";
@@ -1279,7 +1534,7 @@ async function performAutoPush(repoPath) {
     }
     
     // Push-Optionen basierend auf Einstellungen
-    const gitSettings = config.get('gitSettings');
+    const gitSettings = currentSettings.gitSettings;
     const pushOptions = gitSettings.pushOptions || '';
     const pushCommand = `git push origin ${currentBranch} ${pushOptions}`.trim();
     
@@ -1354,8 +1609,7 @@ async function stageChanges(mode) {
         throw new Error('Kein Workspace gefunden.');
     }
     
-    const config = vscode.workspace.getConfiguration('comitto');
-    const gitSettings = config.get('gitSettings');
+    const gitSettings = settings.get('gitSettings');
     const repoPath = gitSettings.repositoryPath || workspaceFolders[0].uri.fsPath;
     
     // Bei manuellem Modus Benutzer nach Dateien fragen
@@ -1430,9 +1684,7 @@ async function stageChanges(mode) {
  * @param {string} type Der Typ der Nachricht (info, warning, error)
  */
 function showNotification(message, type = 'info') {
-    const config = vscode.workspace.getConfiguration('comitto');
-    const uiSettings = config.get('uiSettings');
-    const debug = config.get('debug');
+    const uiSettings = settings.get('uiSettings');
     
     // Zum Debug-Log hinzufügen
     addDebugLog(message, type);
@@ -1474,9 +1726,8 @@ function showNotification(message, type = 'info') {
  * @returns {Promise<string>} Generierte Commit-Nachricht
  */
 async function generateCommitMessage(gitStatus, diffOutput) {
-    const config = vscode.workspace.getConfiguration('comitto');
-    const aiProvider = config.get('aiProvider');
-    const gitSettings = config.get('gitSettings');
+    const aiProvider = settings.get('aiProvider');
+    const gitSettings = settings.get('gitSettings');
     
     // SCHRITT 1: Dateiliste mit Status erstellen (IMMER verfügbar für die KI)
     let fileList = '';
@@ -1508,7 +1759,7 @@ async function generateCommitMessage(gitStatus, diffOutput) {
     }
     
     // SCHRITT 2: Basis-Prompt mit Dateiliste erstellen
-    let promptTemplate = config.get('promptTemplate') || 
+    let promptTemplate = settings.get('promptTemplate') || 
         'Generiere eine aussagekräftige Commit-Nachricht basierend auf den folgenden Änderungen.\n\n{changes}';
     
     // Dateiliste in den Prompt einfügen
@@ -1679,10 +1930,10 @@ function setupAutoBackgroundMonitoring(context) {
     // Überwachung für Git-Status (alle 10 Minuten)
     setInterval(async () => {
         try {
-            const config = vscode.workspace.getConfiguration('comitto');
-            if (!config.get('autoCommitEnabled')) return;
+            const currentSettings = settings.getAll();
+            if (!currentSettings.autoCommitEnabled) return;
             
-            const debugSettings = config.get('debug') || {};
+            const debugSettings = currentSettings.debug || {};
             
             // Git-Repository-Status prüfen
             const hasGit = await checkGitRepository(context);
@@ -1719,7 +1970,7 @@ function setupAutoBackgroundMonitoring(context) {
                 }
                 
                 // Trigger-Check ausführen
-                if (config.get('autoCommitEnabled')) {
+                if (currentSettings.autoCommitEnabled) {
                     checkCommitTrigger();
                 }
             }
@@ -1732,20 +1983,20 @@ function setupAutoBackgroundMonitoring(context) {
     // Regelmäßiger Gesundheitscheck
     setInterval(() => {
         try {
-            const config = vscode.workspace.getConfiguration('comitto');
-            if (!config.get('autoCommitEnabled')) return;
+            const currentSettings = settings.getAll();
+            if (!currentSettings.autoCommitEnabled) return;
             
-            const debugSettings = config.get('debug') || {};
+            const debugSettings = currentSettings.debug || {};
             
             // Prüfen, ob der Watcher noch aktiv ist
-            if (!fileWatcher && config.get('autoCommitEnabled')) {
+            if (!fileWatcher && currentSettings.autoCommitEnabled) {
                 addDebugLog('Gesundheitscheck: FileWatcher ist nicht aktiv. Starte neu...', 'warning');
-                setupFileWatcher(context);
+                setupFileWatcher(context, currentSettings);
             }
             
             // Prüfen, ob der Interval-Timer noch aktiv ist
-            const triggerRules = config.get('triggerRules');
-            if (triggerRules.onInterval && !intervalTimer && config.get('autoCommitEnabled')) {
+            const triggerRules = currentSettings.triggerRules;
+            if (triggerRules.onInterval && !intervalTimer && currentSettings.autoCommitEnabled) {
                 addDebugLog('Gesundheitscheck: Interval-Timer ist nicht aktiv. Starte neu...', 'warning');
                 setupIntervalTrigger(triggerRules.intervalMinutes);
             }
@@ -1787,24 +2038,23 @@ function deactivate() {
  * @returns {Promise<string>} Generierte Commit-Nachricht
  */
 async function generateWithOllama(prompt) {
-    // Implementierung bleibt unverändert
-    const config = vscode.workspace.getConfiguration('comitto');
-    const endpoint = config.get('ollama').endpoint || 'http://localhost:11434/api/generate';
-    
-    // Backward-Kompatibilität für ollama-model Konfiguration
-    let ollamaConfig = config.get('ollama') || {};
+    let ollamaConfig = { ...settings.get('ollama') };
     let model = ollamaConfig.model;
-    const ollamaModelOld = config.get('ollama-model');
-    
-    if (!model && ollamaModelOld) {
-        model = ollamaModelOld;
-        ollamaConfig.model = ollamaModelOld;
-        await config.update('ollama', ollamaConfig, vscode.ConfigurationTarget.Global);
-        await config.update('ollama-model', undefined, vscode.ConfigurationTarget.Global);
-        
-        showNotification('Korrektur der Ollama-Modell-Konfiguration durchgeführt.', 'info');
+    const endpoint = ollamaConfig.endpoint || 'http://localhost:11434/api/generate';
+
+    const legacyModel = settings.getLegacyValue('ollama-model');
+    if (!model && legacyModel) {
+        model = legacyModel;
+        ollamaConfig.model = legacyModel;
+        try {
+            await settings.update('ollama', ollamaConfig);
+            await settings.update('ollama-model', undefined);
+            showNotification('Korrektur der Ollama-Modell-Konfiguration durchgeführt.', 'info');
+        } catch (migrationError) {
+            console.warn('Migration der Ollama-Konfiguration fehlgeschlagen:', migrationError);
+        }
     }
-    
+
     // Fallback, falls kein Modell konfiguriert ist
     model = model || 'granite3.3:2b';
     
@@ -1888,9 +2138,9 @@ async function generateWithOllama(prompt) {
  * @returns {Promise<string>} Generierte Commit-Nachricht
  */
 async function generateWithOpenAI(prompt) {
-    const config = vscode.workspace.getConfiguration('comitto');
-    const apiKey = config.get('openai.apiKey');
-    const model = config.get('openai.model') || 'gpt-3.5-turbo';
+    const openaiSettings = settings.get('openai');
+    const apiKey = openaiSettings.apiKey;
+    const model = openaiSettings.model || 'gpt-4.1-mini';
     
     if (!apiKey) {
         throw new Error('OpenAI API-Schlüssel nicht konfiguriert');
@@ -1937,9 +2187,9 @@ async function generateWithOpenAI(prompt) {
  * @returns {Promise<string>} Generierte Commit-Nachricht
  */
 async function generateWithAnthropic(prompt) {
-    const config = vscode.workspace.getConfiguration('comitto');
-    const apiKey = config.get('anthropic.apiKey');
-    const model = config.get('anthropic.model') || 'claude-2';
+    const anthropicSettings = settings.get('anthropic');
+    const apiKey = anthropicSettings.apiKey;
+    const model = anthropicSettings.model || 'claude-3-haiku-20240307';
     
     if (!apiKey) {
         throw new Error('Anthropic API-Schlüssel nicht konfiguriert');

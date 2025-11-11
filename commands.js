@@ -3,6 +3,7 @@ const ui = require('./ui'); // Importiere UI-Modul für Hilfsfunktionen
 const { executeGitCommand, getStatusText, updateStatusBarProgress } = require('./utils');
 const axios = require('axios');
 const path = require('path');
+const settings = require('./settings');
 
 // Closure statt globaler Variable für die Statusleiste
 let statusBarItemRef = null;
@@ -25,9 +26,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.enableAutoCommit', async () => {
             try {
-                // Konfiguration abrufen und ändern
-                const config = vscode.workspace.getConfiguration('comitto');
-                await config.update('autoCommitEnabled', true, vscode.ConfigurationTarget.Global);
+                await settings.update('autoCommitEnabled', true);
                 
                 // FileWatcher einrichten
                 setupFileWatcher(context);
@@ -49,13 +48,169 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
         })
     );
     
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.configureGuardian', async () => {
+            try {
+                const currentGuardian = settings.get('guardian');
+                const guardianSettings = {
+                    ...currentGuardian,
+                    quietHours: [...(currentGuardian.quietHours || [])],
+                    protectedBranches: [...(currentGuardian.protectedBranches || [])],
+                    keywordsRequiringConfirmation: [...(currentGuardian.keywordsRequiringConfirmation || [])]
+                };
+                
+                const options = [
+                    { label: `${guardianSettings.smartCommitProtection ? '✓' : '✗'} Schutz aktiv`, value: 'smartCommitProtection' },
+                    { label: `${guardianSettings.blockOnDirtyWorkspace ? '✓' : '✗'} Ungespeicherte Dateien blockieren`, value: 'blockOnDirtyWorkspace' },
+                    { label: `${guardianSettings.skipWhenDebugging ? '✓' : '✗'} Während Debugging pausieren`, value: 'skipWhenDebugging' },
+                    { label: `Cooldown: ${guardianSettings.coolDownMinutes} Minute(n)`, value: 'coolDownMinutes' },
+                    { label: `Max Dateien ohne Bestätigung: ${guardianSettings.maxFilesWithoutPrompt}`, value: 'maxFilesWithoutPrompt' },
+                    { label: `${guardianSettings.confirmOnLargeChanges ? '✓' : '✗'} Große Diffs bestätigen (${guardianSettings.maxDiffSizeKb} KB)`, value: 'confirmOnLargeChanges' },
+                    { label: `Ruhige Zeiten (${guardianSettings.quietHours.length})`, value: 'quietHours' },
+                    { label: `Geschützte Branches (${guardianSettings.protectedBranches.length})`, value: 'protectedBranches' },
+                    { label: `Schlüsselwörter (${guardianSettings.keywordsRequiringConfirmation.length})`, value: 'keywordsRequiringConfirmation' }
+                ];
+                
+                const selection = await vscode.window.showQuickPick(options, {
+                    placeHolder: 'Guardian-Einstellung auswählen'
+                });
+                
+                if (!selection) return;
+                
+                switch (selection.value) {
+                    case 'smartCommitProtection':
+                        guardianSettings.smartCommitProtection = !guardianSettings.smartCommitProtection;
+                        showNotification(`Commit Guardian ${guardianSettings.smartCommitProtection ? 'aktiviert' : 'deaktiviert'}`, 'info');
+                        break;
+                    case 'blockOnDirtyWorkspace':
+                        guardianSettings.blockOnDirtyWorkspace = !guardianSettings.blockOnDirtyWorkspace;
+                        showNotification(`Schutz bei ungespeicherten Dateien ${guardianSettings.blockOnDirtyWorkspace ? 'aktiviert' : 'deaktiviert'}`, 'info');
+                        break;
+                    case 'skipWhenDebugging':
+                        guardianSettings.skipWhenDebugging = !guardianSettings.skipWhenDebugging;
+                        showNotification(`Pause während Debugging ${guardianSettings.skipWhenDebugging ? 'aktiviert' : 'deaktiviert'}`, 'info');
+                        break;
+                    case 'coolDownMinutes': {
+                        const value = await vscode.window.showInputBox({
+                            prompt: 'Cooldown in Minuten',
+                            value: guardianSettings.coolDownMinutes.toString(),
+                            placeHolder: 'z.B. 5'
+                        });
+                        if (value !== undefined) {
+                            const parsed = parseInt(value, 10);
+                            if (!isNaN(parsed) && parsed >= 0) {
+                                guardianSettings.coolDownMinutes = parsed;
+                                showNotification(`Cooldown auf ${parsed} Minute(n) gesetzt`, 'info');
+                            } else {
+                                showNotification('Bitte eine gültige Zahl >= 0 eingeben.', 'warning');
+                                return;
+                            }
+                        } else {
+                            return;
+                        }
+                        break;
+                    }
+                    case 'maxFilesWithoutPrompt': {
+                        const value = await vscode.window.showInputBox({
+                            prompt: 'Maximale Anzahl Dateien ohne Bestätigung',
+                            value: guardianSettings.maxFilesWithoutPrompt.toString(),
+                            placeHolder: 'z.B. 8'
+                        });
+                        if (value !== undefined) {
+                            const parsed = parseInt(value, 10);
+                            if (!isNaN(parsed) && parsed >= 0) {
+                                guardianSettings.maxFilesWithoutPrompt = parsed;
+                                showNotification(`Dateischwelle auf ${parsed} gesetzt`, 'info');
+                            } else {
+                                showNotification('Bitte eine gültige Zahl >= 0 eingeben.', 'warning');
+                                return;
+                            }
+                        } else {
+                            return;
+                        }
+                        break;
+                    }
+                    case 'confirmOnLargeChanges':
+                        guardianSettings.confirmOnLargeChanges = !guardianSettings.confirmOnLargeChanges;
+                        showNotification(`Bestätigung bei großen Diffs ${guardianSettings.confirmOnLargeChanges ? 'aktiviert' : 'deaktiviert'}`, 'info');
+                        if (guardianSettings.confirmOnLargeChanges) {
+                            const value = await vscode.window.showInputBox({
+                                prompt: 'Schwellwert für Diff-Größe (Kilobyte)',
+                                value: guardianSettings.maxDiffSizeKb.toString(),
+                                placeHolder: 'z.B. 512'
+                            });
+                            if (value !== undefined) {
+                                const parsed = parseInt(value, 10);
+                                if (!isNaN(parsed) && parsed >= 32) {
+                                    guardianSettings.maxDiffSizeKb = parsed;
+                                } else {
+                                    showNotification('Bitte eine gültige Zahl >= 32 eingeben.', 'warning');
+                                    return;
+                                }
+                            }
+                        }
+                        break;
+                    case 'quietHours': {
+                        const value = await vscode.window.showInputBox({
+                            prompt: 'Ruhige Zeiten (Format HH:MM-HH:MM, Kommagetrennt)',
+                            value: guardianSettings.quietHours.join(', '),
+                            placeHolder: 'z.B. 22:00-07:00,12:00-13:00'
+                        });
+                        if (value !== undefined) {
+                            const ranges = value.split(',').map(entry => entry.trim()).filter(Boolean);
+                            guardianSettings.quietHours = ranges;
+                            showNotification('Ruhige Zeiten aktualisiert.', 'info');
+                        } else {
+                            return;
+                        }
+                        break;
+                    }
+                    case 'protectedBranches': {
+                        const value = await vscode.window.showInputBox({
+                            prompt: 'Geschützte Branches (Kommagetrennt, * als Wildcard)',
+                            value: guardianSettings.protectedBranches.join(', '),
+                            placeHolder: 'z.B. main, master, release/*'
+                        });
+                        if (value !== undefined) {
+                            const branches = value.split(',').map(entry => entry.trim()).filter(Boolean);
+                            guardianSettings.protectedBranches = branches;
+                            showNotification('Geschützte Branches aktualisiert.', 'info');
+                        } else {
+                            return;
+                        }
+                        break;
+                    }
+                    case 'keywordsRequiringConfirmation': {
+                        const value = await vscode.window.showInputBox({
+                            prompt: 'Schlüsselwörter für Bestätigung (Kommagetrennt)',
+                            value: guardianSettings.keywordsRequiringConfirmation.join(', '),
+                            placeHolder: 'z.B. WIP,DO-NOT-COMMIT'
+                        });
+                        if (value !== undefined) {
+                            const keywords = value.split(',').map(entry => entry.trim()).filter(Boolean);
+                            guardianSettings.keywordsRequiringConfirmation = keywords;
+                            showNotification('Schlüsselwörter aktualisiert.', 'info');
+                        } else {
+                            return;
+                        }
+                        break;
+                    }
+                    default:
+                        return;
+                }
+                
+                await settings.update('guardian', guardianSettings);
+            } catch (error) {
+                handleError(error, "Fehler bei der Konfiguration des Guardians", true);
+            }
+        })
+    );
+    
     // Auto-Commit deaktivieren
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.disableAutoCommit', async () => {
             try {
-                // Konfiguration abrufen und ändern
-                const config = vscode.workspace.getConfiguration('comitto');
-                await config.update('autoCommitEnabled', false, vscode.ConfigurationTarget.Global);
+                await settings.update('autoCommitEnabled', false);
                 
                 // FileWatcher deaktivieren
                 disableFileWatcher();
@@ -80,8 +235,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.toggleAutoCommit', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const isEnabled = config.get('autoCommitEnabled');
+                const isEnabled = settings.get('autoCommitEnabled');
                 
                 if (isEnabled) {
                     await vscode.commands.executeCommand('comitto.disableAutoCommit');
@@ -145,8 +299,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 });
                 
                 if (selection) {
-                    const config = vscode.workspace.getConfiguration('comitto');
-                    await config.update('aiProvider', selection, vscode.ConfigurationTarget.Global);
+                    await settings.update('aiProvider', selection);
                     showNotification(`KI-Provider wurde auf ${selection} gesetzt.`, 'info');
                 }
             } catch (error) {
@@ -159,11 +312,10 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.toggleSimpleMode', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const uiSettings = config.get('uiSettings');
+                const uiSettings = settings.get('uiSettings');
                 const newValue = !uiSettings.simpleMode;
                 
-                await config.update('uiSettings', { ...uiSettings, simpleMode: newValue }, vscode.ConfigurationTarget.Global);
+                await settings.update('uiSettings', { ...uiSettings, simpleMode: newValue });
                 showNotification(`Einfacher Modus wurde ${newValue ? 'aktiviert' : 'deaktiviert'}.`, 'info');
                 
                 // UI aktualisieren
@@ -186,9 +338,8 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 });
                 
                 if (selection) {
-                    const config = vscode.workspace.getConfiguration('comitto');
-                    const uiSettings = config.get('uiSettings');
-                    await config.update('uiSettings', { ...uiSettings, theme: selection }, vscode.ConfigurationTarget.Global);
+                    const uiSettings = settings.get('uiSettings');
+                    await settings.update('uiSettings', { ...uiSettings, theme: selection });
                     showNotification(`Theme wurde auf '${selection}' gesetzt.`, 'info');
                 }
             } catch (error) {
@@ -201,11 +352,10 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.toggleOnSave', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const triggerRules = config.get('triggerRules');
+                const triggerRules = settings.get('triggerRules');
                 const newValue = !triggerRules.onSave;
                 
-                await config.update('triggerRules', { ...triggerRules, onSave: newValue }, vscode.ConfigurationTarget.Global);
+                await settings.update('triggerRules', { ...triggerRules, onSave: newValue });
                 showNotification(`Auto-Commit beim Speichern wurde ${newValue ? 'aktiviert' : 'deaktiviert'}.`, 'info');
                 
                 // UI aktualisieren
@@ -222,11 +372,10 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.toggleOnInterval', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const triggerRules = config.get('triggerRules');
+                const triggerRules = settings.get('triggerRules');
                 const newValue = !triggerRules.onInterval;
                 
-                await config.update('triggerRules', { ...triggerRules, onInterval: newValue }, vscode.ConfigurationTarget.Global);
+                await settings.update('triggerRules', { ...triggerRules, onInterval: newValue });
                 showNotification(`Auto-Commit im Intervall wurde ${newValue ? 'aktiviert' : 'deaktiviert'}.`, 'info');
                 
                 // UI aktualisieren
@@ -243,11 +392,10 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.toggleOnBranchSwitch', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const triggerRules = config.get('triggerRules');
+                const triggerRules = settings.get('triggerRules');
                 const newValue = !triggerRules.onBranchSwitch;
                 
-                await config.update('triggerRules', { ...triggerRules, onBranchSwitch: newValue }, vscode.ConfigurationTarget.Global);
+                await settings.update('triggerRules', { ...triggerRules, onBranchSwitch: newValue });
                 showNotification(`Auto-Commit beim Branch-Wechsel wurde ${newValue ? 'aktiviert' : 'deaktiviert'}.`, 'info');
                 
                 // UI aktualisieren
@@ -264,8 +412,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.editFilePatterns', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const triggerRules = config.get('triggerRules');
+                const triggerRules = settings.get('triggerRules');
                 const currentPatterns = triggerRules.filePatterns.join(', ');
                 
                 const newPatterns = await vscode.window.showInputBox({
@@ -276,7 +423,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 
                 if (newPatterns !== undefined) {
                     const patternsArray = newPatterns.split(',').map(p => p.trim()).filter(p => p.length > 0);
-                    await config.update('triggerRules', { ...triggerRules, filePatterns: patternsArray }, vscode.ConfigurationTarget.Global);
+                    await settings.update('triggerRules', { ...triggerRules, filePatterns: patternsArray });
                     showNotification('Dateimuster wurden aktualisiert.', 'info');
                     
                     // UI aktualisieren
@@ -294,8 +441,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.editMinChangeCount', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const triggerRules = config.get('triggerRules');
+                const triggerRules = settings.get('triggerRules');
                 const currentValue = triggerRules.minChangeCount.toString();
                 
                 const newValue = await vscode.window.showInputBox({
@@ -307,7 +453,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 if (newValue !== undefined) {
                     const numValue = parseInt(newValue);
                     if (!isNaN(numValue) && numValue >= 0) {
-                        await config.update('triggerRules', { ...triggerRules, minChangeCount: numValue }, vscode.ConfigurationTarget.Global);
+                        await settings.update('triggerRules', { ...triggerRules, minChangeCount: numValue });
                         showNotification(`Minimale Änderungsanzahl auf ${numValue} gesetzt.`, 'info');
                         
                         // UI aktualisieren
@@ -328,8 +474,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.editTimeThreshold', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const triggerRules = config.get('triggerRules');
+                const triggerRules = settings.get('triggerRules');
                 const currentValue = triggerRules.timeThresholdMinutes.toString();
                 
                 const newValue = await vscode.window.showInputBox({
@@ -341,7 +486,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 if (newValue !== undefined) {
                     const numValue = parseInt(newValue);
                     if (!isNaN(numValue) && numValue >= 0) {
-                        await config.update('triggerRules', { ...triggerRules, timeThresholdMinutes: numValue }, vscode.ConfigurationTarget.Global);
+                        await settings.update('triggerRules', { ...triggerRules, timeThresholdMinutes: numValue });
                         showNotification(`Zeitschwellwert auf ${numValue} Minuten gesetzt.`, 'info');
                         
                         // UI aktualisieren
@@ -362,8 +507,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.editFileCountThreshold', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const triggerRules = config.get('triggerRules');
+                const triggerRules = settings.get('triggerRules');
                 const currentValue = triggerRules.fileCountThreshold.toString();
                 
                 const newValue = await vscode.window.showInputBox({
@@ -375,7 +519,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 if (newValue !== undefined) {
                     const numValue = parseInt(newValue);
                     if (!isNaN(numValue) && numValue >= 0) {
-                        await config.update('triggerRules', { ...triggerRules, fileCountThreshold: numValue }, vscode.ConfigurationTarget.Global);
+                        await settings.update('triggerRules', { ...triggerRules, fileCountThreshold: numValue });
                         showNotification(`Dateien-Schwellwert auf ${numValue} gesetzt.`, 'info');
                         
                         // UI aktualisieren
@@ -449,12 +593,11 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 });
                 
                 if (selection) {
-                    const config = vscode.workspace.getConfiguration('comitto');
-                    const openaiConfig = config.get('openai') || {};
+                    const openaiConfig = { ...settings.get('openai') };
                     
                     // Aktualisiere das Modell in den Einstellungen
                     openaiConfig.model = selection.value;
-                    await config.update('openai', openaiConfig, vscode.ConfigurationTarget.Global);
+                    await settings.update('openai', openaiConfig);
                     
                     showNotification(`OpenAI-Modell wurde auf ${selection.label} (${selection.value}) gesetzt.`, 'info');
                     
@@ -473,8 +616,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.editOpenAIKey', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const openaiConfig = config.get('openai') || {};
+                const openaiConfig = { ...settings.get('openai') };
                 const currentKey = openaiConfig.apiKey || '';
                 
                 // Maske für den Schlüssel erstellen, falls einer existiert
@@ -492,7 +634,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                     if (input !== maskedKey) {
                         // Schlüssel aktualisieren
                         openaiConfig.apiKey = input;
-                        await config.update('openai', openaiConfig, vscode.ConfigurationTarget.Global);
+                        await settings.update('openai', openaiConfig);
                         showNotification('OpenAI API-Schlüssel wurde aktualisiert.', 'info');
                     }
                     
@@ -526,12 +668,11 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 });
                 
                 if (selection) {
-                    const config = vscode.workspace.getConfiguration('comitto');
-                    const anthropicConfig = config.get('anthropic') || {};
+                    const anthropicConfig = { ...settings.get('anthropic') };
                     
                     // Aktualisiere das Modell in den Einstellungen
                     anthropicConfig.model = selection.value;
-                    await config.update('anthropic', anthropicConfig, vscode.ConfigurationTarget.Global);
+                    await settings.update('anthropic', anthropicConfig);
                     
                     showNotification(`Anthropic-Modell wurde auf ${selection.label} (${selection.value}) gesetzt.`, 'info');
                     
@@ -550,8 +691,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.editAnthropicKey', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const anthropicConfig = config.get('anthropic') || {};
+                const anthropicConfig = { ...settings.get('anthropic') };
                 const currentKey = anthropicConfig.apiKey || '';
                 
                 // Maske für den Schlüssel erstellen, falls einer existiert
@@ -569,7 +709,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                     if (input !== maskedKey) {
                         // Schlüssel aktualisieren
                         anthropicConfig.apiKey = input;
-                        await config.update('anthropic', anthropicConfig, vscode.ConfigurationTarget.Global);
+                        await settings.update('anthropic', anthropicConfig);
                         showNotification('Anthropic API-Schlüssel wurde aktualisiert.', 'info');
                     }
                     
@@ -588,8 +728,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.editPromptTemplate', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const currentTemplate = config.get('promptTemplate') || 'Generiere eine Commit-Nachricht für diese Änderungen: {changes}';
+                const currentTemplate = settings.get('promptTemplate') || 'Generiere eine Commit-Nachricht für diese Änderungen: {changes}';
                 
                 // Multi-line Text Editor verwenden, um die Vorlage zu bearbeiten
                 const document = await vscode.workspace.openTextDocument({
@@ -603,7 +742,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 const disposable = vscode.workspace.onDidSaveTextDocument(async (doc) => {
                     if (doc === document) {
                         const newTemplate = doc.getText();
-                        await config.update('promptTemplate', newTemplate, vscode.ConfigurationTarget.Global);
+                        await settings.update('promptTemplate', newTemplate);
                         showNotification('Prompt-Vorlage wurde aktualisiert.', 'info');
                         
                         // Event-Listener und temporäres Dokument entfernen
@@ -656,12 +795,11 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.toggleAutoPush', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const gitSettings = config.get('gitSettings');
+                const gitSettings = { ...settings.get('gitSettings') };
                 const currentValue = gitSettings.autoPush || false;
                 
                 gitSettings.autoPush = !currentValue;
-                await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
+                await settings.update('gitSettings', gitSettings);
                 
                 showNotification(`Auto-Push ${!currentValue ? 'aktiviert' : 'deaktiviert'}`, 'info');
                 
@@ -681,8 +819,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.editBranch', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const gitSettings = config.get('gitSettings');
+                const gitSettings = { ...settings.get('gitSettings') };
                 const currentBranch = gitSettings.branch || '';
                 
                 const input = await vscode.window.showInputBox({
@@ -693,7 +830,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 
                 if (input !== undefined) {
                     gitSettings.branch = input;
-                    await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
+                    await settings.update('gitSettings', gitSettings);
                     showNotification(`Branch auf "${input || 'aktueller Branch'}" gesetzt`, 'info');
                     
                     // UI-Provider aktualisieren
@@ -726,10 +863,9 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 });
                 
                 if (selected) {
-                    const config = vscode.workspace.getConfiguration('comitto');
-                    const gitSettings = config.get('gitSettings');
+                    const gitSettings = { ...settings.get('gitSettings') };
                     gitSettings.commitMessageStyle = selected.value;
-                    await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
+                    await settings.update('gitSettings', gitSettings);
                     showNotification(`Commit-Stil auf "${selected.label}" gesetzt`, 'info');
                     
                     // UI-Provider aktualisieren
@@ -764,10 +900,9 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 });
                 
                 if (selected) {
-                    const config = vscode.workspace.getConfiguration('comitto');
-                    const gitSettings = config.get('gitSettings');
+                    const gitSettings = { ...settings.get('gitSettings') };
                     gitSettings.commitMessageLanguage = selected.value;
-                    await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
+                    await settings.update('gitSettings', gitSettings);
                     showNotification(`Commit-Sprache auf "${selected.label}" gesetzt`, 'info');
                     
                     // UI-Provider aktualisieren
@@ -787,8 +922,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.configureTriggers', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const triggerRules = config.get('triggerRules');
+                const triggerRules = { ...settings.get('triggerRules') };
                 
                 const options = [
                     { label: `${triggerRules.onSave ? '✓' : '✗'} Bei Speichern`, value: 'onSave' },
@@ -810,7 +944,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                         case 'onInterval':
                         case 'onBranchSwitch':
                             triggerRules[selected.value] = !triggerRules[selected.value];
-                            await config.update('triggerRules', triggerRules, vscode.ConfigurationTarget.Global);
+                            await settings.update('triggerRules', triggerRules);
                             showNotification(`${selected.label} ${triggerRules[selected.value] ? 'aktiviert' : 'deaktiviert'}`, 'info');
                             break;
                         case 'fileCountThreshold':
@@ -844,12 +978,11 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.toggleUseGitignore', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const gitSettings = config.get('gitSettings');
+                const gitSettings = { ...settings.get('gitSettings') };
                 const currentValue = gitSettings.useGitignore !== false;
                 
                 gitSettings.useGitignore = !currentValue;
-                await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
+                await settings.update('gitSettings', gitSettings);
                 
                 showNotification(`Gitignore ${!currentValue ? 'aktiviert' : 'deaktiviert'}`, 'info');
                 
@@ -869,8 +1002,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.configureAIProvider', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const currentProvider = config.get('aiProvider');
+                const currentProvider = settings.get('aiProvider');
                 
                 const providers = [
                     { label: 'OpenAI', value: 'openai', description: 'ChatGPT, GPT-4, etc.' },
@@ -883,7 +1015,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 });
                 
                 if (selected && selected.value !== currentProvider) {
-                    await config.update('aiProvider', selected.value, vscode.ConfigurationTarget.Global);
+                    await settings.update('aiProvider', selected.value);
                     showNotification(`KI-Provider auf "${selected.label}" gesetzt`, 'info');
                     
                     // Je nach Provider weitere Konfiguration anbieten
@@ -977,8 +1109,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.selectStageMode', async () => {
             try {
-                const config = vscode.workspace.getConfiguration('comitto');
-                const gitSettings = config.get('gitSettings');
+                const gitSettings = { ...settings.get('gitSettings') };
                 
                 const stageModes = [
                     { 
@@ -1004,7 +1135,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 
                 if (selected) {
                     gitSettings.stageMode = selected.value;
-                    await config.update('gitSettings', gitSettings, vscode.ConfigurationTarget.Global);
+                    await settings.update('gitSettings', gitSettings);
                     showNotification(`Stage-Modus auf "${selected.label}" gesetzt`, 'info');
                     
                     // UI-Provider aktualisieren
@@ -1032,9 +1163,8 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
  */
 async function generateCommitMessage(gitStatus, diffOutput, generateWithOllama, generateWithOpenAI, generateWithAnthropic) {
     try {
-        const config = vscode.workspace.getConfiguration('comitto');
-        const aiProvider = config.get('aiProvider');
-        const gitSettings = config.get('gitSettings');
+        const aiProvider = settings.get('aiProvider');
+        const gitSettings = settings.get('gitSettings');
         
         // Änderungen in ein lesbares Format bringen
         const changes = gitStatus.split('\n')
@@ -1047,7 +1177,7 @@ async function generateCommitMessage(gitStatus, diffOutput, generateWithOllama, 
             .join('\n');
         
         // Prompt-Vorlage mit Änderungen füllen
-        let promptTemplate = config.get('promptTemplate') || 'Generiere eine Commit-Nachricht basierend auf folgenden Änderungen:';
+        let promptTemplate = settings.get('promptTemplate') || 'Generiere eine Commit-Nachricht basierend auf folgenden Änderungen:';
         promptTemplate = promptTemplate.replace('{changes}', changes);
         
         // Sprache für die Commit-Nachricht einfügen
@@ -1105,8 +1235,7 @@ async function generateCommitMessage(gitStatus, diffOutput, generateWithOllama, 
  */
 function preparePromptTemplate(gitStatus, diffOutput) {
     try {
-        const config = vscode.workspace.getConfiguration('comitto');
-        let template = config.get('promptTemplate') || 'Generiere eine Commit-Nachricht basierend auf folgenden Änderungen:';
+        let template = settings.get('promptTemplate') || 'Generiere eine Commit-Nachricht basierend auf folgenden Änderungen:';
         
         // Status-Informationen hinzufügen
         template = template.replace('{changes}', gitStatus || 'Keine Status-Informationen verfügbar.');
@@ -1187,8 +1316,7 @@ function processCommitMessage(rawMessage) {
         const lines = processedMessage.split('\n').filter(line => line.trim().length > 0);
         if (lines.length > 1) {
             // Erste Zeile als Hauptnachricht, Rest als Beschreibung
-            const config = vscode.workspace.getConfiguration('comitto');
-            const gitSettings = config.get('gitSettings');
+            const gitSettings = settings.get('gitSettings');
             
             // Prüfen, ob mehrzeilige Nachrichten erlaubt sind
             if (gitSettings.allowMultilineMessages) {
@@ -1226,8 +1354,7 @@ function handleError(error, context = 'Allgemeiner Fehler', showNotification = t
         
         // Nach 3 Sekunden auf normalen Status zurücksetzen
         setTimeout(() => {
-            const config = vscode.workspace.getConfiguration('comitto');
-            const isEnabled = config.get('autoCommitEnabled');
+            const isEnabled = settings.get('autoCommitEnabled');
             updateStatusBarProgress(
                 statusBarItemRef, 
                 isEnabled ? 'Aktiv' : 'Inaktiv',

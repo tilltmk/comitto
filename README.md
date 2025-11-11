@@ -15,11 +15,13 @@ Automated Git Commits with AI-generated Commit Messages
 ![image](https://github.com/user-attachments/assets/3fb666f0-114b-4bd3-a10d-b5eef0c667e8)
 
 - **Automatic Commits**: Monitors file changes and performs commits automatically
-- **AI-generated Commit Messages**: Uses OpenAI, Anthropic Claude or Ollama
+- **AI-generated Commit Messages**: Uses OpenAI (standardmäßig `gpt-4.1-mini`), Anthropic Claude oder Ollama
+- **Commit Guardian**: Intelligente Schutzlogik mit Cooldown, Quiet Hours, Branch-Schutz und Keyword-Filtern
 - **Visual Status Display**: Progress bar and detailed feedback during the commit process
 - **Configurable Triggers**: Control when commits should be executed
 - **Dashboard**: Clear presentation of activities and settings
 - **VSCode Integration**: Fully integrated into the IDE
+- **Modernisierte UI**: Überarbeitete Dashboard-Optik und neue Guardian-Karten in der einfachen Oberfläche
 
 ## Installation
 
@@ -53,6 +55,8 @@ Automated Git Commits with AI-generated Commit Messages
 - Enhanced error handling for all AI providers
 - Visual feedback during commit generation
 - Better model selection for OpenAI with icons and categories
+- Commit Guardian mit Schnellkonfiguration über Sidebar, Kommando-Palette und Simple UI
+- Überarbeiteter Settings-Manager mit Validierung, sanfter Migration alter Ollama-Modelle und Echtzeit-Reaktion auf Konfigurationsänderungen
 
 ## Support
 

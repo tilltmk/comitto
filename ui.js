@@ -1,5 +1,6 @@
 const vscode = require('vscode');
 const path = require('path');
+const settings = require('./settings');
 
 /**
  * Hauptklasse für die konsolidierte Ansicht in der Seitenleiste
@@ -25,8 +26,7 @@ class MainViewProvider {
             return this._getSubItems(element);
         }
 
-        const config = vscode.workspace.getConfiguration('comitto');
-        const enabled = config.get('autoCommitEnabled');
+        const enabled = settings.get('autoCommitEnabled');
         const items = [];
 
         // Status und Schnellaktionen
@@ -78,8 +78,6 @@ class MainViewProvider {
     }
 
     async _getSubItems(element) {
-        const config = vscode.workspace.getConfiguration('comitto');
-        const items = [];
 
         switch (element.contextValue) {
             case 'status-group':
@@ -98,8 +96,7 @@ class MainViewProvider {
     }
 
     async _getStatusItems() {
-        const config = vscode.workspace.getConfiguration('comitto');
-        const enabled = config.get('autoCommitEnabled');
+        const enabled = settings.get('autoCommitEnabled');
         const items = [];
 
         // Hauptstatus
@@ -185,8 +182,7 @@ class MainViewProvider {
     }
 
     async _getGitItems() {
-        const config = vscode.workspace.getConfiguration('comitto');
-        const gitSettings = config.get('gitSettings');
+        const gitSettings = settings.get('gitSettings');
         const items = [];
 
         // Auto-Push
@@ -295,8 +291,7 @@ class MainViewProvider {
     }
 
     async _getAIItems() {
-        const config = vscode.workspace.getConfiguration('comitto');
-        const currentProvider = config.get('aiProvider');
+        const currentProvider = settings.get('aiProvider');
         const items = [];
 
         // KI-Provider
@@ -320,7 +315,7 @@ class MainViewProvider {
         // Provider-spezifische Einstellungen
         switch (currentProvider) {
             case 'openai':
-                const openaiSettings = config.get('openai');
+                const openaiSettings = settings.get('openai');
                 const openaiModelItem = new vscode.TreeItem(
                     `OpenAI Modell: ${openaiSettings.model}`,
                     vscode.TreeItemCollapsibleState.None
@@ -345,7 +340,7 @@ class MainViewProvider {
                 break;
 
             case 'anthropic':
-                const anthropicSettings = config.get('anthropic');
+                const anthropicSettings = settings.get('anthropic');
                 const anthropicModelItem = new vscode.TreeItem(
                     `Anthropic Modell: ${anthropicSettings.model}`,
                     vscode.TreeItemCollapsibleState.None
@@ -370,7 +365,7 @@ class MainViewProvider {
                 break;
 
             case 'ollama':
-                const ollamaSettings = config.get('ollama');
+                const ollamaSettings = settings.get('ollama');
                 const ollamaModelItem = new vscode.TreeItem(
                     `Ollama Modell: ${ollamaSettings.model}`,
                     vscode.TreeItemCollapsibleState.None
@@ -404,8 +399,7 @@ class MainViewProvider {
     }
 
     async _getTriggerItems() {
-        const config = vscode.workspace.getConfiguration('comitto');
-        const triggerRules = config.get('triggerRules');
+        const triggerRules = settings.get('triggerRules');
         const items = [];
 
         // Trigger konfigurieren (Haupteintrag)
@@ -491,12 +485,25 @@ class MainViewProvider {
         };
         items.push(changeCountItem);
 
+        const guardianSettings = settings.get('guardian');
+        const guardianItem = new vscode.TreeItem(
+            `Guardian: ${guardianSettings.smartCommitProtection ? 'Aktiv' : 'Inaktiv'}`,
+            vscode.TreeItemCollapsibleState.None
+        );
+        guardianItem.description = `Cooldown ${guardianSettings.coolDownMinutes} min · Dateien ${guardianSettings.maxFilesWithoutPrompt}`;
+        guardianItem.iconPath = new vscode.ThemeIcon(guardianSettings.smartCommitProtection ? 'shield' : 'shield-off');
+        guardianItem.command = {
+            command: 'comitto.configureGuardian',
+            title: 'Configure Guardian'
+        };
+        items.push(guardianItem);
+
         return items;
     }
 
     async _getUIItems() {
-        const config = vscode.workspace.getConfiguration('comitto');
-        const uiSettings = config.get('uiSettings');
+        const uiSettings = settings.get('uiSettings');
+        const notificationSettings = settings.get('notifications');
         const items = [];
 
         // Einfacher Modus
@@ -524,7 +531,6 @@ class MainViewProvider {
         items.push(themeItem);
 
         // Benachrichtigungen
-        const notificationSettings = config.get('notifications');
         const notificationItem = new vscode.TreeItem(
             `Benachrichtigungen: ${uiSettings.showNotifications ? 'Aktiv' : 'Inaktiv'}`,
             vscode.TreeItemCollapsibleState.None
@@ -683,10 +689,9 @@ class DashboardProvider {
     }
 
     _getDashboardContent() {
-        const config = vscode.workspace.getConfiguration('comitto');
-        const enabled = config.get('autoCommitEnabled');
-        const aiProvider = config.get('aiProvider');
-        const gitSettings = config.get('gitSettings');
+        const enabled = settings.get('autoCommitEnabled');
+        const aiProvider = settings.get('aiProvider');
+        const gitSettings = settings.get('gitSettings');
         
         return `<!DOCTYPE html>
 <html lang="de">
@@ -1040,8 +1045,8 @@ class SimpleUIProvider {
     }
 
     _getSimpleUIContent() {
-        const config = vscode.workspace.getConfiguration('comitto');
-        const enabled = config.get('autoCommitEnabled');
+        const enabled = settings.get('autoCommitEnabled');
+        const guardianSettings = settings.get('guardian');
         
         return `<!DOCTYPE html>
 <html lang="de">
@@ -1128,6 +1133,40 @@ class SimpleUIProvider {
         .btn-success:hover {
             background: #059669;
         }
+          
+          .guardian-card {
+              margin-top: 25px;
+              padding: 20px;
+              border-radius: 12px;
+              background: #1e293b;
+              color: #e2e8f0;
+              box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+          }
+          
+          .guardian-card h2 {
+              margin-bottom: 10px;
+              font-size: 1.2rem;
+          }
+          
+          .guardian-status {
+              font-weight: 600;
+              margin-bottom: 10px;
+          }
+          
+          .guardian-status.active {
+              color: #4ade80;
+          }
+          
+          .guardian-status.inactive {
+              color: #f87171;
+          }
+          
+          .guardian-card ul {
+              margin: 0;
+              padding-left: 18px;
+              font-size: 0.95rem;
+              color: rgba(226, 232, 240, 0.8);
+          }
     </style>
 </head>
 <body>
@@ -1153,12 +1192,26 @@ class SimpleUIProvider {
         <button class="btn btn-secondary" onclick="executeCommand('comitto.configureTriggers')">
             Trigger konfigurieren
         </button>
+        <button class="btn btn-secondary" onclick="executeCommand('comitto.configureGuardian')">
+            Guardian konfigurieren
+        </button>
         <button class="btn btn-secondary" onclick="executeCommand('comitto.configureAIProvider')">
             KI konfigurieren
         </button>
         <button class="btn btn-secondary" onclick="executeCommand('comitto.showDashboard')">
             Dashboard öffnen
         </button>
+    </div>
+    <div class="guardian-card">
+        <h2>Commit Guardian</h2>
+        <p class="guardian-status ${guardianSettings.smartCommitProtection ? 'active' : 'inactive'}">
+            ${guardianSettings.smartCommitProtection ? 'Schutz aktiv' : 'Schutz deaktiviert'}
+        </p>
+        <ul>
+            <li>Cooldown: ${guardianSettings.coolDownMinutes} Minute(n)</li>
+            <li>Dateien ohne Prompt: ${guardianSettings.maxFilesWithoutPrompt}</li>
+            <li>Große Diffs: ${guardianSettings.confirmOnLargeChanges ? `Bestätigung ab ${guardianSettings.maxDiffSizeKb} KB` : 'Keine Bestätigung erforderlich'}</li>
+        </ul>
     </div>
     
     <script>

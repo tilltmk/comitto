@@ -49,6 +49,7 @@
     "onCommand:comitto.selectCommitStyle",
     "onCommand:comitto.selectCommitLanguage",
     "onCommand:comitto.configureTriggers",
+    "onCommand:comitto.configureGuardian",
     "onCommand:comitto.toggleUseGitignore",
     "onCommand:comitto.configureAIProvider",
     "onCommand:comitto.stageSelected",
@@ -212,6 +213,11 @@
         "icon": "$(robot)"
       },
       {
+        "command": "comitto.configureGuardian",
+        "title": "Comitto: Configure Guardian",
+        "icon": "$(shield)"
+      },
+      {
         "command": "comitto.clearLogs",
         "title": "Comitto: Clear Debug Logs",
         "icon": "$(trash)"
@@ -257,132 +263,136 @@
           "group": "inline"
         }
       ],
-      "commandPalette": [
-        {
-          "command": "comitto.showDashboard",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.selectAiProvider",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.selectOpenAIModel",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.selectAnthropicModel",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.editOpenAIKey",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.editAnthropicKey",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.editPromptTemplate",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.configureTriggers",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.showSimpleUI",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.stageAll",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.stageSelected",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.toggleSimpleMode",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.selectTheme",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.toggleOnSave",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.toggleOnInterval",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.toggleOnBranchSwitch",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.editFilePatterns",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.editMinChangeCount",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.editTimeThreshold",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.editFileCountThreshold",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.refreshSettings",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.openSettings",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.performManualCommit",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.toggleAutoPush",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.editBranch",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.selectCommitStyle",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.selectCommitLanguage",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.toggleUseGitignore",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.configureAIProvider",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.clearLogs",
-          "when": "workspaceHasGit"
-        },
-        {
-          "command": "comitto.selectStageMode",
-          "when": "workspaceHasGit"
-        }
-      ]
+        "commandPalette": [
+          {
+            "command": "comitto.showDashboard",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.selectAiProvider",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.selectOpenAIModel",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.selectAnthropicModel",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.editOpenAIKey",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.editAnthropicKey",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.editPromptTemplate",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.configureTriggers",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.showSimpleUI",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.stageAll",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.stageSelected",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.toggleSimpleMode",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.selectTheme",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.toggleOnSave",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.toggleOnInterval",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.toggleOnBranchSwitch",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.editFilePatterns",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.editMinChangeCount",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.editTimeThreshold",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.editFileCountThreshold",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.refreshSettings",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.openSettings",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.performManualCommit",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.toggleAutoPush",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.editBranch",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.selectCommitStyle",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.selectCommitLanguage",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.toggleUseGitignore",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.configureAIProvider",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.configureGuardian",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.clearLogs",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.selectStageMode",
+            "when": "workspaceHasGit"
+          }
+        ]
     },
     "configuration": {
       "title": "Comitto",
@@ -437,26 +447,26 @@
           "default": "openai",
           "description": "AI provider for commit message generation"
         },
-        "comitto.openai": {
-          "type": "object",
-          "default": {
-            "apiKey": "",
-            "model": "gpt-3.5-turbo"
-          },
-          "description": "OpenAI API settings",
-          "properties": {
-            "apiKey": {
-              "type": "string",
-              "default": "",
-              "description": "API-Schlüssel für OpenAI"
+          "comitto.openai": {
+            "type": "object",
+            "default": {
+              "apiKey": "",
+              "model": "gpt-4.1-mini"
             },
-            "model": {
-              "type": "string",
-              "default": "gpt-3.5-turbo",
-              "description": "Das OpenAI-Modell, das verwendet werden soll"
+            "description": "OpenAI API settings",
+            "properties": {
+              "apiKey": {
+                "type": "string",
+                "default": "",
+                "description": "API-Schlüssel für OpenAI"
+              },
+              "model": {
+                "type": "string",
+                "default": "gpt-4.1-mini",
+                "description": "Das OpenAI-Modell, das verwendet werden soll"
+              }
             }
-          }
-        },
+          },
         "comitto.ollama": {
           "type": "object",
           "default": {
@@ -515,7 +525,7 @@
           },
           "description": "Notification settings"
         },
-        "comitto.debug": {
+          "comitto.debug": {
           "type": "object",
           "default": {
             "enabled": false,
@@ -523,7 +533,98 @@
             "commitDiagnostics": false
           },
           "description": "Debug settings for Comitto"
-        }
+          },
+          "comitto.guardian": {
+            "type": "object",
+            "default": {
+              "smartCommitProtection": true,
+              "coolDownMinutes": 5,
+              "maxFilesWithoutPrompt": 8,
+              "confirmOnLargeChanges": true,
+              "maxDiffSizeKb": 512,
+              "blockOnDirtyWorkspace": true,
+              "skipWhenDebugging": true,
+              "quietHours": [],
+              "protectedBranches": [
+                "main",
+                "master",
+                "release/*"
+              ],
+              "keywordsRequiringConfirmation": [
+                "WIP",
+                "DO-NOT-COMMIT"
+              ]
+            },
+            "description": "Schutzmechanismen, um automatische Commits in unpassenden Situationen zu verhindern",
+            "properties": {
+              "smartCommitProtection": {
+                "type": "boolean",
+                "default": true,
+                "description": "Aktiviert intelligente Schutzlogik vor unpassenden Auto-Commits"
+              },
+              "coolDownMinutes": {
+                "type": "number",
+                "default": 5,
+                "description": "Mindestabstand (in Minuten) zwischen automatischen Commits"
+              },
+              "maxFilesWithoutPrompt": {
+                "type": "number",
+                "default": 8,
+                "description": "Ab welcher Anzahl geänderter Dateien eine Bestätigung erforderlich ist"
+              },
+              "confirmOnLargeChanges": {
+                "type": "boolean",
+                "default": true,
+                "description": "Fordert Bestätigung bei sehr großen Diffs an"
+              },
+              "maxDiffSizeKb": {
+                "type": "number",
+                "default": 512,
+                "description": "Schwellwert der Diff-Größe in Kilobytes, ab dem bestätigt werden muss"
+              },
+              "blockOnDirtyWorkspace": {
+                "type": "boolean",
+                "default": true,
+                "description": "Verhindert Commits bei ungespeicherten Dateien"
+              },
+              "skipWhenDebugging": {
+                "type": "boolean",
+                "default": true,
+                "description": "Unterdrückt Auto-Commits während laufender Debug-Sitzungen"
+              },
+              "quietHours": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [],
+                "description": "Zeitfenster im Format HH:MM-HH:MM, in denen Auto-Commits ausgesetzt werden"
+              },
+              "protectedBranches": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [
+                  "main",
+                  "master",
+                  "release/*"
+                ],
+                "description": "Branch-Namen oder Muster, auf denen Auto-Commits bestätigt werden müssen"
+              },
+              "keywordsRequiringConfirmation": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [
+                  "WIP",
+                  "DO-NOT-COMMIT"
+                ],
+                "description": "Schlüsselwörter in Diffs, die vor Commits bestätigt werden müssen"
+              }
+            }
+          }
       }
     }
   },

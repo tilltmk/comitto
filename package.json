@@ -401,7 +401,8 @@
         "comitto.autoCommitEnabled": {
           "type": "boolean",
           "default": false,
-          "description": "Enable automatic commits"
+          "description": "Enable automatic commits | Automatische Commits aktivieren",
+          "markdownDescription": "**Enable Automatic Commits** - When enabled, Comitto monitors file changes and creates commits automatically based on configured triggers and thresholds.\n\n**Automatische Commits aktivieren** - Wenn aktiviert, überwacht Comitto Dateiänderungen und erstellt automatisch Commits basierend auf konfigurierten Triggern und Schwellwerten."
         },
         "comitto.triggerRules": {
           "type": "object",
@@ -418,7 +419,8 @@
             ],
             "specificFiles": []
           },
-          "description": "Rules for triggering automatic commits"
+          "description": "Rules for triggering automatic commits | Regeln für automatische Commits",
+          "markdownDescription": "**Trigger Rules** - Configure when automatic commits should be triggered:\n\n- `onSave`: Trigger when files are saved (default: true)\n- `onInterval`: Trigger at regular intervals (default: false)\n- `onBranchSwitch`: Trigger when switching branches (default: false)\n- `fileCountThreshold`: Minimum number of changed files (default: 3)\n- `minChangeCount`: Minimum number of line changes (default: 10)\n- `timeThresholdMinutes`: Minimum time between commits in minutes (default: 30)\n- `intervalMinutes`: Interval duration for periodic triggers (default: 15)\n- `filePatterns`: Glob patterns for files to monitor (default: `[\"**/*\"]`)\n\n**Trigger-Regeln** - Konfigurieren Sie, wann automatische Commits ausgelöst werden sollen:\n\n- `onSave`: Auslösen beim Speichern von Dateien (Standard: true)\n- `onInterval`: Auslösen in regelmäßigen Abständen (Standard: false)\n- `onBranchSwitch`: Auslösen beim Wechseln von Branches (Standard: false)\n- `fileCountThreshold`: Mindestanzahl geänderter Dateien (Standard: 3)\n- `minChangeCount`: Mindestanzahl von Zeilenänderungen (Standard: 10)\n- `timeThresholdMinutes`: Mindestzeit zwischen Commits in Minuten (Standard: 30)\n- `intervalMinutes`: Intervalldauer für periodische Trigger (Standard: 15)\n- `filePatterns`: Glob-Muster für zu überwachende Dateien (Standard: `[\"**/*\"]`)"
         },
         "comitto.gitSettings": {
           "type": "object",
@@ -435,7 +437,8 @@
             "commitMessageLanguage": "de",
             "maxCommitAttempts": 3
           },
-          "description": "Git settings for Comitto"
+          "description": "Git settings for Comitto | Git-Einstellungen für Comitto",
+          "markdownDescription": "**Git Settings** - Configure how Comitto interacts with Git:\n\n- `autoPush`: Automatically push after committing (default: false)\n- `pullBeforePush`: Pull before pushing to avoid conflicts (default: true)\n- `stageMode`: Staging strategy - `all`, `modified`, or `pattern` (default: `all`)\n- `branch`: Target branch for commits (empty = current branch)\n- `useGitignore`: Respect .gitignore rules (default: true)\n- `commitMessageStyle`: Format style - `conventional`, `gitmoji`, `angular`, `atom`, or `simple` (default: `gitmoji`)\n- `commitMessageLanguage`: Language for commit messages - `en` or `de` (default: `de`)\n- `maxCommitAttempts`: Retry attempts on failure (default: 3)\n\n**Git-Einstellungen** - Konfigurieren Sie, wie Comitto mit Git interagiert:\n\n- `autoPush`: Automatisch pushen nach Commit (Standard: false)\n- `pullBeforePush`: Pull vor Push um Konflikte zu vermeiden (Standard: true)\n- `stageMode`: Staging-Strategie - `all`, `modified` oder `pattern` (Standard: `all`)\n- `branch`: Ziel-Branch für Commits (leer = aktueller Branch)\n- `useGitignore`: .gitignore-Regeln beachten (Standard: true)\n- `commitMessageStyle`: Format-Stil - `conventional`, `gitmoji`, `angular`, `atom` oder `simple` (Standard: `gitmoji`)\n- `commitMessageLanguage`: Sprache für Commit-Nachrichten - `en` oder `de` (Standard: `de`)\n- `maxCommitAttempts`: Wiederholungsversuche bei Fehler (Standard: 3)"
         },
         "comitto.aiProvider": {
           "type": "string",
@@ -555,42 +558,53 @@
                 "DO-NOT-COMMIT"
               ]
             },
-            "description": "Schutzmechanismen, um automatische Commits in unpassenden Situationen zu verhindern",
+            "description": "Protection mechanisms to prevent automatic commits in inappropriate situations | Schutzmechanismen, um automatische Commits in unpassenden Situationen zu verhindern",
+            "markdownDescription": "**Commit Guardian** - Intelligent protection system to prevent inappropriate automatic commits:\n\n- `smartCommitProtection`: Master switch for all guardian features (default: true)\n- `coolDownMinutes`: Minimum time between automatic commits (default: 5)\n- `maxFilesWithoutPrompt`: Maximum files without confirmation (default: 8)\n- `confirmOnLargeChanges`: Require confirmation for large diffs (default: true)\n- `maxDiffSizeKb`: Large diff threshold in KB (default: 512)\n- `blockOnDirtyWorkspace`: Block commits with unsaved files (default: true)\n- `skipWhenDebugging`: Pause commits during debug sessions (default: true)\n- `quietHours`: Time windows to suspend commits, format `[\"HH:MM-HH:MM\"]` (default: [])\n- `protectedBranches`: Branches requiring confirmation (supports wildcards, default: `[\"main\", \"master\", \"release/*\"]`)\n- `keywordsRequiringConfirmation`: Keywords in diffs that trigger confirmation (default: `[\"WIP\", \"DO-NOT-COMMIT\"]`)\n\n**Commit Guardian** - Intelligentes Schutzsystem zur Verhinderung unangemessener automatischer Commits:\n\n- `smartCommitProtection`: Hauptschalter für alle Guardian-Funktionen (Standard: true)\n- `coolDownMinutes`: Mindestzeit zwischen automatischen Commits (Standard: 5)\n- `maxFilesWithoutPrompt`: Maximale Dateien ohne Bestätigung (Standard: 8)\n- `confirmOnLargeChanges`: Bestätigung für große Diffs erforderlich (Standard: true)\n- `maxDiffSizeKb`: Große-Diff-Schwellwert in KB (Standard: 512)\n- `blockOnDirtyWorkspace`: Commits mit ungespeicherten Dateien blockieren (Standard: true)\n- `skipWhenDebugging`: Commits während Debug-Sitzungen pausieren (Standard: true)\n- `quietHours`: Zeitfenster zum Aussetzen von Commits, Format `[\"HH:MM-HH:MM\"]` (Standard: [])\n- `protectedBranches`: Branches mit Bestätigungspflicht (unterstützt Wildcards, Standard: `[\"main\", \"master\", \"release/*\"]`)\n- `keywordsRequiringConfirmation`: Schlüsselwörter in Diffs, die Bestätigung auslösen (Standard: `[\"WIP\", \"DO-NOT-COMMIT\"]`)",
             "properties": {
               "smartCommitProtection": {
                 "type": "boolean",
                 "default": true,
-                "description": "Aktiviert intelligente Schutzlogik vor unpassenden Auto-Commits"
+                "description": "Enable intelligent protection logic before inappropriate auto-commits | Aktiviert intelligente Schutzlogik vor unpassenden Auto-Commits",
+                "markdownDescription": "**Master switch for all guardian features.** When disabled, all guardian checks are bypassed (except for manual commits).\n\n**Hauptschalter für alle Guardian-Funktionen.** Bei Deaktivierung werden alle Guardian-Checks umgangen (außer bei manuellen Commits)."
               },
               "coolDownMinutes": {
                 "type": "number",
                 "default": 5,
-                "description": "Mindestabstand (in Minuten) zwischen automatischen Commits"
+                "minimum": 0,
+                "description": "Minimum time (in minutes) between automatic commits | Mindestabstand (in Minuten) zwischen automatischen Commits",
+                "markdownDescription": "**Cooldown period** prevents commit spam during rapid development. Shows remaining cooldown time in notifications.\n\n**Cooldown-Zeitraum** verhindert Commit-Spam während schneller Entwicklung. Zeigt verbleibende Cooldown-Zeit in Benachrichtigungen an."
               },
               "maxFilesWithoutPrompt": {
                 "type": "number",
                 "default": 8,
-                "description": "Ab welcher Anzahl geänderter Dateien eine Bestätigung erforderlich ist"
+                "minimum": 0,
+                "description": "Number of changed files that trigger confirmation | Ab welcher Anzahl geänderter Dateien eine Bestätigung erforderlich ist",
+                "markdownDescription": "**Maximum files without confirmation.** When this threshold is exceeded, a confirmation dialog is shown before committing.\n\n**Maximale Dateien ohne Bestätigung.** Bei Überschreitung wird ein Bestätigungsdialog vor dem Committen angezeigt."
               },
               "confirmOnLargeChanges": {
                 "type": "boolean",
                 "default": true,
-                "description": "Fordert Bestätigung bei sehr großen Diffs an"
+                "description": "Require confirmation for very large diffs | Fordert Bestätigung bei sehr großen Diffs an",
+                "markdownDescription": "**Confirm large changes.** Shows a dialog with diff size and requires manual confirmation for diffs larger than the threshold.\n\n**Große Änderungen bestätigen.** Zeigt einen Dialog mit Diff-Größe und erfordert manuelle Bestätigung für Diffs größer als der Schwellwert."
               },
               "maxDiffSizeKb": {
                 "type": "number",
                 "default": 512,
-                "description": "Schwellwert der Diff-Größe in Kilobytes, ab dem bestätigt werden muss"
+                "minimum": 1,
+                "description": "Diff size threshold in kilobytes requiring confirmation | Schwellwert der Diff-Größe in Kilobytes, ab dem bestätigt werden muss",
+                "markdownDescription": "**Large diff threshold in KB.** Diffs larger than this size require manual confirmation when `confirmOnLargeChanges` is enabled.\n\n**Große-Diff-Schwellwert in KB.** Diffs größer als diese Größe erfordern manuelle Bestätigung, wenn `confirmOnLargeChanges` aktiviert ist."
               },
               "blockOnDirtyWorkspace": {
                 "type": "boolean",
                 "default": true,
-                "description": "Verhindert Commits bei ungespeicherten Dateien"
+                "description": "Prevent commits when files have unsaved changes | Verhindert Commits bei ungespeicherten Dateien",
+                "markdownDescription": "**Dirty workspace protection.** Ensures all changes are saved before committing, preventing accidental loss of unsaved work.\n\n**Dirty-Workspace-Schutz.** Stellt sicher, dass alle Änderungen vor dem Committen gespeichert sind und verhindert versehentlichen Verlust ungespeicherter Arbeit."
               },
               "skipWhenDebugging": {
                 "type": "boolean",
                 "default": true,
-                "description": "Unterdrückt Auto-Commits während laufender Debug-Sitzungen"
+                "description": "Suppress auto-commits during active debug sessions | Unterdrückt Auto-Commits während laufender Debug-Sitzungen",
+                "markdownDescription": "**Debug session detection.** Pauses auto-commits when a debug session is active, allowing focused debugging without interruptions.\n\n**Debug-Sitzungs-Erkennung.** Pausiert Auto-Commits während einer aktiven Debug-Sitzung und ermöglicht fokussiertes Debuggen ohne Unterbrechungen."
               },
               "quietHours": {
                 "type": "array",
@@ -598,7 +612,8 @@
                   "type": "string"
                 },
                 "default": [],
-                "description": "Zeitfenster im Format HH:MM-HH:MM, in denen Auto-Commits ausgesetzt werden"
+                "description": "Time windows in HH:MM-HH:MM format when auto-commits are suspended | Zeitfenster im Format HH:MM-HH:MM, in denen Auto-Commits ausgesetzt werden",
+                "markdownDescription": "**Quiet hours** - Time windows when auto-commits are suspended. Format: `[\"HH:MM-HH:MM\"]` (24-hour).\n\n**Examples:** `[\"22:00-08:00\"]` (no commits 10 PM - 8 AM), `[\"12:00-13:00\", \"18:00-19:00\"]` (lunch & dinner breaks)\n\n**Ruhezeiten** - Zeitfenster, in denen Auto-Commits ausgesetzt werden. Format: `[\"HH:MM-HH:MM\"]` (24-Stunden).\n\n**Beispiele:** `[\"22:00-08:00\"]` (keine Commits 22-8 Uhr), `[\"12:00-13:00\", \"18:00-19:00\"]` (Mittags- & Abendessenspausen)"
               },
               "protectedBranches": {
                 "type": "array",
@@ -610,7 +625,8 @@
                   "master",
                   "release/*"
                 ],
-                "description": "Branch-Namen oder Muster, auf denen Auto-Commits bestätigt werden müssen"
+                "description": "Branch names or patterns requiring confirmation for auto-commits | Branch-Namen oder Muster, auf denen Auto-Commits bestätigt werden müssen",
+                "markdownDescription": "**Protected branches** requiring manual confirmation before auto-commit. Supports wildcards (e.g., `release/*`, `hotfix/*`).\n\n**Examples:** `[\"main\", \"master\", \"release/*\", \"production\"]`\n\n**Geschützte Branches** mit Bestätigungspflicht vor Auto-Commit. Unterstützt Wildcards (z.B. `release/*`, `hotfix/*`).\n\n**Beispiele:** `[\"main\", \"master\", \"release/*\", \"production\"]`"
               },
               "keywordsRequiringConfirmation": {
                 "type": "array",
@@ -621,7 +637,8 @@
                   "WIP",
                   "DO-NOT-COMMIT"
                 ],
-                "description": "Schlüsselwörter in Diffs, die vor Commits bestätigt werden müssen"
+                "description": "Keywords in diffs that require confirmation before commits | Schlüsselwörter in Diffs, die vor Commits bestätigt werden müssen",
+                "markdownDescription": "**Keyword detection** - Keywords in diffs that trigger confirmation dialogs. Case-insensitive search in diff and status output.\n\n**Examples:** `[\"WIP\", \"DO-NOT-COMMIT\", \"TODO\", \"FIXME\", \"DEBUG\"]`\n\n**Keyword-Erkennung** - Schlüsselwörter in Diffs, die Bestätigungsdialoge auslösen. Groß-/Kleinschreibung-unabhängige Suche in Diff und Status-Ausgabe.\n\n**Beispiele:** `[\"WIP\", \"DO-NOT-COMMIT\", \"TODO\", \"FIXME\", \"DEBUG\"]`"
               }
             }
           }

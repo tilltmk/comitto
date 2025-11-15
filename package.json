@@ -2,7 +2,7 @@
   "name": "comitto",
   "displayName": "Comitto",
   "description": "Automatisierte Git-Commits mit KI-generierten Commit-Nachrichten",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "publisher": "tilltmk",
   "repository": {
     "type": "git",
@@ -59,7 +59,11 @@
   "main": "./dist/extension.js",
   "files": [
     "dist",
-    "resources"
+    "resources",
+    "i18n",
+    "*.js",
+    "README.md",
+    "LICENSE.txt"
   ],
   "contributes": {
     "viewsContainers": {

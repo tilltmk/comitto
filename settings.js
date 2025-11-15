@@ -41,6 +41,7 @@ const DEFAULTS = {
         model: 'claude-3-haiku-20240307'
     },
     promptTemplate: `Generiere eine aussagekräftige Commit-Nachricht basierend auf den folgenden Änderungen.\n\nVerwende je nach Stil:\n- Conventional Commits: feat/fix/docs/style/etc.\n- Gitmoji: 🎉/🐛/📚/💄/etc.\n- Angular: type(scope): description\n- Atom: :emoji: description\n- Simple: Einfache beschreibende Nachrichten\n\nHalte sie unter 72 Zeichen. Hier sind die Änderungen:\n\n{changes}`,
+    uiLanguage: 'de',
     uiSettings: {
         simpleMode: false,
         confirmBeforeCommit: true,

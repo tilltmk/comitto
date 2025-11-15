@@ -28,6 +28,7 @@
     "onCommand:comitto.selectAiProvider",
     "onCommand:comitto.selectOpenAIModel",
     "onCommand:comitto.selectAnthropicModel",
+    "onCommand:comitto.selectOllamaModel",
     "onCommand:comitto.editOpenAIKey",
     "onCommand:comitto.editAnthropicKey",
     "onCommand:comitto.editPromptTemplate",
@@ -145,6 +146,11 @@
       {
         "command": "comitto.selectAnthropicModel",
         "title": "Comitto: Select Anthropic Model",
+        "icon": "$(symbol-parameter)"
+      },
+      {
+        "command": "comitto.selectOllamaModel",
+        "title": "Comitto: Select Ollama Model",
         "icon": "$(symbol-parameter)"
       },
       {
@@ -278,6 +284,10 @@
           },
           {
             "command": "comitto.selectAnthropicModel",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.selectOllamaModel",
             "when": "workspaceHasGit"
           },
           {
@@ -507,6 +517,16 @@
           "type": "string",
           "default": "Generiere eine aussagekräftige Commit-Nachricht basierend auf den folgenden Änderungen.\n\nVerwende je nach Stil:\n- Conventional Commits: feat/fix/docs/style/etc.\n- Gitmoji: 🎉/🐛/📚/💄/etc.\n- Angular: type(scope): description\n- Atom: :emoji: description\n- Simple: Einfache beschreibende Nachrichten\n\nHalte sie unter 72 Zeichen. Hier sind die Änderungen:\n\n{changes}",
           "description": "Vorlage für den KI-Prompt zur Generierung von Commit-Nachrichten"
+        },
+        "comitto.uiLanguage": {
+          "type": "string",
+          "enum": [
+            "de",
+            "en"
+          ],
+          "default": "de",
+          "description": "UI language / UI-Sprache",
+          "markdownDescription": "**UI Language** - Language for the user interface (menus, notifications, etc.)\n\n**UI-Sprache** - Sprache für die Benutzeroberfläche (Menüs, Benachrichtigungen, etc.)"
         },
         "comitto.uiSettings": {
           "type": "object",

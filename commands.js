@@ -9,6 +9,19 @@ const settings = require('./settings');
 let statusBarItemRef = null;
 
 /**
+ * Formatiert Bytes in eine lesbare Größenangabe
+ * @param {number} bytes - Anzahl der Bytes
+ * @returns {string} Formatierte Größe (z.B. "1.5 GB")
+ */
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+}
+
+/**
  * Registriert Befehle für die Erweiterung
  * @param {vscode.ExtensionContext} context VSCode-Erweiterungskontext
  * @param {Object} providers UI-Provider-Instanzen
@@ -686,7 +699,104 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
             }
         })
     );
-    
+
+    // Ollama-Modell auswählen
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.selectOllamaModel', async () => {
+            try {
+                const ollamaConfig = { ...settings.get('ollama') };
+                const endpoint = ollamaConfig.endpoint || 'http://localhost:11434';
+
+                // Zeige Lade-Benachrichtigung
+                await vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: 'Lade verfügbare Ollama-Modelle...',
+                    cancellable: false
+                }, async (progress) => {
+                    try {
+                        // Abfrage der installierten Modelle über die Ollama API
+                        const baseUrl = endpoint.replace('/api/generate', '');
+                        const response = await axios.get(`${baseUrl}/api/tags`, {
+                            timeout: 5000
+                        });
+
+                        if (response.data && response.data.models && response.data.models.length > 0) {
+                            // Modelle für QuickPick formatieren
+                            const models = response.data.models.map(model => ({
+                                label: model.name,
+                                description: model.size ? `Size: ${formatBytes(model.size)}` : '',
+                                detail: model.modified_at ? `Modified: ${new Date(model.modified_at).toLocaleString()}` : '',
+                                value: model.name
+                            }));
+
+                            // Benutzer ein Modell auswählen lassen
+                            const selection = await vscode.window.showQuickPick(models, {
+                                placeHolder: 'Wähle ein Ollama-Modell',
+                                title: 'Ollama-Modell auswählen'
+                            });
+
+                            if (selection) {
+                                // Aktualisiere das Modell in den Einstellungen
+                                ollamaConfig.model = selection.value;
+                                await settings.update('ollama', ollamaConfig);
+
+                                showNotification(`Ollama-Modell wurde auf ${selection.label} gesetzt.`, 'info');
+
+                                // UI aktualisieren
+                                if (providers) {
+                                    providers.settingsProvider.refresh();
+                                }
+                            }
+                        } else {
+                            // Keine Modelle gefunden
+                            const installModel = await vscode.window.showWarningMessage(
+                                'Keine Ollama-Modelle gefunden. Möchten Sie ein Modell installieren?',
+                                'Ja', 'Nein'
+                            );
+
+                            if (installModel === 'Ja') {
+                                const modelName = await vscode.window.showInputBox({
+                                    prompt: 'Modellname eingeben (z.B. llama2, codellama, mistral)',
+                                    placeHolder: 'llama2'
+                                });
+
+                                if (modelName) {
+                                    vscode.window.showInformationMessage(
+                                        `Führen Sie in Ihrem Terminal aus: ollama pull ${modelName}`,
+                                        'Terminal öffnen'
+                                    ).then(selection => {
+                                        if (selection === 'Terminal öffnen') {
+                                            const terminal = vscode.window.createTerminal('Ollama');
+                                            terminal.show();
+                                            terminal.sendText(`ollama pull ${modelName}`);
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+                            const startOllama = await vscode.window.showErrorMessage(
+                                'Ollama läuft nicht. Bitte starten Sie Ollama und versuchen Sie es erneut.',
+                                'Terminal öffnen', 'Abbrechen'
+                            );
+
+                            if (startOllama === 'Terminal öffnen') {
+                                const terminal = vscode.window.createTerminal('Ollama');
+                                terminal.show();
+                                terminal.sendText('ollama serve');
+                            }
+                        } else {
+                            throw error;
+                        }
+                    }
+                });
+            } catch (error) {
+                handleError(error, "Fehler beim Abrufen der Ollama-Modelle", true);
+            }
+        })
+    );
+
     // Und auch einen Befehl für Anthropic, da dieser ebenfalls in der UI referenziert wird
     context.subscriptions.push(
         vscode.commands.registerCommand('comitto.editAnthropicKey', async () => {

@@ -371,6 +371,11 @@ class MainViewProvider {
                     vscode.TreeItemCollapsibleState.None
                 );
                 ollamaModelItem.iconPath = new vscode.ThemeIcon('symbol-parameter');
+                ollamaModelItem.command = {
+                    command: 'comitto.selectOllamaModel',
+                    title: 'Select Ollama Model'
+                };
+                ollamaModelItem.tooltip = 'Klicken Sie, um ein Ollama-Modell auszuwählen oder manuell einzugeben';
                 items.push(ollamaModelItem);
 
                 const ollamaEndpointItem = new vscode.TreeItem(
@@ -378,6 +383,11 @@ class MainViewProvider {
                     vscode.TreeItemCollapsibleState.None
                 );
                 ollamaEndpointItem.iconPath = new vscode.ThemeIcon('globe');
+                ollamaEndpointItem.command = {
+                    command: 'comitto.editOllamaEndpoint',
+                    title: 'Edit Ollama Endpoint'
+                };
+                ollamaEndpointItem.tooltip = 'Klicken Sie, um den Ollama-Endpoint zu bearbeiten';
                 items.push(ollamaEndpointItem);
                 break;
         }

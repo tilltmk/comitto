@@ -2,7 +2,7 @@
   "name": "comitto",
   "displayName": "Comitto",
   "description": "Automatisierte Git-Commits mit KI-generierten Commit-Nachrichten",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "publisher": "tilltmk",
   "repository": {
     "type": "git",
@@ -31,6 +31,7 @@
     "onCommand:comitto.selectOllamaModel",
     "onCommand:comitto.editOpenAIKey",
     "onCommand:comitto.editAnthropicKey",
+    "onCommand:comitto.editOllamaEndpoint",
     "onCommand:comitto.editPromptTemplate",
     "onCommand:comitto.toggleSimpleMode",
     "onCommand:comitto.selectTheme",
@@ -168,6 +169,11 @@
         "icon": "$(key)"
       },
       {
+        "command": "comitto.editOllamaEndpoint",
+        "title": "Comitto: Edit Ollama Endpoint",
+        "icon": "$(globe)"
+      },
+      {
         "command": "comitto.editPromptTemplate",
         "title": "Comitto: Edit Prompt Template",
         "icon": "$(edit)"
@@ -300,6 +306,10 @@
           },
           {
             "command": "comitto.editAnthropicKey",
+            "when": "workspaceHasGit"
+          },
+          {
+            "command": "comitto.editOllamaEndpoint",
             "when": "workspaceHasGit"
           },
           {

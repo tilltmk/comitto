@@ -600,19 +600,48 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                     { label: 'GPT-3.5 Turbo', value: 'gpt-3.5-turbo' }
                 ];
                 
+                // Option für manuelle Eingabe hinzufügen
+                models.push({
+                    label: '$(edit) Manuell eingeben...',
+                    description: 'Modellname manuell eingeben',
+                    value: '__manual__'
+                });
+                
                 const selection = await vscode.window.showQuickPick(models, {
-                    placeHolder: 'Wähle ein OpenAI-Modell',
+                    placeHolder: 'Wähle ein OpenAI-Modell oder gebe manuell ein',
                     title: 'OpenAI-Modell auswählen'
                 });
                 
                 if (selection) {
+                    let modelName = selection.value;
                     const openaiConfig = { ...settings.get('openai') };
                     
+                    // Wenn manuelle Eingabe gewählt wurde
+                    if (modelName === '__manual__') {
+                        const manualInput = await vscode.window.showInputBox({
+                            prompt: 'OpenAI-Modellname eingeben',
+                            placeHolder: 'z.B. gpt-4o, gpt-4o-mini, gpt-4-turbo',
+                            value: openaiConfig.model || '',
+                            validateInput: (value) => {
+                                if (!value || value.trim() === '') {
+                                    return 'Modellname darf nicht leer sein';
+                                }
+                                return null;
+                            }
+                        });
+                        
+                        if (manualInput) {
+                            modelName = manualInput.trim();
+                        } else {
+                            return; // Benutzer hat abgebrochen
+                        }
+                    }
+                    
                     // Aktualisiere das Modell in den Einstellungen
-                    openaiConfig.model = selection.value;
+                    openaiConfig.model = modelName;
                     await settings.update('openai', openaiConfig);
                     
-                    showNotification(`OpenAI-Modell wurde auf ${selection.label} (${selection.value}) gesetzt.`, 'info');
+                    showNotification(`OpenAI-Modell wurde auf ${modelName} gesetzt.`, 'info');
                     
                     // UI aktualisieren
                     if (providers) {
@@ -675,19 +704,48 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                     { label: 'Claude Instant', value: 'claude-instant-1' }
                 ];
                 
+                // Option für manuelle Eingabe hinzufügen
+                models.push({
+                    label: '$(edit) Manuell eingeben...',
+                    description: 'Modellname manuell eingeben',
+                    value: '__manual__'
+                });
+                
                 const selection = await vscode.window.showQuickPick(models, {
-                    placeHolder: 'Wähle ein Anthropic-Modell',
+                    placeHolder: 'Wähle ein Anthropic-Modell oder gebe manuell ein',
                     title: 'Anthropic-Modell auswählen'
                 });
                 
                 if (selection) {
+                    let modelName = selection.value;
                     const anthropicConfig = { ...settings.get('anthropic') };
                     
+                    // Wenn manuelle Eingabe gewählt wurde
+                    if (modelName === '__manual__') {
+                        const manualInput = await vscode.window.showInputBox({
+                            prompt: 'Anthropic-Modellname eingeben',
+                            placeHolder: 'z.B. claude-3-opus-20240229, claude-3-sonnet-20240229',
+                            value: anthropicConfig.model || '',
+                            validateInput: (value) => {
+                                if (!value || value.trim() === '') {
+                                    return 'Modellname darf nicht leer sein';
+                                }
+                                return null;
+                            }
+                        });
+                        
+                        if (manualInput) {
+                            modelName = manualInput.trim();
+                        } else {
+                            return; // Benutzer hat abgebrochen
+                        }
+                    }
+                    
                     // Aktualisiere das Modell in den Einstellungen
-                    anthropicConfig.model = selection.value;
+                    anthropicConfig.model = modelName;
                     await settings.update('anthropic', anthropicConfig);
                     
-                    showNotification(`Anthropic-Modell wurde auf ${selection.label} (${selection.value}) gesetzt.`, 'info');
+                    showNotification(`Anthropic-Modell wurde auf ${modelName} gesetzt.`, 'info');
                     
                     // UI aktualisieren
                     if (providers) {
@@ -729,18 +787,48 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                                 value: model.name
                             }));
 
+                            // Option für manuelle Eingabe hinzufügen
+                            models.push({
+                                label: '$(edit) Manuell eingeben...',
+                                description: 'Modellname manuell eingeben',
+                                value: '__manual__'
+                            });
+
                             // Benutzer ein Modell auswählen lassen
                             const selection = await vscode.window.showQuickPick(models, {
-                                placeHolder: 'Wähle ein Ollama-Modell',
+                                placeHolder: 'Wähle ein Ollama-Modell oder gebe manuell ein',
                                 title: 'Ollama-Modell auswählen'
                             });
 
                             if (selection) {
+                                let modelName = selection.value;
+                                
+                                // Wenn manuelle Eingabe gewählt wurde
+                                if (modelName === '__manual__') {
+                                    const manualInput = await vscode.window.showInputBox({
+                                        prompt: 'Ollama-Modellname eingeben',
+                                        placeHolder: 'z.B. llama2, codellama, mistral, granite3.3:2b',
+                                        value: ollamaConfig.model || '',
+                                        validateInput: (value) => {
+                                            if (!value || value.trim() === '') {
+                                                return 'Modellname darf nicht leer sein';
+                                            }
+                                            return null;
+                                        }
+                                    });
+                                    
+                                    if (manualInput) {
+                                        modelName = manualInput.trim();
+                                    } else {
+                                        return; // Benutzer hat abgebrochen
+                                    }
+                                }
+                                
                                 // Aktualisiere das Modell in den Einstellungen
-                                ollamaConfig.model = selection.value;
+                                ollamaConfig.model = modelName;
                                 await settings.update('ollama', ollamaConfig);
 
-                                showNotification(`Ollama-Modell wurde auf ${selection.label} gesetzt.`, 'info');
+                                showNotification(`Ollama-Modell wurde auf ${modelName} gesetzt.`, 'info');
 
                                 // UI aktualisieren
                                 if (providers) {
@@ -793,6 +881,46 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                 });
             } catch (error) {
                 handleError(error, "Fehler beim Abrufen der Ollama-Modelle", true);
+            }
+        })
+    );
+
+    // Ollama-Endpoint bearbeiten
+    context.subscriptions.push(
+        vscode.commands.registerCommand('comitto.editOllamaEndpoint', async () => {
+            try {
+                const ollamaConfig = { ...settings.get('ollama') };
+                const currentEndpoint = ollamaConfig.endpoint || 'http://localhost:11434/api/generate';
+                
+                const input = await vscode.window.showInputBox({
+                    prompt: 'Ollama-Endpoint eingeben',
+                    placeHolder: 'http://localhost:11434/api/generate',
+                    value: currentEndpoint,
+                    validateInput: (value) => {
+                        if (!value || value.trim() === '') {
+                            return 'Endpoint darf nicht leer sein';
+                        }
+                        try {
+                            new URL(value);
+                            return null;
+                        } catch (e) {
+                            return 'Ungültige URL';
+                        }
+                    }
+                });
+                
+                if (input !== undefined && input !== currentEndpoint) {
+                    ollamaConfig.endpoint = input.trim();
+                    await settings.update('ollama', ollamaConfig);
+                    showNotification(`Ollama-Endpoint wurde auf ${input.trim()} gesetzt.`, 'info');
+                    
+                    // UI aktualisieren
+                    if (providers) {
+                        providers.settingsProvider.refresh();
+                    }
+                }
+            } catch (error) {
+                handleError(error, "Fehler beim Bearbeiten des Ollama-Endpoints", true);
             }
         })
     );

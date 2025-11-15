@@ -1,0 +1,84 @@
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Abbrechen",
+    "yes": "Ja",
+    "no": "Nein",
+    "error": "Fehler",
+    "success": "Erfolg",
+    "warning": "Warnung",
+    "info": "Information"
+  },
+  "providers": {
+    "openai": "OpenAI",
+    "anthropic": "Anthropic",
+    "ollama": "Ollama",
+    "selectProvider": "KI-Provider auswählen",
+    "selectedProvider": "Ausgewählter Provider: {provider}",
+    "configureProvider": "{provider} konfigurieren"
+  },
+  "models": {
+    "selectOpenAI": "OpenAI-Modell auswählen",
+    "selectAnthropic": "Anthropic-Modell auswählen",
+    "selectOllama": "Ollama-Modell auswählen",
+    "selectModel": "Modell auswählen",
+    "currentModel": "Aktuelles Modell: {model}",
+    "modelUpdated": "{provider}-Modell wurde auf {model} gesetzt.",
+    "noModelsFound": "Keine Modelle gefunden",
+    "fetchingModels": "Lade verfügbare Modelle...",
+    "ollamaNotRunning": "Ollama läuft nicht. Bitte starten Sie Ollama und versuchen Sie es erneut.",
+    "ollamaInfo": "Ollama ausgewählt. Stellen Sie sicher, dass Ollama lokal läuft."
+  },
+  "language": {
+    "select": "Sprache für Commit-Nachrichten auswählen",
+    "currentLanguage": "Aktuelle Sprache: {language}",
+    "updated": "Commit-Nachricht-Sprache wurde auf {language} gesetzt.",
+    "german": "Deutsch",
+    "english": "Englisch",
+    "french": "Französisch",
+    "spanish": "Spanisch",
+    "italian": "Italienisch",
+    "japanese": "日本語",
+    "chinese": "中文"
+  },
+  "commit": {
+    "generating": "Generiere Commit-Nachricht...",
+    "success": "Commit erfolgreich erstellt",
+    "failed": "Commit fehlgeschlagen",
+    "noChanges": "Keine Änderungen zum Committen vorhanden",
+    "confirmTitle": "Commit bestätigen",
+    "confirmMessage": "Möchten Sie diese Änderungen committen?",
+    "messagePrompt": "Commit-Nachricht eingeben",
+    "autoCommitEnabled": "Auto-Commit aktiviert",
+    "autoCommitDisabled": "Auto-Commit deaktiviert"
+  },
+  "staging": {
+    "title": "Dateien zum Stagen auswählen",
+    "noChanges": "Keine Änderungen zum Stagen vorhanden.",
+    "staged": "Dateien erfolgreich gestaged",
+    "failed": "Fehler beim Stagen der Dateien"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "updated": "Einstellung aktualisiert",
+    "reset": "Einstellungen zurückgesetzt",
+    "export": "Einstellungen exportieren",
+    "import": "Einstellungen importieren"
+  },
+  "errors": {
+    "general": "Ein Fehler ist aufgetreten",
+    "noRepository": "Kein Git-Repository gefunden",
+    "apiKeyMissing": "API-Schlüssel fehlt",
+    "networkError": "Netzwerkfehler",
+    "modelError": "Fehler bei der Auswahl des Modells",
+    "providerError": "Fehler beim Konfigurieren des KI-Providers",
+    "ollamaConnection": "Verbindung zu Ollama fehlgeschlagen",
+    "ollamaModels": "Fehler beim Abrufen der Ollama-Modelle"
+  },
+  "notifications": {
+    "commitCreated": "Commit erstellt: {message}",
+    "pushed": "Änderungen wurden gepusht",
+    "pulled": "Änderungen wurden gepullt",
+    "autoCommitTriggered": "Auto-Commit ausgelöst"
+  }
+}

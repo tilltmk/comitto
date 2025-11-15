@@ -1,0 +1,84 @@
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "yes": "Yes",
+    "no": "No",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Information"
+  },
+  "providers": {
+    "openai": "OpenAI",
+    "anthropic": "Anthropic",
+    "ollama": "Ollama",
+    "selectProvider": "Select AI Provider",
+    "selectedProvider": "Selected Provider: {provider}",
+    "configureProvider": "Configure {provider}"
+  },
+  "models": {
+    "selectOpenAI": "Select OpenAI Model",
+    "selectAnthropic": "Select Anthropic Model",
+    "selectOllama": "Select Ollama Model",
+    "selectModel": "Select Model",
+    "currentModel": "Current Model: {model}",
+    "modelUpdated": "{provider} model has been set to {model}.",
+    "noModelsFound": "No models found",
+    "fetchingModels": "Fetching available models...",
+    "ollamaNotRunning": "Ollama is not running. Please start Ollama and try again.",
+    "ollamaInfo": "Ollama selected. Make sure Ollama is running locally."
+  },
+  "language": {
+    "select": "Select Language for Commit Messages",
+    "currentLanguage": "Current Language: {language}",
+    "updated": "Commit message language has been set to {language}.",
+    "german": "German",
+    "english": "English",
+    "french": "French",
+    "spanish": "Spanish",
+    "italian": "Italian",
+    "japanese": "Japanese",
+    "chinese": "Chinese"
+  },
+  "commit": {
+    "generating": "Generating commit message...",
+    "success": "Commit created successfully",
+    "failed": "Commit failed",
+    "noChanges": "No changes to commit",
+    "confirmTitle": "Confirm Commit",
+    "confirmMessage": "Do you want to commit these changes?",
+    "messagePrompt": "Enter commit message",
+    "autoCommitEnabled": "Auto-Commit enabled",
+    "autoCommitDisabled": "Auto-Commit disabled"
+  },
+  "staging": {
+    "title": "Select Files to Stage",
+    "noChanges": "No changes to stage.",
+    "staged": "Files staged successfully",
+    "failed": "Failed to stage files"
+  },
+  "settings": {
+    "title": "Settings",
+    "updated": "Setting updated",
+    "reset": "Settings reset",
+    "export": "Export Settings",
+    "import": "Import Settings"
+  },
+  "errors": {
+    "general": "An error occurred",
+    "noRepository": "No Git repository found",
+    "apiKeyMissing": "API key missing",
+    "networkError": "Network error",
+    "modelError": "Error selecting model",
+    "providerError": "Error configuring AI provider",
+    "ollamaConnection": "Failed to connect to Ollama",
+    "ollamaModels": "Error fetching Ollama models"
+  },
+  "notifications": {
+    "commitCreated": "Commit created: {message}",
+    "pushed": "Changes have been pushed",
+    "pulled": "Changes have been pulled",
+    "autoCommitTriggered": "Auto-commit triggered"
+  }
+}

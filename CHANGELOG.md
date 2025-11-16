@@ -2,6 +2,30 @@
 
 Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert.
 
+## [2.6.0] - 2025-11-16
+
+### Hinzugefügt
+- Automatisches Cleanup alter Log-Dateien zur Vermeidung von Speicherüberlauf
+- Verbesserte Log-Verwaltung mit konfigurierbarer Aufbewahrungsdauer
+
+### Verbessert
+- Entfernung störender Pop-Up-Nachrichten für bessere Benutzererfahrung
+- Optimierte Benachrichtigungslogik mit weniger Unterbrechungen
+- Verbessertes Log-Cleanup-System für bessere Performance
+
+### Geändert
+- Aktualisierte Abhängigkeiten auf neueste stabile Versionen
+
+## [2.5.0] - 2025-11-15
+
+### Hinzugefügt
+- Verbesserte Modellauswahl mit manueller Eingabemöglichkeit für alle Provider
+- Ollama-Endpoint-Bearbeitung direkt im Menü verfügbar
+
+### Verbessert
+- Flexiblere KI-Provider-Konfiguration
+- Benutzerfreundlichere Einstellungsoberfläche
+
 ## [2.2.0] - 2024-07-15
 
 ### Verbessert

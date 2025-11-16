@@ -991,8 +991,8 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                     }
                 });
                 
-                // Info-Meldung anzeigen
-                vscode.window.showInformationMessage('Bearbeiten Sie die Prompt-Vorlage und speichern Sie die Datei (STRG+S), um die Änderungen zu übernehmen.');
+                // Info-Meldung anzeigen (im Output Channel statt Pop-Up)
+                showNotification('Bearbeiten Sie die Prompt-Vorlage und speichern Sie die Datei (STRG+S), um die Änderungen zu übernehmen.', 'info');
             } catch (error) {
                 handleError(error, "Fehler beim Bearbeiten der Prompt-Vorlage", true);
             }
@@ -1577,30 +1577,34 @@ function processCommitMessage(rawMessage) {
  * Fehlerbehandlung für Commands
  * @param {Error} error Der aufgetretene Fehler
  * @param {string} context Kontext, in dem der Fehler aufgetreten ist
- * @param {boolean} showNotification Ob eine Benachrichtigung angezeigt werden soll
+ * @param {boolean} shouldShowNotification Ob eine Benachrichtigung angezeigt werden soll
  */
-function handleError(error, context = 'Allgemeiner Fehler', showNotification = true) {
+function handleError(error, context = 'Allgemeiner Fehler', shouldShowNotification = true) {
     console.error(`Fehler in commands.js (${context}):`, error);
-    
-    if (showNotification) {
-        vscode.window.showErrorMessage(`Comitto Fehler: ${error.message}`);
+
+    if (shouldShowNotification) {
+        // Verwende Output Channel statt Pop-Up
+        const outputChannel = vscode.window.createOutputChannel('Comitto');
+        const timestamp = new Date().toLocaleTimeString('de-DE');
+        outputChannel.appendLine(`[${timestamp}] ❌ FEHLER (${context}): ${error.message}`);
+        outputChannel.show(true);
     }
-    
+
     // Statusleiste aktualisieren
     if (statusBarItemRef) {
         updateStatusBarProgress(statusBarItemRef, 'Fehler', -1);
-        
+
         // Nach 3 Sekunden auf normalen Status zurücksetzen
         setTimeout(() => {
             const isEnabled = settings.get('autoCommitEnabled');
             updateStatusBarProgress(
-                statusBarItemRef, 
+                statusBarItemRef,
                 isEnabled ? 'Aktiv' : 'Inaktiv',
                 isEnabled ? 100 : 0
             );
         }, 3000);
     }
-    
+
     // Fehler für die aufrufende Funktion weitergeben
     throw error;
 }

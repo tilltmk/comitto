@@ -139,58 +139,62 @@ function debugLog(message, category = 'allgemein', level = 'info') {
  */
 async function handleError(error, contextMessage = '', showToUser = true) {
     // Sicherstellen, dass wir mit einem ComittoError arbeiten
-    const comittoError = error instanceof ComittoError ? error : 
+    const comittoError = error instanceof ComittoError ? error :
         new ComittoError(
             error.message || 'Unbekannter Fehler',
             ErrorTypes.UNKNOWN,
             error,
             { context: contextMessage }
         );
-    
+
     // Fehler protokollieren
     logError(comittoError);
-    
+
     // Debug-Ausgabe
     debugLog(
         `Fehler: ${comittoError.message}${contextMessage ? ' - ' + contextMessage : ''}`,
         'fehler',
         'error'
     );
-    
+
     // Detaillierte Informationen in die Konsole schreiben
     console.error('Detaillierter Fehler:', comittoError.toJSON());
-    
-    // Benutzerbenachrichtigung, falls erforderlich
+
+    // Benutzerbenachrichtigung im Output Channel (keine Pop-Ups mehr)
     if (showToUser) {
-        const viewDetailsButton = 'Details anzeigen';
-        const reportButton = 'Problem melden';
-        
+        if (!outputChannel) {
+            outputChannel = vscode.window.createOutputChannel('Comitto');
+        }
+
         const messagePrefix = contextMessage ? `${contextMessage}: ` : '';
-        const userMessage = await vscode.window.showErrorMessage(
-            `${messagePrefix}${comittoError.message}`, 
-            viewDetailsButton,
-            reportButton
-        );
-        
-        if (userMessage === viewDetailsButton) {
-            // Details in neuem Fenster anzeigen
-            showErrorDetails(comittoError);
-        } else if (userMessage === reportButton) {
-            // Öffne GitHub Issues oder sende Fehlerbericht
-            const issueBody = encodeURIComponent(
-                `## Fehlerbeschreibung\n${comittoError.message}\n\n` +
-                `## Kontext\n${contextMessage || 'Nicht angegeben'}\n\n` +
-                `## Fehlerdetails\n\`\`\`json\n${JSON.stringify(comittoError.toJSON(), null, 2)}\n\`\`\`\n\n` +
-                `## Diagnostische Informationen\n\`\`\`json\n${JSON.stringify(getDiagnosticInfo(), null, 2)}\n\`\`\`\n\n` +
-                `## Schritte zur Reproduktion\n\n` +
-                `## Erwartetes Verhalten\n\n` +
-                `## VSCode-Version\n${vscode.version}\n\n` +
-                `## Comitto-Version\n${vscode.extensions.getExtension('publisher.comitto').packageJSON.version || 'Unbekannt'}`
-            );
-            
-            vscode.env.openExternal(
-                vscode.Uri.parse(`https://github.com/publisher/comitto/issues/new?body=${issueBody}&title=Fehler: ${encodeURIComponent(comittoError.message)}`)
-            );
+        const timestamp = new Date().toLocaleTimeString('de-DE');
+
+        outputChannel.appendLine('');
+        outputChannel.appendLine(`[${timestamp}] ❌ FEHLER: ${messagePrefix}${comittoError.message}`);
+        outputChannel.appendLine(`    Typ: ${comittoError.type}`);
+        if (comittoError.context && Object.keys(comittoError.context).length > 0) {
+            outputChannel.appendLine(`    Kontext: ${JSON.stringify(comittoError.context)}`);
+        }
+        outputChannel.appendLine(`    Details: Verwenden Sie 'Comitto: Fehlerprotokolle anzeigen' für mehr Informationen`);
+        outputChannel.appendLine('');
+
+        // Output Channel automatisch anzeigen bei Fehlern
+        outputChannel.show(true);
+
+        // Status Bar aktualisieren
+        if (statusBarItem) {
+            const originalText = statusBarItem.text;
+            const originalTooltip = statusBarItem.tooltip;
+            statusBarItem.text = '$(error) Comitto: Fehler';
+            statusBarItem.tooltip = `${messagePrefix}${comittoError.message} - Klicken für Details`;
+
+            // Nach 10 Sekunden zurücksetzen
+            setTimeout(() => {
+                if (statusBarItem) {
+                    statusBarItem.text = originalText;
+                    statusBarItem.tooltip = originalTooltip;
+                }
+            }, 10000);
         }
     }
 }
@@ -328,7 +332,7 @@ function showErrorDetails(error) {
             switch (message.command) {
                 case 'copyToClipboard':
                     vscode.env.clipboard.writeText(message.text);
-                    vscode.window.showInformationMessage('Fehlerdetails wurden in die Zwischenablage kopiert');
+                    showNotification('Fehlerdetails wurden in die Zwischenablage kopiert', 'info');
                     break;
                 case 'reportIssue':
                     const issueBody = encodeURIComponent(
@@ -510,7 +514,7 @@ function showErrorLogs() {
             switch (message.command) {
                 case 'clearLogs':
                     clearErrorLogs();
-                    vscode.window.showInformationMessage('Fehlerprotokolle wurden gelöscht');
+                    showNotification('Fehlerprotokolle wurden gelöscht', 'info');
                     panel.dispose();
                     break;
                 case 'exportLogs':
@@ -522,7 +526,7 @@ function showErrorLogs() {
                     }).then(fileUri => {
                         if (fileUri) {
                             fs.writeFileSync(fileUri.fsPath, JSON.stringify(message.logs, null, 2));
-                            vscode.window.showInformationMessage(`Fehlerprotokolle wurden nach ${fileUri.fsPath} exportiert`);
+                            showNotification(`Fehlerprotokolle wurden nach ${fileUri.fsPath} exportiert`, 'info');
                         }
                     });
                     break;
@@ -687,7 +691,7 @@ async function activate(context) {
                 panel.webview.onDidReceiveMessage(message => {
                     if (message.command === 'copy') {
                         vscode.env.clipboard.writeText(message.data);
-                        vscode.window.showInformationMessage('Diagnostische Informationen in die Zwischenablage kopiert');
+                        showNotification('Diagnostische Informationen in die Zwischenablage kopiert', 'info');
                     }
                 });
             })
@@ -700,7 +704,10 @@ async function activate(context) {
             handleSettingsUpdated(context, updatedSettings);
         });
         context.subscriptions.push(settingsChangeDisposable);
-        
+
+        // Automatisches Cleanup von alten Log-Dateien beim Start
+        cleanupOldLogFiles(7); // Dateien älter als 7 Tage löschen
+
         // Eventuell kurze Verzögerung für initiale UI-Aktualisierung
         setTimeout(() => {
             if (uiProviders) {
@@ -710,7 +717,7 @@ async function activate(context) {
             }
         }, 1500);
 
-        // Willkommensnachricht anzeigen (einmalig)
+        // Willkommensnachricht anzeigen (ohne Pop-Up, nur im Output Channel)
         showWelcomeNotification(context);
 
         debugLog('Comitto-Erweiterung erfolgreich aktiviert', 'aktivierung', 'info');
@@ -768,52 +775,34 @@ function showWelcomeNotification(context) {
     const previousVersion = context.globalState.get('comitto.version');
 
     if (previousVersion !== currentVersion) {
-        // Nach erstem Start oder Update anzeigen
-        vscode.window.showInformationMessage(
-            `Comitto v${currentVersion} wurde aktiviert! Konfigurieren Sie es über die Seitenleiste.`,
-            'Seitenleiste öffnen', 'Changelog anzeigen'
-        ).then(selection => {
-            if (selection === 'Seitenleiste öffnen') {
-                vscode.commands.executeCommand('workbench.view.extension.comitto-sidebar');
-            } else if (selection === 'Changelog anzeigen') {
-                // Prüfen, ob die Nachricht bereits angezeigt wurde
-                const hasShownWelcome = context.globalState.get('comitto.hasShownWelcome', false);
-                if (!hasShownWelcome) {
-                    vscode.window.showInformationMessage(
-                        'Comitto wurde aktiviert! Öffnen Sie die Comitto-Seitenleiste über das Icon in der Activity Bar.',
-                        'Öffnen', 'Nicht mehr anzeigen'
-                    ).then(selection => {
-                        if (selection === 'Öffnen') {
-                            vscode.commands.executeCommand('comitto-sidebar.focus');
-                        } else if (selection === 'Nicht mehr anzeigen') {
-                            context.globalState.update('comitto.hasShownWelcome', true);
-                        }
-                    });
-                }
-            }
-        });
+        // Nach erstem Start oder Update im Output Channel anzeigen (keine Pop-Ups)
+        if (!outputChannel) {
+            outputChannel = vscode.window.createOutputChannel('Comitto');
+        }
+
+        outputChannel.appendLine('═══════════════════════════════════════════════════════');
+        outputChannel.appendLine(`  Comitto v${currentVersion} wurde aktiviert!`);
+        outputChannel.appendLine('═══════════════════════════════════════════════════════');
+        outputChannel.appendLine('');
+        outputChannel.appendLine('• Konfigurieren Sie Comitto über die Seitenleiste');
+        outputChannel.appendLine('• Klicken Sie auf das Comitto-Icon in der Activity Bar');
+        outputChannel.appendLine('• Oder verwenden Sie das $(git-commit) Symbol in der Statusleiste');
+        outputChannel.appendLine('');
+
+        debugLog(`Comitto v${currentVersion} wurde aktiviert (vorherige Version: ${previousVersion || 'keine'})`, 'willkommen', 'info');
+
         // Version speichern
         context.globalState.update('comitto.version', currentVersion);
     }
 
-    // Status der UI anzeigen
+    // Status im Output Channel anzeigen (keine Pop-Ups)
     const uiSettings = settings.get('uiSettings');
-    
-    if (uiSettings.showNotifications) {
-        setTimeout(() => {
-            if (vscode.window.activeTextEditor) {
-                vscode.window.showInformationMessage(
-                    'Comitto ist bereit! Verwenden Sie die Seitenleiste oder das $(git-commit) Symbol in der Statusleiste.',
-                    'Einstellungen öffnen', 'Dashboard anzeigen'
-                ).then(selection => {
-                    if (selection === 'Einstellungen öffnen') {
-                        vscode.commands.executeCommand('comitto.openSettings');
-                    } else if (selection === 'Dashboard anzeigen') {
-                        vscode.commands.executeCommand('comitto.showDashboard');
-                    }
-                });
-            }
-        }, 2000);
+
+    if (uiSettings && uiSettings.showNotifications) {
+        if (!outputChannel) {
+            outputChannel = vscode.window.createOutputChannel('Comitto');
+        }
+        outputChannel.appendLine(`[${new Date().toLocaleTimeString('de-DE')}] ℹ️ Comitto ist bereit! Verwenden Sie die Seitenleiste oder das Symbol in der Statusleiste.`);
     }
 }
 
@@ -857,7 +846,7 @@ function setupFileWatcher(context, settingsSnapshot = settings.getAll()) {
     // Neuen Watcher erstellen
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
-        vscode.window.showErrorMessage('Comitto: Kein Workspace gefunden.');
+        showNotification('Comitto: Kein Workspace gefunden.', 'error');
         return;
     }
 
@@ -1685,38 +1674,86 @@ async function stageChanges(mode) {
  */
 function showNotification(message, type = 'info') {
     const uiSettings = settings.get('uiSettings');
-    
+
     // Zum Debug-Log hinzufügen
     addDebugLog(message, type);
-    
-    // Benachrichtigung anzeigen, wenn aktiviert
-    if (uiSettings && uiSettings.showNotifications) {
-        switch (type) {
-            case 'info':
-                vscode.window.showInformationMessage(message);
-                break;
-            case 'warning':
-                vscode.window.showWarningMessage(message);
-                break;
-            case 'error':
-                vscode.window.showErrorMessage(message);
-                break;
-            default:
-                vscode.window.showInformationMessage(message);
-        }
+
+    // Benachrichtigung im Output Channel anzeigen (keine Pop-Ups mehr)
+    if (!outputChannel) {
+        outputChannel = vscode.window.createOutputChannel('Comitto');
     }
-    
-    // Status in der Statusleiste aktualisieren
-    if (type === 'error' && statusBarItem) {
+
+    const timestamp = new Date().toLocaleTimeString('de-DE');
+    const typeIcon = type === 'error' ? '❌' : type === 'warning' ? '⚠️' : 'ℹ️';
+    outputChannel.appendLine(`[${timestamp}] ${typeIcon} ${message}`);
+
+    // Bei Fehlern Output Channel automatisch anzeigen
+    if (type === 'error') {
+        outputChannel.show(true);
+    }
+
+    // Status Bar kurz aktualisieren für wichtige Nachrichten
+    if (statusBarItem && (type === 'error' || type === 'warning')) {
         const originalText = statusBarItem.text;
-        statusBarItem.text = "$(error) Comitto: Fehler";
-        
-        // Nach 3 Sekunden zurücksetzen
+        const originalTooltip = statusBarItem.tooltip;
+        statusBarItem.text = type === 'error' ? '$(error) Comitto: Fehler' : '$(warning) Comitto: Warnung';
+        statusBarItem.tooltip = message;
+
+        // Nach 5 Sekunden zurücksetzen
         setTimeout(() => {
             if (statusBarItem) {
                 statusBarItem.text = originalText;
+                statusBarItem.tooltip = originalTooltip;
             }
-        }, 3000);
+        }, 5000);
+    }
+
+}
+
+/**
+ * Bereinigt alte Log-Dateien und benachrichtigt den User im Output Channel
+ * @param {number} maxAgeDays - Maximales Alter der Log-Dateien in Tagen (Standard: 7)
+ */
+function cleanupOldLogFiles(maxAgeDays = 7) {
+    try {
+        const logDir = path.join(os.homedir(), '.comitto', 'logs');
+
+        if (!fs.existsSync(logDir)) {
+            debugLog('Log-Verzeichnis existiert nicht, kein Cleanup erforderlich', 'cleanup', 'info');
+            return;
+        }
+
+        const files = fs.readdirSync(logDir);
+        const now = Date.now();
+        const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+        let deletedCount = 0;
+        const deletedFiles = [];
+
+        for (const file of files) {
+            if (file.endsWith('.log')) {
+                const filePath = path.join(logDir, file);
+                const stats = fs.statSync(filePath);
+                const fileAge = now - stats.mtimeMs;
+
+                if (fileAge > maxAgeMs) {
+                    fs.unlinkSync(filePath);
+                    deletedFiles.push(file);
+                    deletedCount++;
+                    debugLog(`Alte Log-Datei gelöscht: ${file} (Alter: ${Math.floor(fileAge / (24 * 60 * 60 * 1000))} Tage)`, 'cleanup', 'info');
+                }
+            }
+        }
+
+        if (deletedCount > 0) {
+            const message = `${deletedCount} alte Log-Datei(en) automatisch gelöscht: ${deletedFiles.join(', ')}`;
+            debugLog(message, 'cleanup', 'info');
+            showNotification(message, 'info');
+        } else {
+            debugLog('Keine alten Log-Dateien zum Löschen gefunden', 'cleanup', 'info');
+        }
+    } catch (error) {
+        debugLog(`Fehler beim Bereinigen der Log-Dateien: ${error.message}`, 'cleanup', 'error');
+        console.error('Log-Cleanup-Fehler:', error);
     }
 }
 

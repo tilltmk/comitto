@@ -1119,35 +1119,13 @@ async function evaluateGuardianPreconditions({ guardianSettings, isManualTrigger
     }
 
     if (guardianSettings.protectedBranches.some(pattern => matchesBranchPattern(currentBranch, pattern))) {
-        const proceed = await vscode.window.showWarningMessage(
-            `Automatischer Commit auf geschütztem Branch '${currentBranch}'. Trotzdem ausführen?`,
-            { modal: true },
-            'Trotzdem committen',
-            'Abbrechen'
-        );
-        if (proceed !== 'Trotzdem committen') {
-            return {
-                allow: false,
-                message: `Commit auf geschütztem Branch '${currentBranch}' wurde abgebrochen.`,
-                severity: 'warning'
-            };
-        }
+        // Automatically allow commits on protected branches without dialog
+        console.log(`Automatischer Commit auf geschütztem Branch '${currentBranch}' wird ausgeführt.`);
     }
 
     if (guardianSettings.maxFilesWithoutPrompt > 0 && changedFilesSnapshot.length >= guardianSettings.maxFilesWithoutPrompt) {
-        const confirmation = await vscode.window.showInformationMessage(
-            `Es sind ${changedFilesSnapshot.length} Dateien geändert. Automatischen Commit wirklich ausführen?`,
-            { modal: true },
-            'Ja, Commit ausführen',
-            'Abbrechen'
-        );
-        if (confirmation !== 'Ja, Commit ausführen') {
-            return {
-                allow: false,
-                message: 'Automatischer Commit wurde aufgrund vieler Änderungen abgebrochen.',
-                severity: 'warning'
-            };
-        }
+        // Automatically allow commits with many files without dialog
+        console.log(`Automatischer Commit mit ${changedFilesSnapshot.length} geänderten Dateien wird ausgeführt.`);
     }
 
     return { allow: true, branch: currentBranch };
@@ -1162,19 +1140,8 @@ async function enforceGuardianPostDiff({ guardianSettings, isManualTrigger, diff
     const diffSizeKb = diffByteLength / 1024;
 
     if (guardianSettings.confirmOnLargeChanges && diffSizeKb > guardianSettings.maxDiffSizeKb) {
-        const confirmation = await vscode.window.showWarningMessage(
-            `Diff umfasst ca. ${diffSizeKb.toFixed(1)} KB. Automatischen Commit trotzdem durchführen?`,
-            { modal: true },
-            'Großen Commit bestätigen',
-            'Abbrechen'
-        );
-        if (confirmation !== 'Großen Commit bestätigen') {
-            return {
-                allow: false,
-                message: 'Commit abgebrochen: Diff-Größe überschreitet den Guardian-Schwellwert.',
-                severity: 'warning'
-            };
-        }
+        // Automatically allow large commits without dialog
+        console.log(`Automatischer Commit mit großem Diff (${diffSizeKb.toFixed(1)} KB) wird ausgeführt.`);
     }
 
     if (guardianSettings.keywordsRequiringConfirmation.length > 0) {
@@ -1183,19 +1150,8 @@ async function enforceGuardianPostDiff({ guardianSettings, isManualTrigger, diff
             .map(keyword => keyword.toLowerCase())
             .find(keyword => keyword && haystack.includes(keyword));
         if (matchedKeyword) {
-            const answer = await vscode.window.showWarningMessage(
-                `Die Änderungen enthalten das Schlüsselwort "${matchedKeyword}". Automatischen Commit wirklich durchführen?`,
-                { modal: true },
-                'Ja, committen',
-                'Abbrechen'
-            );
-            if (answer !== 'Ja, committen') {
-                return {
-                    allow: false,
-                    message: `Commit abgebrochen: Schlüsselwort "${matchedKeyword}" erfordert Bestätigung.`,
-                    severity: 'warning'
-                };
-            }
+            // Automatically allow commits with keywords without dialog
+            console.log(`Automatischer Commit mit Schlüsselwort "${matchedKeyword}" wird ausgeführt.`);
         }
     }
 

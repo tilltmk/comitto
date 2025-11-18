@@ -127,6 +127,46 @@ function clearErrorLogs() {
 }
 
 /**
+ * Prüft, ob ein Fehler auf ein index.lock Problem hinweist
+ * @param {Error} error Der zu prüfende Fehler
+ * @returns {boolean} true wenn der Fehler mit index.lock zusammenhängt
+ */
+function isIndexLockError(error) {
+    const errorMessage = (error.message || '').toLowerCase();
+    const stderrMessage = (error.stderr || '').toLowerCase();
+    const combinedMessage = errorMessage + ' ' + stderrMessage;
+
+    return combinedMessage.includes('index.lock') ||
+           combinedMessage.includes('unable to create') ||
+           combinedMessage.includes('file exists') && combinedMessage.includes('.git/index') ||
+           combinedMessage.includes('another git process') ||
+           combinedMessage.includes('lock file');
+}
+
+/**
+ * Löscht die index.lock Datei im angegebenen Repository
+ * @param {string} repoPath Pfad zum Git Repository
+ * @returns {boolean} true wenn die Datei gelöscht wurde oder nicht existierte
+ */
+function deleteIndexLock(repoPath) {
+    try {
+        const indexLockPath = path.join(repoPath, '.git', 'index.lock');
+
+        if (fs.existsSync(indexLockPath)) {
+            fs.unlinkSync(indexLockPath);
+            console.log('index.lock erfolgreich gelöscht:', indexLockPath);
+            return true;
+        } else {
+            console.log('index.lock existiert nicht:', indexLockPath);
+            return false;
+        }
+    } catch (deleteError) {
+        console.error('Fehler beim Löschen von index.lock:', deleteError);
+        return false;
+    }
+}
+
+/**
  * Führt einen Git-Befehl aus
  * @param {string} command Der auszuführende Git-Befehl
  * @param {string} cwd Arbeitsverzeichnis für den Befehl
@@ -141,7 +181,7 @@ function executeGitCommand(command, cwd) {
                 const errorMessage = stderr || error.message || 'Unbekannter Git-Fehler';
                 
                 // Spezifische Behandlung für Pufferüberlauf
-                if (errorMessage.includes('maxBuffer length exceeded') || 
+                if (errorMessage.includes('maxBuffer length exceeded') ||
                     error.code === 'ERR_CHILD_PROCESS_STDOUT_MAXBUFFER') {
                     console.error(`Git-Befehl mit Pufferüberlauf: ${command}`);
                     const bufferError = new ComittoError(
@@ -154,7 +194,38 @@ function executeGitCommand(command, cwd) {
                     reject(bufferError);
                     return;
                 }
-                
+
+                // Spezifische Behandlung für index.lock Probleme
+                error.stderr = stderr;  // stderr zum error-Objekt hinzufügen für isIndexLockError
+                if (isIndexLockError(error)) {
+                    console.warn('index.lock Problem erkannt, versuche automatische Lösung...');
+                    const lockDeleted = deleteIndexLock(cwd);
+
+                    if (lockDeleted) {
+                        console.log('index.lock gelöscht, wiederhole Git-Befehl:', command);
+                        // Befehl nach kurzer Verzögerung wiederholen
+                        setTimeout(() => {
+                            exec(command, { cwd, maxBuffer: 50 * 1024 * 1024 }, (retryError, retryStdout, retryStderr) => {
+                                if (retryError) {
+                                    console.error('Wiederholter Versuch nach index.lock Löschung fehlgeschlagen:', retryError);
+                                    const gitError = new ComittoError(
+                                        retryStderr || retryError.message || 'Git-Fehler nach index.lock Löschung',
+                                        ErrorTypes.GIT,
+                                        retryError,
+                                        { command, cwd, stderr: retryStderr }
+                                    );
+                                    logError(gitError);
+                                    reject(gitError);
+                                } else {
+                                    console.log('Git-Befehl nach index.lock Löschung erfolgreich');
+                                    resolve(retryStdout);
+                                }
+                            });
+                        }, 500);  // 500ms Verzögerung vor Wiederholung
+                        return;
+                    }
+                }
+
                 console.error(`Git-Befehl fehlgeschlagen: ${command}`, errorMessage);
                 const gitError = new ComittoError(
                     errorMessage,
@@ -324,5 +395,7 @@ module.exports = {
     clearErrorLogs,
     withRetry,
     getDiagnosticInfo,
-    updateStatusBarProgress
+    updateStatusBarProgress,
+    isIndexLockError,
+    deleteIndexLock
 }; 

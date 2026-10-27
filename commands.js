@@ -1017,7 +1017,7 @@ function registerCommands(context, providers, statusBarItem, setupFileWatcher, d
                     const workspaceFolders = vscode.workspace.workspaceFolders;
                     if (workspaceFolders && workspaceFolders.length > 0) {
                         const path = workspaceFolders[0].uri.fsPath;
-                        await executeGitCommand(path, ['add', '-A']);
+                        await executeGitCommand(['add', '-A'], path);
                         showNotification('Alle Änderungen wurden gestagt.', 'info');
                     } else {
                         showNotification('Kein Arbeitsbereich geöffnet.', 'error');

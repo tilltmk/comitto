@@ -1,4 +1,4 @@
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -167,15 +167,23 @@ function deleteIndexLock(repoPath) {
 }
 
 /**
- * Führt einen Git-Befehl aus
- * @param {string} command Der auszuführende Git-Befehl
+ * Führt Git ohne Shell aus (Argumente als Array, keine Interpolation)
+ * @param {string[]} args Git-Argumente, z. B. ['add', '--', datei]
  * @param {string} cwd Arbeitsverzeichnis für den Befehl
+ * @param {{input?: string}} [options] input wird auf stdin geschrieben
  * @returns {Promise<string>} Ausgabe des Befehls
  */
-function executeGitCommand(command, cwd) {
-    return new Promise((resolve, reject) => {
+function executeGitCommand(args, cwd, options = {}) {
+    const command = `git ${args.join(' ')}`;
+    const run = (callback) => {
         // Erhöhe maxBuffer auf 50 MB (50 * 1024 * 1024), um große Ausgaben zu unterstützen
-        exec(command, { cwd, maxBuffer: 50 * 1024 * 1024 }, (error, stdout, stderr) => {
+        const child = execFile('git', args, { cwd, maxBuffer: 50 * 1024 * 1024 }, callback);
+        if (options.input !== undefined) {
+            child.stdin.end(options.input);
+        }
+    };
+    return new Promise((resolve, reject) => {
+        run((error, stdout, stderr) => {
             if (error) {
                 // Detailliertere Fehlermeldung mit spezifischer Behandlung von Pufferüberlauf
                 const errorMessage = stderr || error.message || 'Unbekannter Git-Fehler';
@@ -205,7 +213,7 @@ function executeGitCommand(command, cwd) {
                         console.log('index.lock gelöscht, wiederhole Git-Befehl:', command);
                         // Befehl nach kurzer Verzögerung wiederholen
                         setTimeout(() => {
-                            exec(command, { cwd, maxBuffer: 50 * 1024 * 1024 }, (retryError, retryStdout, retryStderr) => {
+                            run((retryError, retryStdout, retryStderr) => {
                                 if (retryError) {
                                     console.error('Wiederholter Versuch nach index.lock Löschung fehlgeschlagen:', retryError);
                                     const gitError = new ComittoError(
@@ -240,6 +248,18 @@ function executeGitCommand(command, cwd) {
             resolve(stdout);
         });
     });
+}
+
+/**
+ * Prüft einen Branch-Namen mit git check-ref-format --branch und gibt ihn zurück.
+ * @throws {ComittoError} bei ungültigem Namen
+ */
+async function validateBranchName(name, cwd) {
+    if (typeof name !== 'string' || !name || name.startsWith('-')) {
+        throw new ComittoError(`Ungültiger Branch-Name: ${name}`, ErrorTypes.GIT, null, { name, cwd });
+    }
+    await executeGitCommand(['check-ref-format', '--branch', name], cwd);
+    return name;
 }
 
 /**
@@ -387,6 +407,7 @@ function updateStatusBarProgress(statusBarItem, action, progress, details = '') 
 
 module.exports = {
     executeGitCommand,
+    validateBranchName,
     getStatusText,
     ComittoError,
     ErrorTypes,

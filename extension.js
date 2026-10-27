@@ -1,13 +1,12 @@
 const vscode = require('vscode');
 const axios = require('axios');
-const { exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const ignore = require('ignore');
 const ui = require('./ui');
 const commands = require('./commands');
 const settings = require('./settings');
-const { executeGitCommand, getStatusText, ComittoError, ErrorTypes, logError, getErrorLogs, withRetry, getDiagnosticInfo, updateStatusBarProgress } = require('./utils');
+const { executeGitCommand, validateBranchName, getStatusText, ComittoError, ErrorTypes, logError, getErrorLogs, withRetry, getDiagnosticInfo, updateStatusBarProgress } = require('./utils');
 const os = require('os');
 const { WebviewPanel } = require('vscode');
 
@@ -738,7 +737,7 @@ async function checkGitRepository(context) {
     }
     const repoPath = workspaceFolders[0].uri.fsPath;
     try {
-        await executeGitCommand('git rev-parse --is-inside-work-tree', repoPath);
+        await executeGitCommand(['rev-parse', '--is-inside-work-tree'], repoPath);
         console.log('Git-Repository gefunden.');
         return true;
     } catch (error) {
@@ -1113,7 +1112,7 @@ async function evaluateGuardianPreconditions({ guardianSettings, isManualTrigger
 
     let currentBranch = '';
     try {
-        currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
+        currentBranch = (await executeGitCommand(['rev-parse', '--abbrev-ref', 'HEAD'], repoPath)).trim();
     } catch (error) {
         console.warn('Branch konnte für Guardian-Prüfung nicht ermittelt werden:', error);
     }
@@ -1186,7 +1185,7 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
         try {
             // Prüfen, ob Git initialisiert ist
             try {
-                await executeGitCommand('git rev-parse --is-inside-work-tree', repoPath);
+                await executeGitCommand(['rev-parse', '--is-inside-work-tree'], repoPath);
                 updateStatusBarProgress(statusBarItem, 'Commit vorbereiten', 10, 'Git-Repo geprüft');
             } catch (error) {
                 throw new Error('Kein Git-Repository gefunden. Bitte initialisieren Sie zuerst ein Git-Repository.');
@@ -1222,7 +1221,7 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                 showNotification(`Fehler beim Stagen: ${stageError.message}. Versuche Fallback-Methode...`, 'warning');
                 
                 // Fallback: Alle Änderungen stagen
-                await executeGitCommand('git add .', repoPath);
+                await executeGitCommand(['add', '.'], repoPath);
                 updateStatusBarProgress(statusBarItem, 'Staging (Fallback)', 30);
             }
             
@@ -1230,7 +1229,7 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             let gitStatus = '';
             try {
                 updateStatusBarProgress(statusBarItem, 'Status abrufen', 35);
-                gitStatus = await executeGitCommand('git status --porcelain', repoPath);
+                gitStatus = await executeGitCommand(['status', '--porcelain'], repoPath);
             } catch (statusError) {
                 // Wenn git status fehlschlägt, versuchen wir es trotzdem weiter
                 console.warn('Fehler bei git status, versuche trotzdem fortzufahren:', statusError);
@@ -1250,7 +1249,7 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             let diffOutput = '';
             try {
                 updateStatusBarProgress(statusBarItem, 'Diff berechnen', 40);
-                diffOutput = await executeGitCommand('git diff --cached', repoPath);
+                diffOutput = await executeGitCommand(['diff', '--cached'], repoPath);
                 updateStatusBarProgress(statusBarItem, 'Diff berechnet', 50);
             } catch (diffError) {
                 // Bei Pufferüberlauf oder anderen Diff-Fehlern trotzdem weitermachen
@@ -1259,7 +1258,7 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                 try {
                     // Nur Liste der geänderten Dateien abrufen
                     updateStatusBarProgress(statusBarItem, 'Diff (Alternative)', 45);
-                    const fileList = await executeGitCommand('git diff --cached --name-status', repoPath);
+                    const fileList = await executeGitCommand(['diff', '--cached', '--name-status'], repoPath);
                     diffOutput = 'Diff konnte nicht vollständig abgerufen werden.\nGeänderte Dateien:\n' + fileList;
                     updateStatusBarProgress(statusBarItem, 'Diff (Alternativ) berechnet', 50);
                 } catch (fileListError) {
@@ -1327,20 +1326,21 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                     
                     // Aktuellen Branch bestimmen (ggf. aus Guardian-Check wiederverwenden)
                     if (!currentBranch) {
-                        currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
+                        currentBranch = (await executeGitCommand(['rev-parse', '--abbrev-ref', 'HEAD'], repoPath)).trim();
                     }
                     
                     // Nur wechseln, wenn nicht bereits auf dem Ziel-Branch
                     if (currentBranch !== gitSettings.branch) {
                         // Prüfen, ob der Branch existiert
-                        const branches = await executeGitCommand('git branch', repoPath);
+                        const branches = await executeGitCommand(['branch'], repoPath);
                         const branchExists = branches.includes(gitSettings.branch);
                         
                         if (branchExists) {
                             // Zu existierendem Branch wechseln
                             try {
                                 updateStatusBarProgress(statusBarItem, `Wechsle zu ${gitSettings.branch}`, 82);
-                                await executeGitCommand(`git checkout ${gitSettings.branch}`, repoPath);
+                                await validateBranchName(gitSettings.branch, repoPath);
+                                await executeGitCommand(['checkout', gitSettings.branch, '--'], repoPath);
                                 showNotification(`Zu Branch '${gitSettings.branch}' gewechselt.`, 'info');
                             } catch (checkoutError) {
                                 // Fehler beim Checkout - möglicherweise ungespeicherte Änderungen
@@ -1351,7 +1351,8 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
                             // Neuen Branch erstellen und wechseln
                             try {
                                 updateStatusBarProgress(statusBarItem, `Erstelle Branch ${gitSettings.branch}`, 82);
-                                await executeGitCommand(`git checkout -b ${gitSettings.branch}`, repoPath);
+                                await validateBranchName(gitSettings.branch, repoPath);
+                                await executeGitCommand(['checkout', '-b', gitSettings.branch], repoPath);
                                 showNotification(`Branch '${gitSettings.branch}' erstellt und ausgecheckt.`, 'info');
                             } catch (createBranchError) {
                                 updateStatusBarProgress(statusBarItem, 'Branch-Erstellung fehlgeschlagen', -1);
@@ -1369,9 +1370,7 @@ async function performAutoCommit(isManualTrigger = false, retryCount = 0) {
             updateStatusBarProgress(statusBarItem, 'Führe Commit aus', 90);
             
             try {
-                // Escapte Anführungszeichen für Shell
-                const escapedMessage = commitMessage.replace(/"/g, '\\"').replace(/`/g, "'");
-                await executeGitCommand(`git commit -m "${escapedMessage}"`, repoPath);
+                await executeGitCommand(['commit', '-F', '-'], repoPath, { input: commitMessage });
                 updateStatusBarProgress(statusBarItem, 'Commit abgeschlossen', 95);
                 
                 // Benachrichtigungen anzeigen basierend auf den Einstellungen
@@ -1473,7 +1472,7 @@ async function performAutoPush(repoPath) {
     // Aktuelle Branch bestimmen
     let currentBranch;
     try {
-        currentBranch = (await executeGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)).trim();
+        currentBranch = (await executeGitCommand(['rev-parse', '--abbrev-ref', 'HEAD'], repoPath)).trim();
     } catch (error) {
         throw new Error(`Fehler beim Ermitteln des aktuellen Branches: ${error.message}`);
     }
@@ -1481,7 +1480,13 @@ async function performAutoPush(repoPath) {
     // Push-Optionen basierend auf Einstellungen
     const gitSettings = currentSettings.gitSettings;
     const pushOptions = gitSettings.pushOptions || '';
-    const pushCommand = `git push origin ${currentBranch} ${pushOptions}`.trim();
+    const pushOptionList = pushOptions.split(/\s+/).filter(Boolean);
+    const erlaubt = new Set(['-u', '--set-upstream', '--tags', '--follow-tags', '--no-verify', '--force-with-lease', '--force', '-f', '--atomic', '--prune', '--dry-run', '-n']);
+    const unzulaessig = pushOptionList.find(o => !erlaubt.has(o));
+    if (unzulaessig) {
+        throw new Error(`Nicht erlaubte Push-Option: ${unzulaessig}`);
+    }
+    const pushArgs = ['push', ...pushOptionList, 'origin', currentBranch];
     
     let pushSuccess = false;
     let pushError = null;
@@ -1489,7 +1494,7 @@ async function performAutoPush(repoPath) {
     // Versuche es mehrfach mit Push
     for (let i = 0; i <= MAX_PUSH_RETRIES; i++) {
         try {
-            await executeGitCommand(pushCommand, repoPath);
+            await executeGitCommand(pushArgs, repoPath);
             pushSuccess = true;
             break;
         } catch (error) {
@@ -1526,10 +1531,10 @@ async function performAutoPush(repoPath) {
             
             try {
                 showNotification('Push fehlgeschlagen. Versuche Pull...', 'warning');
-                await executeGitCommand(`git pull origin ${currentBranch}`, repoPath);
+                await executeGitCommand(['pull', 'origin', currentBranch], repoPath);
                 
                 // Erneut versuchen zu pushen
-                await executeGitCommand(pushCommand, repoPath);
+                await executeGitCommand(pushArgs, repoPath);
                 
                 if (notificationSettings.onPush) {
                     showNotification(`Pull & Push erfolgreich: Änderungen wurden zu origin/${currentBranch} gepusht.`, 'info');
@@ -1560,7 +1565,7 @@ async function stageChanges(mode) {
     // Bei manuellem Modus Benutzer nach Dateien fragen
     if (mode === 'prompt') {
         // Git Status abrufen
-        const gitStatusOutput = await executeGitCommand('git status --porcelain', repoPath);
+        const gitStatusOutput = await executeGitCommand(['status', '--porcelain'], repoPath);
         if (!gitStatusOutput.trim()) {
             throw new Error('Keine Änderungen zum Stagen gefunden.');
         }
@@ -1593,7 +1598,7 @@ async function stageChanges(mode) {
         
         // Ausgewählte Dateien stagen
         for (const file of selectedFiles) {
-            await executeGitCommand(`git add "${file.label}"`, repoPath);
+            await executeGitCommand(['add', '--', file.label], repoPath);
         }
         
         return;
@@ -1608,7 +1613,7 @@ async function stageChanges(mode) {
                 // Bei Windows können wir Probleme mit den Pfadtrennzeichen haben,
                 // daher verwenden wir ein sicheres Muster für die Ausführung
                 const safePattern = pattern.replace(/\\/g, '/');
-                await executeGitCommand(`git add "${safePattern}"`, repoPath);
+                await executeGitCommand(['add', '--', safePattern], repoPath);
             } catch (error) {
                 console.error(`Fehler beim Stagen von Muster ${pattern}:`, error);
                 // Wir werfen den Fehler nicht weiter, sondern versuchen andere Muster
@@ -1619,7 +1624,7 @@ async function stageChanges(mode) {
     }
     
     // Standardmäßig alle Änderungen stagen
-    await executeGitCommand('git add .', repoPath);
+    await executeGitCommand(['add', '.'], repoPath);
 }
 
 /**
@@ -1940,7 +1945,7 @@ function setupAutoBackgroundMonitoring(context) {
             if (!workspaceFolders) return;
             
             const repoPath = workspaceFolders[0].uri.fsPath;
-            const gitStatus = await executeGitCommand('git status --porcelain', repoPath);
+            const gitStatus = await executeGitCommand(['status', '--porcelain'], repoPath);
             
             if (gitStatus.trim() && changedFiles.size === 0) {
                 // Es gibt Änderungen, die nicht in changedFiles erfasst wurden

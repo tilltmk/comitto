@@ -2,6 +2,13 @@
 
 Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert.
 
+## [2.6.1] - 2026-10-27
+
+### Behoben
+- Sicherheit: Git-Aufrufe ohne Shell (execFile), Dateinamen/Branch/Commit-Nachricht konnten Befehle einschleusen; commands.js rief executeGitCommand mit vertauschten Argumenten auf.
+- Push-Optionen (`gitSettings.pushOptions`) werden gegen eine Liste erlaubter Flags geprüft; Branch-Namen werden mit `git check-ref-format --branch` validiert.
+- Der automatische Wiederholungsversuch nach index.lock-Bereinigung läuft ebenfalls ohne Shell.
+
 ## [2.6.0] - 2025-11-16
 
 ### Hinzugefügt
